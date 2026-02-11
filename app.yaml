@@ -1,0 +1,44 @@
+# Cloud Run service configuration
+runtime: python311
+
+# Service settings
+service: employee-performance-api
+region: asia-south1
+
+# Instance configuration
+instance_class: F1
+automatic_scaling:
+  min_instances: 0
+  max_instances: 10
+  target_cpu_utilization: 0.65
+  target_throughput_utilization: 0.75
+
+# Resources
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10
+
+# Network settings
+network:
+  session_affinity: false
+
+# Health check
+health_check:
+  enable_health_check: True
+  check_interval_sec: 30
+  timeout_sec: 10
+  unhealthy_threshold: 2
+  healthy_threshold: 2
+
+# Environment variables
+env_variables:
+  PORT: 8080
+  PYTHON_VERSION: 3.11
+
+# Deployment settings
+deployment:
+  strategy: rolling_update
+  rolling_update:
+    max_unavailable: 0
+    max_surge: 1
