@@ -12,11 +12,15 @@ env:
   REPOSITORY: ods-repo
   SERVICE_NAME: employee-performance-api
   IMAGE_NAME: backend
+  # Hardcode the values directly since secrets aren't working
+  WIF_PROVIDER: projects/302004244593/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+  SERVICE_ACCOUNT: github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com
 
 permissions:
   contents: read
   id-token: write
   pull-requests: read
+  deployments: write
 
 jobs:
   build-and-deploy:
@@ -26,24 +30,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug all available secrets
+      - name: Debug environment
         run: |
-          echo "All secrets available:"
-          echo "WIF_PROVIDER value: ${{ secrets.WIF_PROVIDER }}"
-          echo "SERVICE_ACCOUNT value: ${{ secrets.SERVICE_ACCOUNT }}"
-          echo "PROJECT_ID value: ${{ secrets.PROJECT_ID }}"
-          echo "----------------------------------------"
-          echo "WIF_PROVIDER exists: ${{ secrets.WIF_PROVIDER != '' }}"
-          echo "SERVICE_ACCOUNT exists: ${{ secrets.SERVICE_ACCOUNT != '' }}"
-          echo "PROJECT_ID exists: ${{ secrets.PROJECT_ID != '' }}"
+          echo "Using environment variables:"
+          echo "WIF_PROVIDER: ${{ env.WIF_PROVIDER }}"
+          echo "SERVICE_ACCOUNT: ${{ env.SERVICE_ACCOUNT }}"
+          echo "PROJECT_ID: ${{ env.PROJECT_ID }}"
 
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.SERVICE_ACCOUNT }}
-        continue-on-error: false
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
