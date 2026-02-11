@@ -25,11 +25,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug secrets
+      - name: Debug all available secrets
         run: |
-          echo "WIF_PROVIDER is set: ${{ secrets.WIF_PROVIDER != '' }}"
-          echo "SERVICE_ACCOUNT is set: ${{ secrets.SERVICE_ACCOUNT != '' }}"
-          echo "PROJECT_ID is set: ${{ secrets.PROJECT_ID != '' }}"
+          echo "All secrets available:"
+          echo "WIF_PROVIDER value: ${{ secrets.WIF_PROVIDER }}"
+          echo "SERVICE_ACCOUNT value: ${{ secrets.SERVICE_ACCOUNT }}"
+          echo "PROJECT_ID value: ${{ secrets.PROJECT_ID }}"
+          echo "----------------------------------------"
+          echo "WIF_PROVIDER exists: ${{ secrets.WIF_PROVIDER != '' }}"
+          echo "SERVICE_ACCOUNT exists: ${{ secrets.SERVICE_ACCOUNT != '' }}"
+          echo "PROJECT_ID exists: ${{ secrets.PROJECT_ID != '' }}"
 
       - name: Google Auth
         id: auth
@@ -37,6 +42,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.SERVICE_ACCOUNT }}
+        continue-on-error: false
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
