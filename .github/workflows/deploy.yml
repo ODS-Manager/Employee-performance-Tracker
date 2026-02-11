@@ -29,9 +29,24 @@ jobs:
 
       - name: Debug environment
         run: |
+          echo "=== ENVIRONMENT DEBUG ==="
           echo "Project ID: ${{ env.PROJECT_ID }}"
           echo "Region: ${{ env.REGION }}"
           echo "Service: ${{ env.SERVICE_NAME }}"
+          echo "Repository: ${{ env.REPOSITORY }}"
+          echo "Image: ${{ env.IMAGE_NAME }}"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "========================"
+
+      - name: Check if main.py exists
+        run: |
+          echo "=== FILES DEBUG ==="
+          ls -la
+          echo "main.py exists:"
+          if [ -f "main.py" ]; then echo "YES"; cat main.py; else echo "NO"; fi
+          echo "Dockerfile exists:"
+          if [ -f "Dockerfile" ]; then echo "YES"; cat Dockerfile; else echo "NO"; fi
+          echo "==================="
 
       - name: Google Auth with Workload Identity
         id: auth
@@ -40,25 +55,54 @@ jobs:
           workload_identity_provider: projects/302004244593/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com
           access_token_lifetime: 300s
+        continue-on-error: false
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
+      - name: Verify gcloud auth
+        run: |
+          echo "=== GCLOUD DEBUG ==="
+          gcloud auth list
+          gcloud config list
+          echo "==================="
+
       - name: Configure Docker
         run: |
+          echo "=== DOCKER CONFIG ==="
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+          echo "==================="
 
-      - name: Build and push Docker image
+      - name: Build Docker image with debug
         run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          echo "=== DOCKER BUILD ==="
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} . || {
+            echo "Docker build failed, checking files..."
+            ls -la
+            echo "Current directory:"
+            pwd
+            echo "Dockerfile content:"
+            cat Dockerfile
+            exit 1
+          }
+          echo "Docker image built successfully"
+          docker images | grep ${{ env.IMAGE_NAME }}
+          echo "==================="
+
+      - name: Push Docker image
+        run: |
+          echo "=== DOCKER PUSH ==="
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest
+          echo "Docker push completed"
+          echo "==================="
 
       - name: Deploy to Cloud Run
         run: |
+          echo "=== CLOUD RUN DEPLOY ==="
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
@@ -69,8 +113,19 @@ jobs:
             --cpu 1 \
             --min-instances 0 \
             --max-instances 10 \
-            --quiet
+            --quiet || {
+            echo "Deployment failed, checking service status..."
+            gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="table(status.latestReadyRevisionName,status.url)" || echo "Service doesn't exist yet"
+            exit 1
+          }
+          echo "Deployment successful"
+          echo "==================="
 
       - name: Show service URL
         run: |
-          echo "Service deployed at: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
+          echo "=== SERVICE INFO ==="
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')
+          echo "Service deployed at: $SERVICE_URL"
+          echo "Testing health endpoint:"
+          curl -f "$SERVICE_URL/health" || echo "Health check failed"
+          echo "==================="
