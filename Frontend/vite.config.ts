@@ -19,4 +19,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Ensure production builds work correctly
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
+  },
+  define: {
+    // Ensure production mode is set correctly
+    __APP_ENV__: JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
 })

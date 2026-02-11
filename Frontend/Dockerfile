@@ -12,15 +12,14 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Copy production environment
-COPY .env.production .env.production
-
-# Accept build argument for API URL
+# Accept build argument for API URL (for debugging)
 ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
 
-# Set production mode
-ENV PROD=true
+# Build with production mode
+RUN npm run build
+
+# Set production mode for runtime
+ENV NODE_ENV=production
 
 # Build the application
 RUN npm run build

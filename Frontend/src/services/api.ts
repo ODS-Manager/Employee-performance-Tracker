@@ -81,7 +81,7 @@ import type {
 } from '../types'
 
 // Use relative URL in production to go through nginx proxy, full URL in development
-const API_URL = import.meta.env.PROD ? '/api/v1' : (import.meta.env.VITE_API_URL || '/api/v1')
+const API_URL = import.meta.env.MODE === 'production' ? '/api/v1' : (import.meta.env.VITE_API_URL || 'http://localhost:8000')
 
 export const api = axios.create({
   baseURL: API_URL,
