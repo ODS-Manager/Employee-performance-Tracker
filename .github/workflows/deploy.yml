@@ -25,12 +25,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug secrets
+        run: |
+          echo "WIF_PROVIDER is set: ${{ secrets.WIF_PROVIDER != '' }}"
+          echo "SERVICE_ACCOUNT is set: ${{ secrets.SERVICE_ACCOUNT != '' }}"
+          echo "PROJECT_ID is set: ${{ secrets.PROJECT_ID != '' }}"
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.PROJECT_ID }}
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
