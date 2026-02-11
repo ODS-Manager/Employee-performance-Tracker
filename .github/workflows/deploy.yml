@@ -12,9 +12,6 @@ env:
   REPOSITORY: ods-repo
   SERVICE_NAME: employee-performance-api
   IMAGE_NAME: backend
-  # Hardcode the values directly since secrets aren't working
-  WIF_PROVIDER: projects/302004244593/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
-  SERVICE_ACCOUNT: github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com
 
 permissions:
   contents: read
@@ -32,25 +29,26 @@ jobs:
 
       - name: Debug environment
         run: |
-          echo "Using environment variables:"
-          echo "WIF_PROVIDER: ${{ env.WIF_PROVIDER }}"
-          echo "SERVICE_ACCOUNT: ${{ env.SERVICE_ACCOUNT }}"
-          echo "PROJECT_ID: ${{ env.PROJECT_ID }}"
+          echo "Project ID: ${{ env.PROJECT_ID }}"
+          echo "Region: ${{ env.REGION }}"
+          echo "Service: ${{ env.SERVICE_NAME }}"
 
-      - name: Google Auth
+      - name: Google Auth with Workload Identity
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/302004244593/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com
+          access_token_lifetime: 300s
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Configure Docker to use gcloud as credential helper
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and push Docker image
         run: |
