@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Debug</title>
+</head>
+<body>
+    <h1>Frontend Debug Page</h1>
+    <p>This page helps debug frontend API configuration</p>
+    <div id="api-info"></div>
+    <div id="test-results"></div>
+    
+    <script>
+        // Test API calls
+        const apiBase = '/api/v1';
+        document.getElementById('api-info').innerHTML = '<p>API Base URL: ' + apiBase + '</p>';
+        
+        // Test API calls
+        fetch(apiBase + '/test')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('test-results').innerHTML = 
+                    '<p><strong>API Test Result:</strong></p>' +
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                document.getElementById('test-results').innerHTML = 
+                    '<p><strong>API Test Failed:</strong></p>' +
+                    '<p>Error: ' + error.message + '</p>';
+            });
+    </script>
+</body>
+</html>

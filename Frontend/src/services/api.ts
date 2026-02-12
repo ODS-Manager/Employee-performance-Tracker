@@ -90,6 +90,9 @@ export const api = axios.create({
   },
 })
 
+// Debug: Log API base URL to verify it's correct
+console.log('API Base URL:', API_URL)
+
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false
 let failedQueue: Array<{
