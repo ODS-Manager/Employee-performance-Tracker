@@ -1,5 +1,5 @@
-# Simplified Frontend Dockerfile
-FROM node:18-alpine as build
+# Frontend Dockerfile with Node.js 20 and proper build
+FROM node:20-alpine as build
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -21,33 +21,53 @@ FROM nginx:alpine
 # Copy built app
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Simple nginx config
-RUN echo 'server { \
-    listen 8080; \
-    server_name _; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-    \
-    location /api/ { \
-        proxy_pass https://employee-performance-api-302004244593.asia-south1.run.app; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-        proxy_ssl_verify off; \
-    } \
-    \
-    location /health { \
-        access_log off; \
-        return 200 "healthy\\n"; \
-        add_header Content-Type text/plain; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Create nginx config
+RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+
+    # Handle client-side routing
+    location / {
+        try_files \$uri \$uri/ /index.html;
+        add_header Cache-Control "no-cache";
+    }
+
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass https://employee-performance-api-302004244593.asia-south1.run.app;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_ssl_verify off;
+        proxy_redirect off;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Health check endpoint for Cloud Run
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
 
 EXPOSE 8080
 
-CMD ["nginx", "-g", "daemon off;"]
+# Start nginx with correct port
+CMD ["sh", "-c", "nginx -g 'daemon off;'"]
