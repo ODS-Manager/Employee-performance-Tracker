@@ -38,14 +38,16 @@ jobs:
           echo "GitHub SHA: ${{ github.sha }}"
           echo "========================"
 
-      - name: Check if main.py exists
+      - name: Check backend structure
         run: |
           echo "=== FILES DEBUG ==="
+          echo "Current directory:"
+          pwd
           ls -la
-          echo "main.py exists:"
-          if [ -f "main.py" ]; then echo "YES"; cat main.py; else echo "NO"; fi
-          echo "Dockerfile exists:"
-          if [ -f "Dockerfile" ]; then echo "YES"; cat Dockerfile; else echo "NO"; fi
+          echo "Backend directory exists:"
+          if [ -d "Backend" ]; then echo "YES"; ls Backend/; else echo "NO"; fi
+          echo "Backend/app/main.py exists:"
+          if [ -f "Backend/app/main.py" ]; then echo "YES"; else echo "NO"; fi
           echo "==================="
 
       - name: Google Auth with Workload Identity
@@ -78,13 +80,14 @@ jobs:
       - name: Build Docker image with debug
         run: |
           echo "=== DOCKER BUILD ==="
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} . || {
+          echo "Building from Backend directory..."
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f Backend/Dockerfile . || {
             echo "Docker build failed, checking files..."
             ls -la
             echo "Current directory:"
             pwd
             echo "Dockerfile content:"
-            cat Dockerfile
+            cat Backend/Dockerfile
             exit 1
           }
           echo "Docker image built successfully"

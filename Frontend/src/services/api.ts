@@ -94,6 +94,7 @@ export const api = axios.create({
 // Debug: Log API base URL to verify it's correct
 console.log('API Base URL:', API_URL)
 console.log('Current origin:', window.location.origin)
+console.log('API base URL configured correctly:', API_URL === '/api/v1' ? 'YES' : 'NO')
 
 // Test direct backend connection (fallback)
 const fallbackApi = axios.create({
