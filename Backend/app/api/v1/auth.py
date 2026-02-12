@@ -84,8 +84,9 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     try:
         from sqlalchemy import create_engine, text
         engine = create_engine(settings.DATABASE_URL)
-        result = engine.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
-        users_table = result.fetchone()
+        with engine.connect() as connection:
+            result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+            users_table = result.fetchone()
         print(f"DEBUG: Users table exists: {users_table}")
         if not users_table:
             print("ERROR: Users table not found!")
