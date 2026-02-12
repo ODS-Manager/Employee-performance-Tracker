@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     SESSION_CLEANUP_ENABLED: bool = True
     AUTO_REFRESH_BEFORE_EXPIRY_MINUTES: int = 5  # Refresh 5 min before expiry
     
-    # CORS
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "https://ods-frontend-302004244593.asia-south1.run.app"]
+    # CORS configuration removed for testing
+    # CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "https://ods-frontend-302004244593.asia-south1.run.app"]
     ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
     
     @field_validator('CORS_ORIGINS', mode='before')
