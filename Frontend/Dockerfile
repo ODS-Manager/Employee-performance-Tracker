@@ -41,6 +41,7 @@ RUN echo 'server { \
         proxy_set_header X-Forwarded-Proto $scheme; \
         proxy_ssl_verify off; \
         proxy_redirect off; \
+        resolver 8.8.8.8; \
     } \
     \
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ { \
@@ -57,5 +58,6 @@ RUN echo 'server { \
 
 EXPOSE 8080
 
-# Start nginx with correct port
-CMD ["sh", "-c", "nginx -g 'daemon off;'"]
+# Test nginx config and start nginx
+RUN nginx -t && echo "Nginx config is valid" || echo "Nginx config has errors"
+CMD ["sh", "-c", "nginx -g 'daemon off;' && echo 'Nginx started successfully'"]

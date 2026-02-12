@@ -88,10 +88,31 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: false, // Important for CORS
 })
 
 // Debug: Log API base URL to verify it's correct
 console.log('API Base URL:', API_URL)
+console.log('Current origin:', window.location.origin)
+
+// Test direct backend connection (fallback)
+const fallbackApi = axios.create({
+  baseURL: 'https://employee-performance-api-302004244593.asia-south1.run.app/api/v1',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+export const testConnection = async () => {
+  try {
+    const response = await fallbackApi.get('/test')
+    console.log('Direct backend test:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('Direct backend connection failed:', error)
+    return null
+  }
+}
 
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false
