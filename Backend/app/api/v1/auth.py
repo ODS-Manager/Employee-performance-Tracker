@@ -92,19 +92,19 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     # Create identifier for rate limiting (username + IP)
     rate_limit_identifier = f"{request.user_name}:{client_ip}"
     
-        # Check if login is blocked due to too many failed attempts
-        try:
-            if session_service.is_login_blocked(rate_limit_identifier):
-                remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            # Continue with rate limiting disabled if session service fails
-            pass
+    # Check if login is blocked due to too many failed attempts
+    try:
+        if session_service.is_login_blocked(rate_limit_identifier):
+            remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Continue with rate limiting disabled if session service fails
+        pass
     
     # Find user by username
     try:
