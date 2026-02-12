@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, employee_weekly_targets, team_user_aliases, attendance, fa_names
 
@@ -10,7 +11,14 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware removed for testing
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://ods-frontend-302004244593.asia-south1.run.app", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
