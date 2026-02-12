@@ -216,4 +216,7 @@ async def init_database():
         finally:
             db.close()
     except Exception as e:
-        return {"message": f"Database initialization failed: {str(e)}"}
+        import traceback
+        error_details = f"Database initialization failed: {str(e)}"
+        traceback_details = traceback.format_exc()
+        return {"message": error_details, "traceback": traceback_details}
