@@ -11,6 +11,7 @@ from app.models.team import Team
 from app.database import Base
 from app.core.dependencies import get_current_active_user
 from sqlalchemy import text
+from app.schemas.user import UserCreate
 
 router = APIRouter()
 
@@ -168,3 +169,30 @@ async def reset_sequences(db: Session):
             db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{table}'"))
         except:
             pass  # Ignore if table doesn't have sequence
+
+@router.post("/init-database")
+async def init_database(db: Session = Depends(get_db)):
+    """
+    Initialize database with tables and test users
+    """
+    try:
+        # Create all tables
+        Base.metadata.create_all(bind=db.get_bind())
+        
+        # Check if users already exist
+        existing_users = db.query(User).count()
+        if existing_users == 0:
+            # Create test user "guru" with password "12345678"
+            test_user = User(
+                user_name="guru",
+                employee_id="GURU001", 
+                password_hash=get_password_hash("12345678"),
+                user_role=UserRole.ADMIN,
+                is_active=True
+            )
+            db.add(test_user)
+            db.commit()
+        
+        return {"message": "Database initialized successfully"}
+    except Exception as e:
+        return {"message": f"Database initialization failed: {str(e)}"}
