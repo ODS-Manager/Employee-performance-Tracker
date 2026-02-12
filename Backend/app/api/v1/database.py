@@ -176,16 +176,15 @@ async def init_database():
     Initialize database with tables and test users
     """
     try:
-        # Use direct database connection
-        from app.database import engine, Base
+        # Use the same database as login endpoint
+        from app.database import engine, Base, SessionLocal
         from app.models.user import User, UserRole
         from app.core.security import get_password_hash
         
         # Create all tables
         Base.metadata.create_all(bind=engine)
         
-        # Use new session to create users
-        from app.database import SessionLocal
+        # Use the same session as login endpoint
         db = SessionLocal()
         try:
             # Check if users already exist
