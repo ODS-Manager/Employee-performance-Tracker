@@ -1,6 +1,5 @@
 from pydantic_settings import BaseSettings
 from typing import List, Union
-from pydantic import field_validator
 
 class Settings(BaseSettings):
     # Application
@@ -31,33 +30,12 @@ class Settings(BaseSettings):
     
     # CORS configuration removed for testing
     # CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "https://ods-frontend-302004244593.asia-south1.run.app"]
-    ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
-    
-    @field_validator('CORS_ORIGINS', mode='before')
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
-        return v
-    
-    @field_validator('ALLOWED_HOSTS', mode='before')
-    @classmethod
-    def parse_allowed_hosts(cls, v):
-        if isinstance(v, str):
-            return [host.strip() for host in v.split(',')]
-        return v
+    # ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
     
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = 50
     UPLOAD_DIR: str = "./uploads"
     ALLOWED_EXTENSIONS: Union[List[str], str] = [".xlsx", ".xls"]
-    
-    @field_validator('ALLOWED_EXTENSIONS', mode='before')
-    @classmethod
-    def parse_allowed_extensions(cls, v):
-        if isinstance(v, str):
-            return [ext.strip() for ext in v.split(',')]
-        return v
     
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
