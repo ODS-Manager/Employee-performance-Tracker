@@ -173,15 +173,29 @@ async def reset_sequences(db: Session):
 @router.post("/init-database")
 async def init_database():
     """
-    Initialize database with tables and test users
+    Initialize database with tables and test users using persistent storage
     """
     try:
-        # Use the same database as login endpoint
-        from app.database import engine, Base, SessionLocal
-        from app.models.user import User, UserRole
-        from app.core.security import get_password_hash
+        import os
+        # Use environment variable for database path
+        from app.core.config import settings
         
-        # Create all tables
+        # Extract path from DATABASE_URL
+        database_url = settings.DATABASE_URL
+        db_path = database_url.replace("sqlite:///", "")
+        
+        print(f"INFO: Using database from env: {database_url}")
+        print(f"INFO: Database path: {db_path}")
+        
+        # Ensure persistent directory exists (for shared database)
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
+        # Use same database configuration as main app
+        from app.database import Base
+        
+        # Create tables with persistent engine
+        from sqlalchemy import create_engine
+        engine = create_engine(database_url, echo=True)
         Base.metadata.create_all(bind=engine)
         
         # Use the same session as login endpoint

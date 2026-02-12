@@ -75,6 +75,7 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     """
     # Add debug logging
     import os
+    from app.core.config import settings
     # Version check for deployment
     print("DEPLOYMENT VERSION: 2.0 - Feb 12, 2026")
     print(f"DEBUG: Current working directory: {os.getcwd()}")

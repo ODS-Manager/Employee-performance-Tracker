@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Database
-    DATABASE_URL: str = "sqlite:////app/app.db"  # Use absolute path
+    DATABASE_URL: str = "sqlite:////app/data/app.db"  # Use persistent storage  # Use absolute path
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     
