@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 # Add build arguments
 ARG DATABASE_URL=sqlite:///./app.db
 ARG SECRET_KEY=dev-secret-key-for-production
-ARG CORS_ORIGINS=http://localhost:3000,https://*
+ARG CORS_ORIGINS=http://localhost:3000,https://ods-frontend-302004244593.asia-south1.run.app
 
 # Copy requirements
 COPY Backend/requirements.txt .
