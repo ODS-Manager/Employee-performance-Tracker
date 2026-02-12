@@ -46,6 +46,7 @@ router = APIRouter()
 async def debug_login():
     """Debug endpoint to check database content"""
     try:
+        from app.core.config import settings
         from app.database import SessionLocal
         db = SessionLocal()
         
@@ -57,10 +58,15 @@ async def debug_login():
         
         return {
             "total_users": len(users),
+            "database_url": settings.DATABASE_URL[:50] + "..." if len(settings.DATABASE_URL) > 50 else settings.DATABASE_URL,
             "users": [{"user_name": row[0], "hash_preview": row[1][:20] + "..."} for row in users]
         }
     except Exception as e:
-        return {"error": str(e)}
+        from app.core.config import settings
+        return {
+            "error": str(e), 
+            "database_url": settings.DATABASE_URL[:50] + "..." if len(settings.DATABASE_URL) > 50 else settings.DATABASE_URL
+        }
 
 @router.post("/login")
 async def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
