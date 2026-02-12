@@ -192,6 +192,17 @@ async def init_database(db: Session = Depends(get_db)):
             )
             db.add(test_user)
             db.commit()
+            
+            # Create a simple admin user for testing
+            admin_user = User(
+                user_name="admin",
+                employee_id="ADMIN001",
+                password_hash=get_password_hash("admin123"),
+                user_role=UserRole.ADMIN,
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
         
         return {"message": "Database initialized successfully"}
     except Exception as e:
