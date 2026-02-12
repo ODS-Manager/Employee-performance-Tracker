@@ -1,0 +1,4 @@
+DATABASE_URL: "sqlite:////app/data/app.db"
+SECRET_KEY: "dev-secret-key-for-production"
+CORS_ORIGINS: "https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000"
+FRONTEND_URL: "https://ods-frontend-302004244593.asia-south1.run.app"
