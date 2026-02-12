@@ -35,4 +35,5 @@ RUN mkdir -p uploads data && \
 EXPOSE 8080
 
 # Run the application with port from environment
-CMD ["sh", "-c", "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Only run init_db.py for SQLite, not for Cloud SQL
+CMD ["sh", "-c", "if echo $DATABASE_URL | grep -q sqlite; then python init_db.py; fi && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
