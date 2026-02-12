@@ -44,28 +44,65 @@ router = APIRouter()
 
 @router.get("/debug")
 async def debug_login():
-    """Debug endpoint to check database content"""
+    """Debug endpoint to check database content and connection"""
+    import os
+    from app.core.config import settings
     try:
-        from app.core.config import settings
         from app.database import SessionLocal
         db = SessionLocal()
         
-        # Get all users
+        # Test basic connection
+        result = db.execute(text("SELECT COUNT(*) as total FROM users"))
+        user_count = result.fetchone()[0]
+        
+        # Get sample users
         result = db.execute(text("SELECT user_name, password_hash FROM users LIMIT 5"))
         users = result.fetchall()
+        
+        # Check for organizations table
+        try:
+            org_result = db.execute(text("SELECT COUNT(*) as total FROM organizations"))
+            org_count = org_result.fetchone()[0]
+            
+            org_list_result = db.execute(text("SELECT name, code FROM organizations LIMIT 5"))
+            organizations = org_list_result.fetchall()
+            org_data = [{"name": row[0], "code": row[1]} for row in organizations]
+        except Exception as org_error:
+            org_count = 0
+            org_data = []
+            print(f"Organizations table error: {org_error}")
+        
+        # Check for teams table
+        try:
+            team_result = db.execute(text("SELECT COUNT(*) as total FROM teams"))
+            team_count = team_result.fetchone()[0]
+        except Exception as team_error:
+            team_count = 0
+            print(f"Teams table error: {team_error}")
         
         db.close()
         
         return {
-            "total_users": len(users),
-            "database_url": settings.DATABASE_URL[:50] + "..." if len(settings.DATABASE_URL) > 50 else settings.DATABASE_URL,
-            "users": [{"user_name": row[0], "hash_preview": row[1][:20] + "..."} for row in users]
+            "status": "success",
+            "database_url_type": "postgresql" if "postgresql" in settings.DATABASE_URL else "sqlite",
+            "database_url_preview": settings.DATABASE_URL[:80] + "..." if len(settings.DATABASE_URL) > 80 else settings.DATABASE_URL,
+            "socket_path": "/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database/.s.PGSQL.5432" if "cloudsql" in settings.DATABASE_URL else "N/A",
+            "connection_test": "successful",
+            "total_users": user_count,
+            "total_organizations": org_count,
+            "total_teams": team_count,
+            "sample_users": [{"user_name": row[0], "hash_preview": row[1][:20] + "..."} for row in users],
+            "sample_organizations": org_data
         }
     except Exception as e:
         from app.core.config import settings
         return {
-            "error": str(e), 
-            "database_url": settings.DATABASE_URL[:50] + "..." if len(settings.DATABASE_URL) > 50 else settings.DATABASE_URL
+            "status": "error",
+            "error": str(e),
+            "database_url_type": "postgresql" if "postgresql" in settings.DATABASE_URL else "sqlite",
+            "database_url_preview": settings.DATABASE_URL[:80] + "..." if len(settings.DATABASE_URL) > 80 else settings.DATABASE_URL,
+            "socket_path": "/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database/.s.PGSQL.5432" if "cloudsql" in settings.DATABASE_URL else "N/A",
+            "connection_test": "failed"
         }
 
 @router.post("/login")
