@@ -42,6 +42,26 @@ from app.schemas.user import (
 router = APIRouter()
 
 
+@router.get("/debug")
+async def debug_login():
+    """Debug endpoint to check database content"""
+    try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        
+        # Get all users
+        result = db.execute(text("SELECT user_name, password_hash FROM users LIMIT 5"))
+        users = result.fetchall()
+        
+        db.close()
+        
+        return {
+            "total_users": len(users),
+            "users": [{"user_name": row[0], "hash_preview": row[1][:20] + "..."} for row in users]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @router.post("/login")
 async def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
     """
