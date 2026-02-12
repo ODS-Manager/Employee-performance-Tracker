@@ -5,11 +5,13 @@ Login, logout, token refresh, password management with session management
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime, timedelta
 from typing import Optional
 import uuid
 
 from app.database import get_db
+from app.core.config import settings  # Add missing import
 from app.models.user import User
 from app.models.password_reset import PasswordResetToken
 from app.core.security import (
@@ -41,84 +43,88 @@ router = APIRouter()
 
 
 @router.post("/login")
-async def login(request: LoginRequest, req: Request):
+async def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
     """
-    Simple login endpoint for testing - bypasses session management
+    Authenticate user and return tokens with session management
+    
+    Features:
+    - Rate limiting (5 attempts per 15 minutes)
+    - Login attempt tracking
+    - Active session creation
+    - Device and IP tracking
     """
-    try:
-        # Direct database connection
-        from sqlalchemy import create_engine, text
-        from sqlalchemy.orm import sessionmaker
-        
-        engine = create_engine("sqlite:///./app.db")
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        db = SessionLocal()
-        
-        try:
-            # Find user by username
-            result = db.execute(text("SELECT * FROM users WHERE user_name = :username"), {"username": request.user_name})
-            user_row = result.fetchone()
-            
-            if not user_row:
-                return {"error": "Invalid username or password"}
-            
-            # Verify password
-            from app.core.security import verify_password
-            if not verify_password(request.password, user_row[2]):  # password_hash is at index 2
-                return {"error": "Invalid username or password"}
-            
-            # Update last login
-            db.execute(text("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_name = :username"), {"username": request.user_name})
-            db.commit()
-            
-            # Create simple tokens
-            from app.core.security import create_access_token, create_refresh_token
-            access_token = create_access_token({"sub": str(user_row[0]), "role": user_row[3]})
-            refresh_token = create_refresh_token({"sub": str(user_row[0])})
-            
-            return {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "user_id": user_row[0],
-                "username": user_row[1]
-            }
-        finally:
-            db.close()
-    except Exception as e:
-        import traceback
-        return {"error": f"Login failed: {str(e)}", "traceback": traceback.format_exc()}
-
-@router.post("/simple-login")
-async def simple_login(request: LoginRequest):
-    """
-    Even simpler login endpoint
-    """
-    try:
-        from app.core.security import verify_password, create_access_token
-        from app.database import SessionLocal
-        
-        db = SessionLocal()
-        try:
-            # Find user
-            user = db.query(User).filter(User.user_name == request.user_name).first()
-            
-            if not user or not verify_password(request.password, user.password_hash):
-                return {"error": "Invalid credentials"}
-            
-            # Create token
-            access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
-            
-            return {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "user_id": user.id,
-                "username": user.user_name
-            }
-        finally:
-            db.close()
-    except Exception as e:
-        return {"error": f"Simple login failed: {str(e)}"}
+    # Get client information
+    client_ip = req.client.host if req.client else "Unknown"
+    user_agent = req.headers.get("user-agent", "Unknown")
+    
+    # Create identifier for rate limiting (username + IP)
+    rate_limit_identifier = f"{request.user_name}:{client_ip}"
+    
+    # Check if login is blocked due to too many failed attempts
+    if session_service.is_login_blocked(rate_limit_identifier):
+        remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
+        )
+    
+    # Find user by username
+    user = db.query(User).filter(User.user_name == request.user_name).first()
+    
+    if not user:
+        # Record failed attempt
+        session_service.record_login_attempt(rate_limit_identifier, success=False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    if not verify_password(request.password, user.password_hash):
+        # Record failed attempt
+        session_service.record_login_attempt(rate_limit_identifier, success=False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated"
+        )
+    
+    # Successful login - clear failed attempts
+    session_service.record_login_attempt(rate_limit_identifier, success=True)
+    
+    # Update last login
+    user.last_login = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    
+    # Create tokens
+    access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+    
+    # Create session
+    session_id = str(uuid.uuid4())
+    session_service.create_session(
+        session_id=session_id,
+        user_id=user.id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        expires_at=datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_MINUTES // 60)
+    )
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "session_id": session_id,
+        "user_id": user.id,
+        "username": user.user_name,
+        "role": user.user_role
+    }
     """
     Authenticate user and return tokens with session management
     
