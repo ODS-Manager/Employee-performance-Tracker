@@ -8,16 +8,27 @@ logger = logging.getLogger(__name__)
 
 # Create engine with connection pool settings
 try:
-    engine = create_engine(
-        settings.DATABASE_URL,
-        pool_size=settings.DATABASE_POOL_SIZE,
-        max_overflow=settings.DATABASE_MAX_OVERFLOW,
-        echo=settings.DEBUG,
-        pool_pre_ping=True,  # Enable connection health checks
-        connect_args={
-            "connect_timeout": 10,
-        }
-    )
+    if settings.DATABASE_URL.startswith("sqlite"):
+        # SQLite configuration
+        engine = create_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            connect_args={
+                "check_same_thread": False,  # Allow multi-threaded access
+            }
+        )
+    else:
+        # PostgreSQL configuration
+        engine = create_engine(
+            settings.DATABASE_URL,
+            pool_size=settings.DATABASE_POOL_SIZE,
+            max_overflow=settings.DATABASE_MAX_OVERFLOW,
+            echo=settings.DEBUG,
+            pool_pre_ping=True,  # Enable connection health checks
+            connect_args={
+                "connect_timeout": 10,
+            }
+        )
     logger.info("Database engine created successfully")
 except Exception as e:
     logger.error(f"Failed to create database engine: {e}")
