@@ -149,7 +149,7 @@ jobs:
             --max-instances 10 \
             --set-env-vars "DATABASE_URL=sqlite:////app/data/app.db" \
             --set-env-vars "SECRET_KEY=dev-secret-key-for-production" \
-            --set-env-vars "CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000" \
+            --set-env-vars "CORS_ORIGINS='https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000'" \
             --set-env-vars "FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app" \
             --quiet || {
             echo "Deployment failed, checking service status..."
