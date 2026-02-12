@@ -80,8 +80,8 @@ import type {
   FANameListResponse,
 } from '../types'
 
-// Always use relative URLs - nginx will proxy to backend
-const API_URL = '/api/v1'
+// Use backend URL directly for Cloud Run deployment
+const API_URL = 'https://employee-performance-api-302004244593.asia-south1.run.app/api/v1'
 
 export const api = axios.create({
   baseURL: API_URL,
