@@ -73,6 +73,180 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     - Active session creation
     - Device and IP tracking
     """
+    # Add debug logging
+    import os
+    print(f"DEBUG: Current working directory: {os.getcwd()}")
+    print(f"DEBUG: Database URL: {settings.DATABASE_URL}")
+    
+    # Test database connection directly first
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(settings.DATABASE_URL)
+        result = engine.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+        users_table = result.fetchone()
+        print(f"DEBUG: Users table exists: {users_table}")
+        if not users_table:
+            print("ERROR: Users table not found!")
+            return {"error": "Database not properly initialized"}
+    except Exception as e:
+        print(f"ERROR: Database check failed: {e}")
+        return {"error": f"Database check failed: {str(e)}"}
+    
+    # Get client information
+    client_ip = req.client.host if req.client else "Unknown"
+    user_agent = req.headers.get("user-agent", "Unknown")
+    
+    # Create identifier for rate limiting (username + IP)
+    rate_limit_identifier = f"{request.user_name}:{client_ip}"
+    
+    # Check if login is blocked due to too many failed attempts
+    try:
+        if session_service.is_login_blocked(rate_limit_identifier):
+            remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
+            )
+    except Exception as e:
+        print(f"ERROR: Session service failed: {e}")
+        # Continue with rate limiting disabled if session service fails
+        pass
+    
+    # Find user by username
+    try:
+        user = db.query(User).filter(User.user_name == request.user_name).first()
+        
+        if not user:
+            # Record failed attempt
+            try:
+                session_service.record_login_attempt(rate_limit_identifier, success=False)
+            except:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password"
+            )
+        
+        # Get the actual password hash value directly
+        try:
+            password_hash = user.password_hash
+            print(f"DEBUG: Found user: {user.user_name}")
+            print(f"DEBUG: Password hash type: {type(password_hash)}")
+            print(f"DEBUG: Password hash sample: {str(password_hash)[:20] if password_hash else 'None'}")
+        except Exception as e:
+            print(f"ERROR: Could not get password hash: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"User data access error: {str(e)}"
+            )
+        
+        # Verify password with the actual hash value
+        try:
+            if not verify_password(request.password, password_hash):
+                # Record failed attempt
+                try:
+                    session_service.record_login_attempt(rate_limit_identifier, success=False)
+                except:
+                    pass
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid username or password"
+                )
+            print("DEBUG: Password verification successful")
+        except Exception as e:
+            print(f"ERROR: Password verification failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Password verification error: {str(e)}"
+            )
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is deactivated"
+            )
+        
+        # Successful login - clear failed attempts
+        try:
+            session_service.record_login_attempt(rate_limit_identifier, success=True)
+        except:
+            pass
+        
+        # Update last login
+        try:
+            user.last_login = datetime.utcnow()
+            db.commit()
+            db.refresh(user)
+            print("DEBUG: Last login updated")
+        except Exception as e:
+            print(f"ERROR: Could not update last login: {e}")
+            # Continue without updating last login
+            pass
+        
+        # Create tokens
+        try:
+            access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
+            refresh_token = create_refresh_token({"sub": str(user.id)})
+            print("DEBUG: Tokens created successfully")
+        except Exception as e:
+            print(f"ERROR: Token creation failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Token creation error: {str(e)}"
+            )
+        
+        # Create session
+        try:
+            session_id = str(uuid.uuid4())
+            session_service.create_session(
+                session_id=session_id,
+                user_id=user.id,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                expires_at=datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_MINUTES // 60)
+            )
+            print("DEBUG: Session created")
+        except Exception as e:
+            print(f"ERROR: Session creation failed: {e}")
+            # Continue without session creation
+            pass
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "session_id": session_id,
+            "user_id": user.id,
+            "username": user.user_name,
+            "role": user.user_role,
+            "debug_info": {
+                "working_dir": os.getcwd(),
+                "database_url": settings.DATABASE_URL,
+                "users_table_exists": users_table is not None
+            }
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log unexpected errors
+        import traceback
+        print(f"ERROR: Unexpected error: {e}")
+        print(f"ERROR: Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected server error: {str(e)}"
+        )
+    """
+    Authenticate user and return tokens with session management
+    
+    Features:
+    - Rate limiting (5 attempts per 15 minutes)
+    - Login attempt tracking
+    - Active session creation
+    - Device and IP tracking
+    """
     # Get client information
     client_ip = req.client.host if req.client else "Unknown"
     user_agent = req.headers.get("user-agent", "Unknown")
