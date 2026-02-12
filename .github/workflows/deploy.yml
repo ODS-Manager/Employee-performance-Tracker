@@ -147,7 +147,7 @@ jobs:
             --cpu 1 \
             --min-instances 0 \
             --max-instances 10 \
-            --env-vars-file .github/workflows/env-vars.yaml \
+            --env-vars-file .github/config/env-vars.yaml \
             --set-env-vars "FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app" \
             --quiet || {
             echo "Deployment failed, checking service status..."
