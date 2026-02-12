@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import { useEffect } from 'react'
+import { useAuthStore } from './store/authStore'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { LoginPage } from './pages/auth/LoginPage'
 import { UnauthorizedPage } from './pages/auth/UnauthorizedPage'
@@ -47,7 +49,32 @@ const queryClient = new QueryClient({
   },
 })
 
+// Component to handle smart default routing based on authentication status
+const DefaultRoute = () => {
+  const { user, isAuthenticated } = useAuthStore()
+  
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />
+  }
+  
+  // Redirect to appropriate dashboard based on user role
+  if (user.userRole === 'superadmin' || user.userRole === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />
+  } else if (user.userRole === 'team_lead') {
+    return <Navigate to="/teamlead/dashboard" replace />
+  } else {
+    return <Navigate to="/employee/dashboard" replace />
+  }
+}
+
 function App() {
+  const checkAuth = useAuthStore(state => state.checkAuth)
+
+  // Check authentication status on app load
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -312,11 +339,11 @@ function App() {
               }
             />
 
-            {/* Default Route */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            {/* Smart Default Route - redirects based on authentication status */}
+            <Route path="/" element={<DefaultRoute />} />
             
-            {/* 404 Route */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* 404 Route - redirects to smart default */}
+            <Route path="*" element={<DefaultRoute />} />
           </Routes>
         </div>
         <Toaster 

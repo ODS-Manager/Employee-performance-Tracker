@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import type { User } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -32,10 +33,15 @@ export const LoginPage: React.FC = () => {
     }
   }
 
-  const navigateToDashboard = () => {
-    const user = useAuthStore.getState().user
-    if (user) {
-      navigate(getDashboardPath(user.userRole))
+  const navigateToDashboard = (user?: User) => {
+    // Use passed user or get from store as fallback
+    const currentUser = user || useAuthStore.getState().user
+    if (currentUser) {
+      const dashboardPath = getDashboardPath(currentUser.userRole)
+      console.log('Navigating to dashboard:', dashboardPath, 'for user:', currentUser.userName, 'role:', currentUser.userRole)
+      navigate(dashboardPath)
+    } else {
+      console.error('No user found for navigation')
     }
   }
 
@@ -53,14 +59,17 @@ export const LoginPage: React.FC = () => {
     try {
       await login(userName, password)
       
-      // Check if user must change password
+      // Get the user from store immediately after login
       const user = useAuthStore.getState().user
+      console.log('Login successful, user:', user)
+      
+      // Check if user must change password
       if (user?.mustChangePassword) {
         setForcePasswordChange(true)
         toast('Please change your password to continue', { icon: '🔐' })
       } else {
         toast.success('Login successful!')
-        navigateToDashboard()
+        navigateToDashboard(user)
       }
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error, 'Invalid username or password')

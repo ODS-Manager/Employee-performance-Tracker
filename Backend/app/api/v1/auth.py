@@ -216,18 +216,22 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
             pass
         
         return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "session_id": session_id,
-            "user_id": user.id,
-            "username": user.user_name,
-            "role": user.user_role,
-            "debug_info": {
-                "working_dir": os.getcwd(),
-                "database_url": settings.DATABASE_URL,
-                "users_table_exists": users_table is not None
+            "accessToken": access_token,
+            "refreshToken": refresh_token,
+            "tokenType": "bearer",
+            "user": {
+                "id": user.id,
+                "userName": user.user_name,
+                "employeeId": user.employee_id,
+                "userRole": user.user_role,
+                "orgId": user.org_id,
+                "passwordLastChanged": user.password_last_changed.isoformat() if user.password_last_changed else None,
+                "mustChangePassword": user.must_change_password or False,
+                "lastLogin": user.last_login.isoformat() if user.last_login else None,
+                "isActive": user.is_active,
+                "deactivatedAt": user.deactivated_at.isoformat() if user.deactivated_at else None,
+                "createdAt": user.created_at.isoformat() if user.created_at else None,
+                "modifiedAt": user.modified_at.isoformat() if user.modified_at else None
             }
         }
     except HTTPException:
