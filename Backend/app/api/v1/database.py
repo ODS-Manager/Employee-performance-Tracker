@@ -171,39 +171,49 @@ async def reset_sequences(db: Session):
             pass  # Ignore if table doesn't have sequence
 
 @router.post("/init-database")
-async def init_database(db: Session = Depends(get_db)):
+async def init_database():
     """
     Initialize database with tables and test users
     """
     try:
+        # Use direct database connection
+        from app.database import engine, Base
+        from app.models.user import User, UserRole
+        from app.core.security import get_password_hash
+        
         # Create all tables
-        Base.metadata.create_all(bind=db.get_bind())
+        Base.metadata.create_all(bind=engine)
         
-        # Check if users already exist
-        existing_users = db.query(User).count()
-        if existing_users == 0:
-            # Create test user "guru" with password "12345678"
-            test_user = User(
-                user_name="guru",
-                employee_id="GURU001", 
-                password_hash=get_password_hash("12345678"),
-                user_role=UserRole.ADMIN,
-                is_active=True
-            )
-            db.add(test_user)
-            db.commit()
+        # Use new session to create users
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            # Check if users already exist
+            existing_users = db.query(User).count()
+            if existing_users == 0:
+                # Create test user "guru" with password "12345678"
+                test_user = User(
+                    user_name="guru",
+                    employee_id="GURU001", 
+                    password_hash=get_password_hash("12345678"),
+                    user_role=UserRole.ADMIN,
+                    is_active=True
+                )
+                db.add(test_user)
+                
+                # Create a simple admin user for testing
+                admin_user = User(
+                    user_name="admin",
+                    employee_id="ADMIN001",
+                    password_hash=get_password_hash("admin123"),
+                    user_role=UserRole.ADMIN,
+                    is_active=True
+                )
+                db.add(admin_user)
+                db.commit()
             
-            # Create a simple admin user for testing
-            admin_user = User(
-                user_name="admin",
-                employee_id="ADMIN001",
-                password_hash=get_password_hash("admin123"),
-                user_role=UserRole.ADMIN,
-                is_active=True
-            )
-            db.add(admin_user)
-            db.commit()
-        
-        return {"message": "Database initialized successfully"}
+            return {"message": "Database initialized successfully", "user_count": existing_users}
+        finally:
+            db.close()
     except Exception as e:
         return {"message": f"Database initialization failed: {str(e)}"}
