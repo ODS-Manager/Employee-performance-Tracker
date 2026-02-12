@@ -77,23 +77,48 @@ jobs:
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
           echo "==================="
 
+      - name: Validate Docker build context
+        run: |
+          echo "=== VALIDATION ==="
+          echo "Build context contents:"
+          find . -name "*.py" -type f | head -10
+          echo "Backend structure:"
+          ls -la Backend/
+          echo "Backend/app structure:"
+          ls -la Backend/app/ || echo "Backend/app directory not found"
+          echo "Dockerfile exists:"
+          test -f Backend/Dockerfile && echo "YES" || echo "NO"
+          echo "requirements.txt exists:"
+          test -f Backend/requirements.txt && echo "YES" || echo "NO"
+          echo "main.py exists:"
+          test -f Backend/app/main.py && echo "YES" || echo "NO"
+          echo "==================="
+
       - name: Build Docker image with debug
         run: |
           echo "=== DOCKER BUILD ==="
           echo "Building from Backend directory..."
           echo "Checking Backend structure:"
           ls -la Backend/
-          echo "Environment variables:"
+          echo "Environment variables for build:"
           echo "DATABASE_URL=sqlite:///./app.db"
           echo "SECRET_KEY=dev-secret-key-for-production"
+          echo "CORS_ORIGINS=http://localhost:3000,https://*"
           echo "PORT=8080"
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f Backend/Dockerfile . || {
+          docker build \
+            --build-arg DATABASE_URL=sqlite:///./app.db \
+            --build-arg SECRET_KEY=dev-secret-key-for-production \
+            --build-arg CORS_ORIGINS=http://localhost:3000,https://* \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -f Backend/Dockerfile . || {
             echo "Docker build failed, checking files..."
             ls -la Backend/
             echo "Current directory:"
             pwd
             echo "Dockerfile content:"
             cat Backend/Dockerfile
+            echo "Build context:"
+            find . -maxdepth 2 -type f -name "*.py" | head -5
             exit 1
           }
           echo "Docker image built successfully"

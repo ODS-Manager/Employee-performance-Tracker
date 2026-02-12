@@ -8,19 +8,24 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
+# Add build arguments
+ARG DATABASE_URL=sqlite:///./app.db
+ARG SECRET_KEY=dev-secret-key-for-production
+ARG CORS_ORIGINS=http://localhost:3000,https://*
+
 # Copy requirements
-COPY requirements.txt .
+COPY Backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY Backend/ .
 
 # Set environment variables for Cloud Run
-ENV DATABASE_URL=sqlite:///./app.db
-ENV SECRET_KEY=dev-secret-key-for-production
-ENV CORS_ORIGINS=*
+ENV DATABASE_URL=${DATABASE_URL}
+ENV SECRET_KEY=${SECRET_KEY}
+ENV CORS_ORIGINS=${CORS_ORIGINS}
 
 # Create uploads directory
 RUN mkdir -p uploads
