@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Add build arguments
-ARG DATABASE_URL=sqlite:///./app.db
+ARG DATABASE_URL=sqlite:////app/data/app.db
 ARG SECRET_KEY=dev-secret-key-for-production
 ARG CORS_ORIGINS=http://localhost:3000,https://ods-frontend-302004244593.asia-south1.run.app
 
@@ -27,11 +27,12 @@ ENV DATABASE_URL=${DATABASE_URL}
 ENV SECRET_KEY=${SECRET_KEY}
 ENV CORS_ORIGINS=${CORS_ORIGINS}
 
-# Create uploads directory
-RUN mkdir -p uploads
+# Create uploads and data directories with proper permissions
+RUN mkdir -p uploads data && \
+    chmod 755 uploads data
 
 # Expose port
 EXPOSE 8080
 
 # Run the application with port from environment
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
