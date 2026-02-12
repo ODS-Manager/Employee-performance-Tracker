@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List, Union
+import os
 
 class Settings(BaseSettings):
     # Application
@@ -7,8 +8,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     
-    # Database
-    DATABASE_URL: str = "sqlite:////app/data/app.db"  # Use persistent storage  # Use absolute path
+    # Database - Environment variable takes precedence
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:////app/data/app.db")
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     
