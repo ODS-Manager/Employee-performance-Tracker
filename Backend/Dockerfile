@@ -17,11 +17,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Set environment variables for Cloud Run
+ENV DATABASE_URL=sqlite:///./app.db
+ENV SECRET_KEY=dev-secret-key-for-production
+ENV CORS_ORIGINS=*
+
 # Create uploads directory
 RUN mkdir -p uploads
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with port from environment
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

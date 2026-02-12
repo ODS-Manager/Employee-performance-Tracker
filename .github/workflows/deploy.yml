@@ -81,9 +81,15 @@ jobs:
         run: |
           echo "=== DOCKER BUILD ==="
           echo "Building from Backend directory..."
+          echo "Checking Backend structure:"
+          ls -la Backend/
+          echo "Environment variables:"
+          echo "DATABASE_URL=sqlite:///./app.db"
+          echo "SECRET_KEY=dev-secret-key-for-production"
+          echo "PORT=8080"
           docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f Backend/Dockerfile . || {
             echo "Docker build failed, checking files..."
-            ls -la
+            ls -la Backend/
             echo "Current directory:"
             pwd
             echo "Dockerfile content:"
