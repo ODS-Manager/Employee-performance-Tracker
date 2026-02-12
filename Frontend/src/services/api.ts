@@ -91,11 +91,6 @@ export const api = axios.create({
   withCredentials: false, // Important for CORS
 })
 
-// Debug: Log API base URL to verify it's correct
-console.log('API Base URL:', API_URL)
-console.log('Current origin:', window.location.origin)
-console.log('API base URL configured correctly:', API_URL === '/api/v1' ? 'YES' : 'NO')
-
 // Test direct backend connection (fallback)
 const fallbackApi = axios.create({
   baseURL: 'https://employee-performance-api-302004244593.asia-south1.run.app/api/v1',
@@ -107,7 +102,6 @@ const fallbackApi = axios.create({
 export const testConnection = async () => {
   try {
     const response = await fallbackApi.get('/test')
-    console.log('Direct backend test:', response.data)
     return response.data
   } catch (error) {
     console.error('Direct backend connection failed:', error)
@@ -151,15 +145,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Log error details for debugging
-    console.log('API Error Interceptor:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-      hasResponse: !!error.response,
-      hasRequest: !!error.request,
-    })
-    
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // If error is 401 and we haven't tried to refresh yet

@@ -38,7 +38,6 @@ export const LoginPage: React.FC = () => {
     const currentUser = user || useAuthStore.getState().user
     if (currentUser) {
       const dashboardPath = getDashboardPath(currentUser.userRole)
-      console.log('Navigating to dashboard:', dashboardPath, 'for user:', currentUser.userName, 'role:', currentUser.userRole)
       navigate(dashboardPath)
     } else {
       console.error('No user found for navigation')
@@ -61,7 +60,6 @@ export const LoginPage: React.FC = () => {
       
       // Get the user from store immediately after login
       const user = useAuthStore.getState().user
-      console.log('Login successful, user:', user)
       
       // Check if user must change password
       if (user?.mustChangePassword) {

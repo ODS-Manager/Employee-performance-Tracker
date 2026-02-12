@@ -73,14 +73,6 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     - Active session creation
     - Device and IP tracking
     """
-    # Add debug logging
-    import os
-    from app.core.config import settings
-    # Version check for deployment
-    print("DEPLOYMENT VERSION: 2.0 - Feb 12, 2026")
-    print(f"DEBUG: Current working directory: {os.getcwd()}")
-    print(f"DEBUG: Database URL: {settings.DATABASE_URL}")
-    
     # Test database connection directly first
     try:
         from sqlalchemy import create_engine, text
@@ -88,12 +80,9 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         with engine.connect() as connection:
             result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
             users_table = result.fetchone()
-        print(f"DEBUG: Users table exists: {users_table}")
         if not users_table:
-            print("ERROR: Users table not found!")
             return {"error": "Database not properly initialized"}
     except Exception as e:
-        print(f"ERROR: Database check failed: {e}")
         return {"error": f"Database check failed: {str(e)}"}
     
     # Get client information
@@ -103,18 +92,19 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     # Create identifier for rate limiting (username + IP)
     rate_limit_identifier = f"{request.user_name}:{client_ip}"
     
-    # Check if login is blocked due to too many failed attempts
-    try:
-        if session_service.is_login_blocked(rate_limit_identifier):
-            remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
-            )
-    except Exception as e:
-        print(f"ERROR: Session service failed: {e}")
-        # Continue with rate limiting disabled if session service fails
-        pass
+        # Check if login is blocked due to too many failed attempts
+        try:
+            if session_service.is_login_blocked(rate_limit_identifier):
+                remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Continue with rate limiting disabled if session service fails
+            pass
     
     # Find user by username
     try:
@@ -134,11 +124,7 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         # Get the actual password hash value directly
         try:
             password_hash = user.password_hash
-            print(f"DEBUG: Found user: {user.user_name}")
-            print(f"DEBUG: Password hash type: {type(password_hash)}")
-            print(f"DEBUG: Password hash sample: {str(password_hash)[:20] if password_hash else 'None'}")
         except Exception as e:
-            print(f"ERROR: Could not get password hash: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"User data access error: {str(e)}"
@@ -156,9 +142,9 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid username or password"
                 )
-            print("DEBUG: Password verification successful")
+        except HTTPException:
+            raise
         except Exception as e:
-            print(f"ERROR: Password verification failed: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Password verification error: {str(e)}"
@@ -181,9 +167,7 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
             user.last_login = datetime.utcnow()
             db.commit()
             db.refresh(user)
-            print("DEBUG: Last login updated")
         except Exception as e:
-            print(f"ERROR: Could not update last login: {e}")
             # Continue without updating last login
             pass
         
@@ -191,9 +175,7 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         try:
             access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
             refresh_token = create_refresh_token({"sub": str(user.id)})
-            print("DEBUG: Tokens created successfully")
         except Exception as e:
-            print(f"ERROR: Token creation failed: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Token creation error: {str(e)}"
@@ -209,11 +191,9 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
                 user_agent=user_agent,
                 expires_at=datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_MINUTES // 60)
             )
-            print("DEBUG: Session created")
         except Exception as e:
-            print(f"ERROR: Session creation failed: {e}")
             # Continue without session creation
-            pass
+            session_id = "no-session"
         
         return {
             "accessToken": access_token,
@@ -238,13 +218,11 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        # Log unexpected errors
+        # Log unexpected errors (but don't expose sensitive details)
         import traceback
-        print(f"ERROR: Unexpected error: {e}")
-        print(f"ERROR: Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="Unexpected server error occurred"
         )
     """
     Authenticate user and return tokens with session management
