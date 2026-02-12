@@ -220,3 +220,10 @@ async def init_database():
         error_details = f"Database initialization failed: {str(e)}"
         traceback_details = traceback.format_exc()
         return {"message": error_details, "traceback": traceback_details}
+
+@router.get("/test")
+async def test_endpoint():
+    """
+    Simple test endpoint to check if API is working
+    """
+    return {"message": "API is working", "status": "success"}
