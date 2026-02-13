@@ -125,20 +125,38 @@ export const EmployeeManagementPage = () => {
     try {
       setLoading(true)
       
+      console.log('Fetching employee data with pageSize: 1000...')
+      
       // Fetch employees and organizations in parallel
       const [usersRes, orgsRes] = await Promise.all([
         usersApi.list({ pageSize: 1000 }),
         organizationsApi.list({ isActive: true })
       ])
       
+      console.log('API Response:', {
+        totalUsers: usersRes.items?.length || 0,
+        usersSample: usersRes.items?.slice(0, 3),
+        organizations: orgsRes.items?.length || 0,
+        orgsSample: orgsRes.items
+      })
+      
       // Filter out superadmin and the currently logged-in user from the list
       const filteredEmployees = (usersRes.items || []).filter((u: UserData) => 
         u.userRole !== 'superadmin' && u.id !== user?.id
       )
+      
+      console.log('After filtering:', {
+        beforeFilter: usersRes.items?.length || 0,
+        afterFilter: filteredEmployees.length,
+        currentUserId: user?.id,
+        filteredOutCount: (usersRes.items?.length || 0) - filteredEmployees.length
+      })
+      
       setEmployees(filteredEmployees)
       setOrganizations(orgsRes.items || [])
     } catch (error) {
       console.error('Failed to fetch data:', error)
+      toast.error('Failed to load employee data')
     } finally {
       setLoading(false)
     }
@@ -624,9 +642,39 @@ export const EmployeeManagementPage = () => {
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="h-4 w-4 mr-1" />
-                  Clear Filters
+                  Clear filters
                 </Button>
               )}
+            </div>
+            
+            {/* Debug Info Panel - Only show in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 p-3 bg-slate-50 rounded-lg border text-xs">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <strong>Data Stats:</strong>
+                    <div>Total employees loaded: {employees.length}</div>
+                    <div>Organizations: {organizations.length}</div>
+                    <div>Filtered results: {filteredEmployees.length}</div>
+                  </div>
+                  <div>
+                    <strong>Active Filters:</strong>
+                    <div>Search: "{searchQuery}" ({searchQuery.length} chars)</div>
+                    <div>Role: {roleFilter}</div>
+                    <div>Status: {statusFilter}</div>
+                    <div>Org: {orgFilter}</div>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <strong>Organizations:</strong> {organizations.map(o => `${o.name} (ID: ${o.id})`).join(', ')}
+                </div>
+                {employees.length > 0 && (
+                  <div className="mt-2">
+                    <strong>Sample Employee:</strong> {JSON.stringify(employees[0], null, 2).slice(0, 200)}...
+                  </div>
+                )}
+              </div>
+            )}
             </div>
           </CardHeader>
           
