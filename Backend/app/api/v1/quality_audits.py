@@ -93,7 +93,7 @@ def list_quality_audits(
     start_date: Optional[date] = Query(None, description="Filter by audit date >= start_date"),
     end_date: Optional[date] = Query(None, description="Filter by audit date <= end_date"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=100, description="Page size"),
+    page_size: int = Query(50, ge=1, le=1000, description="Page size"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

@@ -126,7 +126,7 @@ async def get_productivity_leaderboard(
     end_date: date = Query(..., description="End date"),
     org_id: Optional[int] = Query(None, description="Filter by organization"),
     team_id: Optional[int] = Query(None, description="Filter by team"),
-    limit: int = Query(10, ge=1, le=100, description="Number of top performers"),
+    limit: int = Query(10, ge=1, le=1000, description="Number of top performers"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_or_higher)
 ):

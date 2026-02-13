@@ -221,7 +221,7 @@ async def list_employee_metrics(
     start_date: Optional[date] = Query(None, description="Filter start date"),
     end_date: Optional[date] = Query(None, description="Filter end date"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=1000),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -439,7 +439,7 @@ async def list_team_metrics(
     start_date: Optional[date] = Query(None, description="Filter start date"),
     end_date: Optional[date] = Query(None, description="Filter end date"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=1000),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
