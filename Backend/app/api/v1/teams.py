@@ -380,7 +380,11 @@ async def update_team(
     
     # Handle team lead change
     old_team_lead_id = team.team_lead_id
-    new_team_lead_id = team_data.team_lead_id if hasattr(team_data, 'team_lead_id') else None
+    
+    # Check if team_lead_id was provided in the request
+    # Use model_dump to check what fields were actually set
+    provided_fields = team_data.model_dump(exclude_unset=True)
+    new_team_lead_id = provided_fields.get('team_lead_id') if 'team_lead_id' in provided_fields else None
     
     # Update basic fields - the schema handles camelCase to snake_case conversion
     # Use by_alias=False to get snake_case field names that match the database model
@@ -388,7 +392,7 @@ async def update_team(
     
     # Apply updates directly since schema already converts to snake_case
     for field, value in update_data.items():
-        if hasattr(team, field) and value is not None:
+        if hasattr(team, field):
             setattr(team, field, value)
     
     # If team lead changed, update user_teams
