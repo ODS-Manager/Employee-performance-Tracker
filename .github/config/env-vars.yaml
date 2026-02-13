@@ -1,4 +1,4 @@
-DATABASE_URL: "postgresql://ods_user:ods_password@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database"
+DATABASE_URL: "postgresql://postgres@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database"
 SECRET_KEY: "dev-secret-key-for-production"
 CORS_ORIGINS: "https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000"
 FRONTEND_URL: "https://ods-frontend-302004244593.asia-south1.run.app"
