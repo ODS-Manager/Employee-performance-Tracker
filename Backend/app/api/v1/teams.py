@@ -349,147 +349,44 @@ async def update_team(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Update team details (Admin or Superadmin)"""
-    team = db.query(Team).filter(Team.id == team_id).first()
-    
-    if not team:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Team not found"
-        )
-    
-    # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
-        if team.org_id != current_user.org_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot update teams from other organizations"
-            )
-    
-    # Capture old snapshot for audit logging
+    """Update team details (Admin or Superadmin) - MINIMAL DEBUG VERSION"""
+    # Just return the team data to test if the issue is in the dependencies
     try:
-        audit_service = AuditService(db)
-        old_snapshot = audit_service._get_entity_snapshot(team)
-    except Exception as e:
-        print(f"Audit service error: {e}")
-        old_snapshot = None
-    
-    # Handle team lead change
-    old_team_lead_id = team.team_lead_id
-    
-    # Check if team_lead_id was provided in the request
-    # Use model_dump to check what fields were actually set
-    provided_fields = team_data.model_dump(exclude_unset=True)
-    new_team_lead_id = provided_fields.get('team_lead_id') if 'team_lead_id' in provided_fields else None
-    
-    # Update basic fields - the schema handles camelCase to snake_case conversion
-    # Use by_alias=False to get snake_case field names that match the database model
-    update_data = team_data.model_dump(exclude_unset=True, exclude={'states', 'products', 'fa_names'}, by_alias=False)
-    
-    # Apply updates directly since schema already converts to snake_case
-    for field, value in update_data.items():
-        if hasattr(team, field):
-            setattr(team, field, value)
-    
-    # If team lead changed, update user_teams
-    if new_team_lead_id is not None and new_team_lead_id != old_team_lead_id:
-        # Demote old team lead to member (if exists in user_teams)
-        if old_team_lead_id:
-            old_lead_membership = db.query(UserTeam).filter(
-                UserTeam.team_id == team_id,
-                UserTeam.user_id == old_team_lead_id,
-                UserTeam.is_active == True
-            ).first()
-            if old_lead_membership:
-                old_lead_membership.role = "member"
-                old_lead_membership.modified_at = datetime.utcnow()
+        team = db.query(Team).filter(Team.id == team_id).first()
         
-        # Add or promote new team lead
-        if new_team_lead_id:
-            new_lead_membership = db.query(UserTeam).filter(
-                UserTeam.team_id == team_id,
-                UserTeam.user_id == new_team_lead_id
-            ).first()
-            
-            if new_lead_membership:
-                # User already in team, promote to lead
-                new_lead_membership.role = "lead"
-                new_lead_membership.is_active = True
-                new_lead_membership.left_at = None
-                new_lead_membership.modified_at = datetime.utcnow()
-            else:
-                # Add new user as lead
-                lead_user = db.query(User).filter(User.id == new_team_lead_id).first()
-                if lead_user:
-                    user_team = UserTeam(
-                        user_id=new_team_lead_id,
-                        team_id=team_id,
-                        role="lead",
-                        joined_at=datetime.utcnow(),
-                        is_active=True
-                    )
-                    db.add(user_team)
-    
-    # Update states if provided
-    if team_data.states is not None:
-        # Remove existing states
-        db.query(TeamState).filter(TeamState.team_id == team_id).delete()
-        # Add new states
-        for state_name in team_data.states:
-            team_state = TeamState(team_id=team_id, state=state_name)
-            db.add(team_state)
-    
-    # Update products if provided
-    if team_data.products is not None:
-        # Remove existing products
-        db.query(TeamProduct).filter(TeamProduct.team_id == team_id).delete()
-        # Add new products
-        for product in team_data.products:
-            team_product = TeamProduct(team_id=team_id, product_type=product)
-            db.add(team_product)
-    
-    # Update FA names if provided
-    if team_data.fa_names is not None:
-        from app.models.team_fa_name import TeamFAName
-        from app.models.fa_name import FAName
-        # Remove existing FA names
-        db.query(TeamFAName).filter(TeamFAName.team_id == team_id).delete()
-        # Add new FA names by ID
-        for fa_name_id in team_data.fa_names:
-            # Verify FA name exists
-            fa_name = db.query(FAName).filter(FAName.id == fa_name_id, FAName.is_active == True).first()
-            if not fa_name:
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Team not found"
+            )
+        
+        # Check organization access
+        if current_user.user_role == ROLE_ADMIN:
+            if team.org_id != current_user.org_id:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"FA name with ID {fa_name_id} not found or inactive"
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot update teams from other organizations"
                 )
-            team_fa = TeamFAName(team_id=team_id, fa_name_id=fa_name_id, is_active=True)
-            db.add(team_fa)
-    
-    team.modified_at = datetime.utcnow()
-    db.commit()
-    db.refresh(team)
-    
-    # Log the update in audit log
-    try:
-        audit_service.log_update(
-            entity=team,
-            entity_type=AuditEntityType.TEAM,
-            old_snapshot=old_snapshot,
-            current_user=current_user,
-            endpoint=f"/api/v1/teams/{team_id}",
-            request_method="PUT",
-            description=f"Updated team: {team.name}"
-        )
+        
+        # MINIMAL UPDATE - just return success without making changes
+        return {
+            "id": team.id,
+            "name": team.name,
+            "message": "DEBUG: PUT endpoint reached successfully",
+            "received_data": team_data.model_dump(exclude_unset=True)
+        }
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        print(f"Audit logging error: {e}")
-        # Continue execution - audit logging failure shouldn't block the team update
-    
-    # Invalidate teams cache for the organization
-    cache.invalidate_team_cache(team.org_id)
-    
-    return serialize_team(team)
-
+        # Log the actual error
+        import traceback
+        print(f"PUT endpoint error: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_team(
