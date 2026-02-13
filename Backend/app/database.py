@@ -18,42 +18,13 @@ try:
                 "check_same_thread": False,  # Allow multi-threaded access
             }
         )
-    elif "cloudsql" in settings.DATABASE_URL or os.getenv("INSTANCE_CONNECTION_NAME"):
-        # Cloud SQL configuration with Python Connector
+        logger.info("Database engine created with SQLite")
+    else:
+        # PostgreSQL configuration - try multiple approaches
+        connection_successful = False
+        
+        # Approach 1: Direct psycopg2 connection with Unix socket
         try:
-            from google.cloud.sql.connector import Connector
-            import pg8000
-            
-            # Initialize Cloud SQL Python Connector
-            connector = Connector()
-            
-            # Cloud SQL instance connection name
-            instance_connection_name = "project-0990a5d7-310c-4a56-837:asia-south1:ods-database"
-            
-            def getconn():
-                return connector.connect(
-                    instance_connection_name,
-                    "pg8000",
-                    user="ods_user",
-                    password="ods_password",
-                    db="ods_db"
-                )
-            
-            # Create engine using Cloud SQL Python Connector
-            engine = create_engine(
-                "postgresql+pg8000://",
-                creator=getconn,
-                pool_size=settings.DATABASE_POOL_SIZE,
-                max_overflow=settings.DATABASE_MAX_OVERFLOW,
-                echo=settings.DEBUG,
-                pool_pre_ping=True
-            )
-            
-            logger.info("Database engine created with Cloud SQL Python Connector")
-            
-        except ImportError:
-            logger.warning("Cloud SQL Python Connector not available, falling back to psycopg2")
-            # Fallback to psycopg2 with Unix socket
             engine = create_engine(
                 settings.DATABASE_URL,
                 pool_size=settings.DATABASE_POOL_SIZE,
@@ -64,22 +35,91 @@ try:
                     "connect_timeout": 10,
                 }
             )
-    else:
-        # Regular PostgreSQL configuration
-        engine = create_engine(
-            settings.DATABASE_URL,
-            pool_size=settings.DATABASE_POOL_SIZE,
-            max_overflow=settings.DATABASE_MAX_OVERFLOW,
-            echo=settings.DEBUG,
-            pool_pre_ping=True,
-            connect_args={
-                "connect_timeout": 10,
-            }
-        )
-    logger.info("Database engine created successfully")
+            # Test the connection
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            logger.info("Database engine created with psycopg2 Unix socket")
+            connection_successful = True
+        except Exception as e:
+            logger.warning(f"psycopg2 Unix socket failed: {e}")
+            
+        # Approach 2: Cloud SQL Python Connector (if psycopg2 failed)
+        if not connection_successful:
+            try:
+                from google.cloud.sql.connector import Connector
+                import pg8000
+                
+                # Initialize Cloud SQL Python Connector
+                connector = Connector()
+                
+                # Cloud SQL instance connection name
+                instance_connection_name = "project-0990a5d7-310c-4a56-837:asia-south1:ods-database"
+                
+                def getconn():
+                    return connector.connect(
+                        instance_connection_name,
+                        "pg8000",
+                        user="ods_user",
+                        password="ods_password",
+                        db="ods_db"
+                    )
+                
+                # Create engine using Cloud SQL Python Connector
+                engine = create_engine(
+                    "postgresql+pg8000://",
+                    creator=getconn,
+                    pool_size=settings.DATABASE_POOL_SIZE,
+                    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                    echo=settings.DEBUG,
+                    pool_pre_ping=True
+                )
+                
+                # Test the connection
+                with engine.connect() as conn:
+                    conn.execute("SELECT 1")
+                logger.info("Database engine created with Cloud SQL Python Connector")
+                connection_successful = True
+                
+            except ImportError:
+                logger.warning("Cloud SQL Python Connector not available")
+            except Exception as e:
+                logger.warning(f"Cloud SQL Python Connector failed: {e}")
+        
+        # Approach 3: Fallback to simpler connection string
+        if not connection_successful:
+            try:
+                # Try a simpler connection format
+                fallback_url = settings.DATABASE_URL.replace(
+                    "?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database", 
+                    ""
+                )
+                if fallback_url != settings.DATABASE_URL:
+                    # This means we had a Cloud SQL URL, try without the socket
+                    logger.warning("Trying fallback connection without Unix socket")
+                    engine = create_engine(
+                        fallback_url,
+                        pool_size=settings.DATABASE_POOL_SIZE,
+                        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                        echo=settings.DEBUG,
+                        pool_pre_ping=True
+                    )
+                    with engine.connect() as conn:
+                        conn.execute("SELECT 1")
+                    logger.info("Database engine created with fallback connection")
+                    connection_successful = True
+            except Exception as e:
+                logger.error(f"Fallback connection also failed: {e}")
+        
+        if not connection_successful:
+            raise Exception("All database connection approaches failed")
+            
 except Exception as e:
     logger.error(f"Failed to create database engine: {e}")
-    raise
+    # For debugging purposes, let's still create an engine that will show the error
+    engine = create_engine(
+        settings.DATABASE_URL,
+        echo=True
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
