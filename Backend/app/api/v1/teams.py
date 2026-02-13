@@ -350,11 +350,7 @@ async def update_team(
     db: Session = Depends(get_db)
 ):
     """Update team details (Admin or Superadmin)"""
-    team = db.query(Team).options(
-        joinedload(Team.states),
-        joinedload(Team.products),
-        joinedload(Team.fa_names).joinedload(TeamFAName.fa_name)
-    ).filter(Team.id == team_id).first()
+    team = db.query(Team).filter(Team.id == team_id).first()
     
     if not team:
         raise HTTPException(
