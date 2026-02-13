@@ -371,8 +371,12 @@ async def update_team(
             )
     
     # Capture old snapshot for audit logging
-    audit_service = AuditService(db)
-    old_snapshot = audit_service._get_entity_snapshot(team)
+    try:
+        audit_service = AuditService(db)
+        old_snapshot = audit_service._get_entity_snapshot(team)
+    except Exception as e:
+        print(f"Audit service error: {e}")
+        old_snapshot = None
     
     # Handle team lead change
     old_team_lead_id = team.team_lead_id
@@ -467,15 +471,19 @@ async def update_team(
     db.refresh(team)
     
     # Log the update in audit log
-    audit_service.log_update(
-        entity=team,
-        entity_type=AuditEntityType.TEAM,
-        old_snapshot=old_snapshot,
-        current_user=current_user,
-        endpoint=f"/api/v1/teams/{team_id}",
-        request_method="PUT",
-        description=f"Updated team: {team.name}"
-    )
+    try:
+        audit_service.log_update(
+            entity=team,
+            entity_type=AuditEntityType.TEAM,
+            old_snapshot=old_snapshot,
+            current_user=current_user,
+            endpoint=f"/api/v1/teams/{team_id}",
+            request_method="PUT",
+            description=f"Updated team: {team.name}"
+        )
+    except Exception as e:
+        print(f"Audit logging error: {e}")
+        # Continue execution - audit logging failure shouldn't block the team update
     
     # Invalidate teams cache for the organization
     cache.invalidate_team_cache(team.org_id)
