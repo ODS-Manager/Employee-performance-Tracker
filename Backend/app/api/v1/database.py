@@ -165,8 +165,13 @@ async def reset_sequences(db: Session):
     
     for table in tables_with_sequences:
         try:
-            # Reset sequence for SQLite
-            db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{table}'"))
+            from app.core.config import settings
+            if settings.DATABASE_URL.startswith("sqlite"):
+                # Reset sequence for SQLite
+                db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{table}'"))
+            else:
+                # Reset sequence for PostgreSQL
+                db.execute(text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), 1, false)"))
         except:
             pass  # Ignore if table doesn't have sequence
 

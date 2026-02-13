@@ -121,8 +121,14 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         from sqlalchemy import create_engine, text
         engine = create_engine(settings.DATABASE_URL)
         with engine.connect() as connection:
-            result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
-            users_table = result.fetchone()
+            # Use PostgreSQL-compatible table check
+            if settings.DATABASE_URL.startswith("sqlite"):
+                result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+                users_table = result.fetchone()
+            else:
+                # PostgreSQL table check
+                result = connection.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='users'"))
+                users_table = result.fetchone()
         if not users_table:
             return {"error": "Database not properly initialized"}
     except Exception as e:
