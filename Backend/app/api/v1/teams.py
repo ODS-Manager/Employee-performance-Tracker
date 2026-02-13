@@ -349,44 +349,48 @@ async def update_team(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Update team details (Admin or Superadmin) - MINIMAL DEBUG VERSION"""
-    # Just return the team data to test if the issue is in the dependencies
-    try:
-        team = db.query(Team).filter(Team.id == team_id).first()
-        
-        if not team:
+    """Update team details (Admin or Superadmin)"""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found"
+        )
+    
+    # Check organization access
+    if current_user.user_role == ROLE_ADMIN:
+        if team.org_id != current_user.org_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Team not found"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot update teams from other organizations"
             )
-        
-        # Check organization access
-        if current_user.user_role == ROLE_ADMIN:
-            if team.org_id != current_user.org_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Cannot update teams from other organizations"
-                )
-        
-        # MINIMAL UPDATE - just return success without making changes
-        return {
-            "id": team.id,
-            "name": team.name,
-            "message": "DEBUG: PUT endpoint reached successfully",
-            "received_data": team_data.model_dump(exclude_unset=True)
-        }
-        
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions
+    
+    # Update basic fields only - simplified version for production stability
+    # Use by_alias=False to get snake_case field names that match the database model
+    update_data = team_data.model_dump(exclude_unset=True, exclude={'states', 'products', 'fa_names'}, by_alias=False)
+    
+    # Apply updates to basic team fields only (no complex team lead logic for now)
+    for field, value in update_data.items():
+        if hasattr(team, field) and field != 'team_lead_id':  # Skip team lead changes for now
+            setattr(team, field, value)
+    
+    # Update timestamp and commit
+    team.modified_at = datetime.utcnow()
+    
+    try:
+        db.commit()
+        db.refresh(team)
     except Exception as e:
-        # Log the actual error
-        import traceback
-        print(f"PUT endpoint error: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
+            detail=f"Failed to update team: {str(e)}"
         )
+    
+    # Return the updated team data
+    return serialize_team(team)
+
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_team(
