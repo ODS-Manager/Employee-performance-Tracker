@@ -59,9 +59,9 @@ try:
                     return connector.connect(
                         instance_connection_name,
                         "pg8000",
-                        user="ods_user",
-                        password="ods_password",
-                        db="ods_db"
+                        user="postgres",  # Use postgres user
+                        db="ods_db",
+                        enable_iam_auth=True  # Use IAM authentication
                     )
                 
                 # Create engine using Cloud SQL Python Connector
