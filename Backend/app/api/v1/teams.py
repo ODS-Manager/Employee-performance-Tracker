@@ -378,26 +378,13 @@ async def update_team(
     old_team_lead_id = team.team_lead_id
     new_team_lead_id = team_data.team_lead_id if hasattr(team_data, 'team_lead_id') else None
     
-    # Update basic fields - handle camelCase to snake_case conversion properly
-    update_data = team_data.model_dump(exclude_unset=True, exclude={'states', 'products', 'fa_names'}, by_alias=True)
+    # Update basic fields - the schema handles camelCase to snake_case conversion
+    # Use by_alias=False to get snake_case field names that match the database model
+    update_data = team_data.model_dump(exclude_unset=True, exclude={'states', 'products', 'fa_names'}, by_alias=False)
     
-    # Manual field mapping from camelCase to snake_case
-    field_mapping = {
-        'monthlyTarget': 'monthly_target',
-        'dailyTarget': 'daily_target',
-        'singleSeatScore': 'single_seat_score', 
-        'step1Score': 'step1_score',
-        'step2Score': 'step2_score',
-        'teamLeadId': 'team_lead_id',
-        'isActive': 'is_active'
-    }
-    
-    # Apply updates with proper field mapping
+    # Apply updates directly since schema already converts to snake_case
     for field, value in update_data.items():
-        if field in field_mapping:
-            setattr(team, field_mapping[field], value)
-        else:
-            # For fields that don't need conversion (like 'name')
+        if hasattr(team, field) and value is not None:
             setattr(team, field, value)
     
     # If team lead changed, update user_teams
