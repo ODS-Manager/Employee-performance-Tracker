@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { usersApi, organizationsApi, teamsApi } from '../../services/api'
@@ -161,42 +161,60 @@ export const EmployeeManagementPage = () => {
   }
 
 
-  const getOrgName = (orgId: number | null) => {
-    if (!orgId) return 'No Org'
+  // Helper function to get organization name
+  const getOrgName = (orgId: number | null): string => {
+    if (!orgId) return 'No Organization'
     const org = organizations.find(o => o.id === orgId)
-    return org ? org.name : `Org #${orgId}`
+    return org?.name || 'Unknown Organization'
   }
 
-  // Filter employees based on all filters
-  const filteredEmployees = employees.filter(emp => {
-    // Search filter
-    const searchLower = searchQuery.toLowerCase()
-    const matchesSearch = 
-      emp.userName.toLowerCase().includes(searchLower) ||
-      emp.userName.toLowerCase().includes(searchLower) ||
-      emp.employeeId.toLowerCase().includes(searchLower)
+  // Filter employees based on all filters with memoization for performance
+  const filteredEmployees = useMemo(() => {
+    console.log('Filtering employees:', {
+      total: employees.length,
+      searchQuery,
+      roleFilter,
+      statusFilter,
+      orgFilter
+    })
+
+    const filtered = employees.filter(emp => {
+      // Search filter - Fixed duplicate line bug
+      const searchLower = searchQuery.toLowerCase()
+      const matchesSearch = searchQuery === '' || 
+        emp.userName.toLowerCase().includes(searchLower) ||
+        emp.employeeId.toLowerCase().includes(searchLower) ||
+        getOrgName(emp.orgId).toLowerCase().includes(searchLower)
+      
+      // Role filter
+      const matchesRole = roleFilter === 'all' || emp.userRole === roleFilter
+      
+      // Status filter
+      const matchesStatus = 
+        statusFilter === 'all' || 
+        (statusFilter === 'active' && emp.isActive) ||
+        (statusFilter === 'inactive' && !emp.isActive)
+      
+      // Organization filter - Improved null handling
+      const matchesOrg = 
+        orgFilter === 'all' || 
+        (emp.orgId !== null && emp.orgId.toString() === orgFilter)
+      
+      return matchesSearch && matchesRole && matchesStatus && matchesOrg
+    })
     
-    // Role filter
-    const matchesRole = roleFilter === 'all' || emp.userRole === roleFilter
+    console.log('Filtered result:', {
+      filteredCount: filtered.length,
+      filters: { searchQuery, roleFilter, statusFilter, orgFilter }
+    })
     
-    // Status filter
-    const matchesStatus = 
-      statusFilter === 'all' || 
-      (statusFilter === 'active' && emp.isActive) ||
-      (statusFilter === 'inactive' && !emp.isActive)
-    
-    // Organization filter
-    const matchesOrg = 
-      orgFilter === 'all' || 
-      emp.orgId?.toString() === orgFilter
-    
-    return matchesSearch && matchesRole && matchesStatus && matchesOrg
-  })
+    return filtered
+  }, [employees, searchQuery, roleFilter, statusFilter, orgFilter, organizations])
 
   const activeCount = employees.filter(e => e.isActive).length
   const inactiveCount = employees.length - activeCount
 
-  const hasActiveFilters = roleFilter !== 'all' || statusFilter !== 'all' || orgFilter !== 'all'
+  const hasActiveFilters = roleFilter !== 'all' || statusFilter !== 'all' || orgFilter !== 'all' || searchQuery !== ''
 
   const clearFilters = () => {
     setRoleFilter('all')
