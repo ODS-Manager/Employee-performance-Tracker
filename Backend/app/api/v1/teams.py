@@ -133,25 +133,22 @@ async def list_teams(
 ):
     """List teams with organization-based filtering"""
     
-    # Build cache key based on user role and filters
-    cache_org_id = org_id if current_user.user_role == ROLE_SUPERADMIN else current_user.org_id
-    cache_key = cache._build_key(
-        cache.PREFIX_TEAMS,
-        "list",
-        f"org:{cache_org_id}",
-        f"active:{is_active}" if is_active is not None else None
-    )
+    # TEMPORARY FIX: Disable cache and complex joins to debug issue
+    # cache_org_id = org_id if current_user.user_role == ROLE_SUPERADMIN else current_user.org_id
+    # cache_key = cache._build_key(
+    #     cache.PREFIX_TEAMS,
+    #     "list",
+    #     f"org:{cache_org_id}",
+    #     f"active:{is_active}" if is_active is not None else None
+    # )
     
-    # Try to get from cache
-    cached_result = cache.get(cache_key)
-    if cached_result is not None:
-        return cached_result
+    # # Try to get from cache
+    # cached_result = cache.get(cache_key)
+    # if cached_result is not None:
+    #     return cached_result
     
-    query = db.query(Team).options(
-        joinedload(Team.states),
-        joinedload(Team.products),
-        joinedload(Team.fa_names).joinedload(TeamFAName.fa_name)
-    )
+    # Simplified query without problematic joins
+    query = db.query(Team)
     
     # Apply role-based filtering
     if current_user.user_role == ROLE_SUPERADMIN:
@@ -167,14 +164,35 @@ async def list_teams(
     teams = query.order_by(Team.name).all()
     
     result = {
-        "items": [serialize_team(team) for team in teams],
+        "items": [serialize_team_simple(team) for team in teams],
         "total": len(teams)
     }
     
-    # Cache the result
-    cache.set(cache_key, result, cache.TTL_USER_LIST)
+    # TEMPORARY: Disable caching during debug
+    # cache.set(cache_key, result, cache.TTL_USER_LIST)
     
     return result
+
+
+def serialize_team_simple(team: Team) -> dict:
+    """Simplified team serialization without relationships to avoid errors"""
+    return {
+        "id": team.id,
+        "name": team.name,
+        "orgId": team.org_id,
+        "teamLeadId": team.team_lead_id,
+        "isActive": team.is_active,
+        "dailyTarget": team.daily_target,
+        "monthlyTarget": team.monthly_target,
+        "singleSeatScore": float(team.single_seat_score) if team.single_seat_score else 1.0,
+        "step1Score": float(team.step1_score) if team.step1_score else 0.5,
+        "step2Score": float(team.step2_score) if team.step2_score else 0.5,
+        "createdAt": team.created_at.isoformat() if team.created_at else None,
+        "modifiedAt": team.modified_at.isoformat() if team.modified_at else None,
+        "states": [],  # Simplified - no states for now
+        "products": [],  # Simplified - no products for now
+        "faNames": []  # Simplified - no fa names for now
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
