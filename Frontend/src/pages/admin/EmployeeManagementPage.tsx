@@ -127,7 +127,7 @@ export const EmployeeManagementPage = () => {
       
       // Fetch employees and organizations in parallel
       const [usersRes, orgsRes] = await Promise.all([
-        usersApi.list(),
+        usersApi.list({ pageSize: 1000 }),
         organizationsApi.list({ isActive: true })
       ])
       
