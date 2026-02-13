@@ -2,3 +2,5 @@ DATABASE_URL: "postgresql://postgres:admin123@/ods_db?host=/cloudsql/project-099
 SECRET_KEY: "dev-secret-key-for-production"
 CORS_ORIGINS: "https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000"
 FRONTEND_URL: "https://ods-frontend-302004244593.asia-south1.run.app"
+# Temporarily add invalid line to force fallback to individual env vars
+INVALID_TEMP_LINE_TO_FORCE_FALLBACK:
