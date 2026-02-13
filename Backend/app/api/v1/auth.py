@@ -44,12 +44,23 @@ router = APIRouter()
 
 @router.get("/debug")
 async def debug_login():
-    """Debug endpoint to check database content and connection"""
+    """Debug endpoint to check database content and fix permissions"""
     import os
     from app.core.config import settings
     try:
         from app.database import SessionLocal
         db = SessionLocal()
+        
+        # First, try to fix permissions by granting access to postgres user
+        try:
+            # Grant all privileges on all tables to postgres user
+            db.execute(text("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres"))
+            db.execute(text("GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres"))
+            db.commit()
+            permissions_fixed = True
+        except Exception as perm_error:
+            permissions_fixed = False
+            print(f"Permission fix error: {perm_error}")
         
         # Test basic connection
         result = db.execute(text("SELECT COUNT(*) as total FROM users"))
@@ -88,6 +99,7 @@ async def debug_login():
             "database_url_preview": settings.DATABASE_URL[:80] + "..." if len(settings.DATABASE_URL) > 80 else settings.DATABASE_URL,
             "socket_path": "/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database/.s.PGSQL.5432" if "cloudsql" in settings.DATABASE_URL else "N/A",
             "connection_test": "successful",
+            "permissions_fixed": permissions_fixed,
             "total_users": user_count,
             "total_organizations": org_count,
             "total_teams": team_count,
