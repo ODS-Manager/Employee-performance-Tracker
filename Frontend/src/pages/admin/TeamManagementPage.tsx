@@ -937,7 +937,7 @@ export const TeamManagementPage = () => {
                       <div className="flex flex-wrap gap-1.5">
                         {selectedTeam.faNames.map((fnObj, idx) => {
                           // fnObj might be string or object with faName property
-                          const displayName = typeof fnObj === 'string' ? fnObj : fnObj.faName || fnObj
+                          const displayName = typeof fnObj === 'string' ? fnObj : (fnObj.faName || fnObj.name || 'Unknown')
                           return (
                             <Badge key={idx} variant="outline" className="text-xs">
                               {displayName}
