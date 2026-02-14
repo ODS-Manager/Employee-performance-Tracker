@@ -36,8 +36,9 @@ app = FastAPI(
 # Security Headers Middleware (applied first)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# CSRF Protection Middleware
-app.add_middleware(CSRFMiddleware)
+# CSRF Protection Middleware - TEMPORARILY DISABLED FOR DEBUGGING
+# TODO: Re-enable after fixing cross-origin cookie issues
+# app.add_middleware(CSRFMiddleware)
 
 # CORS middleware (applied last, runs first)
 app.add_middleware(
