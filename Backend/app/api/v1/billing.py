@@ -92,18 +92,27 @@ def preview_billing(
     Shows what will be included without creating the report
     Admin/SuperAdmin only
     
-    For superadmin: Must provide orgId in request body
+    For superadmin: Provide orgId in request body, or defaults to first org
     For admin: Uses current user's org_id
     """
+    from app.models.organization import Organization
+    
     # Determine which org_id to use
     if current_user.org_id is None:
-        # Superadmin - must provide org_id in request
+        # Superadmin - use provided org_id or default to first active org
         if request.org_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Superadmin must provide orgId in request"
-            )
-        target_org_id = request.org_id
+            # Default to first active organization
+            first_org = db.query(Organization).filter(
+                Organization.is_active == True
+            ).first()
+            if not first_org:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No active organizations found. Please provide orgId."
+                )
+            target_org_id = first_org.id
+        else:
+            target_org_id = request.org_id
     else:
         # Regular admin - use their org_id
         target_org_id = current_user.org_id
@@ -125,18 +134,27 @@ def create_billing_report(
     Create organization-wide billing report grouped by product types
     Admin/SuperAdmin only
     
-    For superadmin: Must provide orgId in request body
+    For superadmin: Provide orgId in request body, or defaults to first org
     For admin: Uses current user's org_id
     """
+    from app.models.organization import Organization
+    
     # Determine which org_id to use
     if current_user.org_id is None:
-        # Superadmin - must provide org_id in request
+        # Superadmin - use provided org_id or default to first active org
         if data.org_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Superadmin must provide orgId in request"
-            )
-        target_org_id = data.org_id
+            # Default to first active organization
+            first_org = db.query(Organization).filter(
+                Organization.is_active == True
+            ).first()
+            if not first_org:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No active organizations found. Please provide orgId."
+                )
+            target_org_id = first_org.id
+        else:
+            target_org_id = data.org_id
     else:
         # Regular admin - use their org_id
         target_org_id = current_user.org_id
