@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
 from typing import List, Union
 import os
 
@@ -19,8 +20,28 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "dev-secret-key-for-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour - auto-refreshed by frontend
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30    # 30 days - long-lived for automatic renewal
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60, description="Access token expiration in minutes")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Refresh token expiration in days")
+    
+    @field_validator('ACCESS_TOKEN_EXPIRE_MINUTES', 'REFRESH_TOKEN_EXPIRE_DAYS', mode='before')
+    @classmethod
+    def parse_int_or_default(cls, v, info):
+        """Handle empty strings and invalid values by returning the default"""
+        if v == '' or v is None:
+            # Return the field's default value
+            if info.field_name == 'ACCESS_TOKEN_EXPIRE_MINUTES':
+                return 60
+            elif info.field_name == 'REFRESH_TOKEN_EXPIRE_DAYS':
+                return 30
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            # Return default if parsing fails
+            if info.field_name == 'ACCESS_TOKEN_EXPIRE_MINUTES':
+                return 60
+            elif info.field_name == 'REFRESH_TOKEN_EXPIRE_DAYS':
+                return 30
+        return v
     
     # Session Management
     MAX_LOGIN_ATTEMPTS: int = 5
