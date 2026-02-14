@@ -1,7 +1,13 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic import Field
 from typing import List, Union
 import os
+
+# Clean up problematic environment variables before Pydantic loads them
+if os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES') == '':
+    os.environ['ACCESS_TOKEN_EXPIRE_MINUTES'] = '60'
+if os.getenv('REFRESH_TOKEN_EXPIRE_DAYS') == '':
+    os.environ['REFRESH_TOKEN_EXPIRE_DAYS'] = '30'
 
 class Settings(BaseSettings):
     # Application
@@ -20,28 +26,8 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "dev-secret-key-for-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60, description="Access token expiration in minutes")
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Refresh token expiration in days")
-    
-    @field_validator('ACCESS_TOKEN_EXPIRE_MINUTES', 'REFRESH_TOKEN_EXPIRE_DAYS', mode='before')
-    @classmethod
-    def parse_int_or_default(cls, v, info):
-        """Handle empty strings and invalid values by returning the default"""
-        if v == '' or v is None:
-            # Return the field's default value
-            if info.field_name == 'ACCESS_TOKEN_EXPIRE_MINUTES':
-                return 60
-            elif info.field_name == 'REFRESH_TOKEN_EXPIRE_DAYS':
-                return 30
-        try:
-            return int(v)
-        except (ValueError, TypeError):
-            # Return default if parsing fails
-            if info.field_name == 'ACCESS_TOKEN_EXPIRE_MINUTES':
-                return 60
-            elif info.field_name == 'REFRESH_TOKEN_EXPIRE_DAYS':
-                return 30
-        return v
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour - auto-refreshed by frontend
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30    # 30 days - long-lived for automatic renewal
     
     # Session Management
     MAX_LOGIN_ATTEMPTS: int = 5
@@ -91,5 +77,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # Don't validate assignment to allow preprocessed values
+        validate_assignment = False
 
 settings = Settings()
