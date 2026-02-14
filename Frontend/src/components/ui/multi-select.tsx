@@ -72,38 +72,46 @@ export function MultiSelect({
           className="w-[--radix-dropdown-menu-trigger-width] max-h-60 overflow-y-auto"
           align="start"
         >
-          {options.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option}
-              checked={selected.includes(option)}
-              onCheckedChange={() => handleToggle(option)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {option}
-            </DropdownMenuCheckboxItem>
-          ))}
+           {options.map((option) => {
+            // Safety check: ensure option is a string, not an object
+            const displayValue = typeof option === 'string' ? option : (option?.name || option?.faName || String(option))
+            return (
+              <DropdownMenuCheckboxItem
+                key={displayValue}
+                checked={selected.includes(option)}
+                onCheckedChange={() => handleToggle(option)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {displayValue}
+              </DropdownMenuCheckboxItem>
+            )
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
 
       {/* Display selected items as badges below */}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 p-2 border rounded-md bg-slate-50">
-          {selected.slice(0, maxDisplayed).map((item) => (
-            <Badge
-              key={item}
-              variant="secondary"
-              className="text-xs pr-1 gap-1"
-            >
-              {item}
-              <button
-                type="button"
-                onClick={(e) => handleRemove(item, e)}
-                className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+          {selected.slice(0, maxDisplayed).map((item) => {
+            // Safety check: ensure item is a string, not an object
+            const displayValue = typeof item === 'string' ? item : (item?.name || item?.faName || String(item))
+            return (
+              <Badge
+                key={displayValue}
+                variant="secondary"
+                className="text-xs pr-1 gap-1"
               >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+                {displayValue}
+                <button
+                  type="button"
+                  onClick={(e) => handleRemove(item, e)}
+                  className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )
+          })}
           {selected.length > maxDisplayed && (
             <Badge variant="outline" className="text-xs">
               +{selected.length - maxDisplayed} more
