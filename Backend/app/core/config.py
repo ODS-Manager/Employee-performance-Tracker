@@ -5,7 +5,7 @@ import os
 class Settings(BaseSettings):
     # Application
     APP_NAME: str = "ODS"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "1.0.1"
     DEBUG: bool = True
     
     # Database - Environment variable takes precedence
