@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     # Security - Cookie Settings
     COOKIE_SECURE: bool = True  # Set to True in production (requires HTTPS)
     COOKIE_HTTPONLY: bool = True  # Prevents JavaScript access to cookies
-    COOKIE_SAMESITE: str = "lax"  # Options: "strict", "lax", "none"
-    COOKIE_DOMAIN: Union[str, None] = None  # Set to your domain in production
+    COOKIE_SAMESITE: str = "none"  # Use "none" for cross-origin cookies (requires Secure=True)
+    COOKIE_DOMAIN: Union[str, None] = None  # None allows cookies to work across different origins
     
     # Security - CSRF Protection
     CSRF_TOKEN_EXPIRE_MINUTES: int = 60  # CSRF token expiration
