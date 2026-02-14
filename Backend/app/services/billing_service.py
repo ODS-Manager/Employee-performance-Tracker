@@ -5,6 +5,7 @@ Billing is done organization-wide grouped by product types with shortened team n
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, date
 from typing import Optional, List, Dict
 from io import BytesIO
@@ -242,7 +243,7 @@ def create_billing_report(
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Billing report already exists for {data.billing_month}/{data.billing_year}"
+            detail=f"Billing report already exists for {data.billing_month}/{data.billing_year}. Report ID: {existing.id}"
         )
     
     # Calculate date range
@@ -320,8 +321,23 @@ def create_billing_report(
         )
         db.add(detail)
     
-    db.commit()
-    db.refresh(report)
+    try:
+        db.commit()
+        db.refresh(report)
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's a duplicate key error
+        if 'idx_billing_org_team_period' in str(e) or 'unique constraint' in str(e).lower():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Billing report already exists for {data.billing_month}/{data.billing_year}. Please delete the existing report before creating a new one."
+            )
+        else:
+            # Re-raise other integrity errors
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error while creating billing report: {str(e)}"
+            )
     
     # Return response
     return get_billing_report_by_id(db, report.id)
