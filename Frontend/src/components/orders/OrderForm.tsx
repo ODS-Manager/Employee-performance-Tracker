@@ -927,7 +927,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <SelectValue placeholder={loadingOrganizations ? "Loading..." : "Select organization"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {organizationsData?.items?.map((org) => (
+                        {Array.isArray(organizationsData?.items) && organizationsData.items.map((org) => (
                           <SelectItem key={org.id} value={org.id.toString()}>{org.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -948,7 +948,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <SelectValue placeholder={loadingTeams ? "Loading..." : "Select team"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableTeams.map((team) => (
+                        {Array.isArray(availableTeams) && availableTeams.map((team) => (
                           <SelectItem key={team.id} value={team.id.toString()}>{team.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1003,7 +1003,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select division"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {divisions?.map((division) => (
+                        {Array.isArray(divisions) && divisions.map((division) => (
                           <SelectItem key={division.id} value={division.id.toString()}>{division.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1024,7 +1024,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <SelectValue placeholder={teamNotSelected ? "Select team first" : (loadingTeamDetails ? "Loading..." : "Select state")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableStates.map((state) => (
+                        {Array.isArray(availableStates) && availableStates.map((state) => (
                           <SelectItem key={state} value={state}>{state}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1056,7 +1056,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       <SelectValue placeholder={teamNotSelected ? "Select team first" : (loadingTeamDetails ? "Loading..." : "Select product type")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableProducts.map((product) => (
+                      {Array.isArray(availableProducts) && availableProducts.map((product) => (
                         <SelectItem key={product} value={product}>{product}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1075,7 +1075,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select transaction type"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {transactionTypes?.filter(t => t.isActive).map((type) => (
+                      {Array.isArray(transactionTypes) && transactionTypes.filter(t => t.isActive).map((type) => (
                         <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1105,7 +1105,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           <SelectValue placeholder={teamNotSelected ? "Select team first" : (availableProcessTypes.length === 0 ? "No process available" : "Select process type")} />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableProcessTypes.map((type) => (
+                          {Array.isArray(availableProcessTypes) && availableProcessTypes.map((type) => (
                             <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1124,7 +1124,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select status"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {orderStatuses?.filter(s => s.isActive).map((status) => (
+                          {Array.isArray(orderStatuses) && orderStatuses.filter(s => s.isActive).map((status) => (
                             <SelectItem key={status.id} value={status.id.toString()}>{status.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1155,7 +1155,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                                 <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {faNames.map((fn) => (
+                                {Array.isArray(faNames) && faNames.map((fn) => (
                                   <SelectItem key={fn.id} value={fn.faName}>
                                     {fn.faName}
                                   </SelectItem>
@@ -1215,7 +1215,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                                 <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {faNames.map((fn) => (
+                                {Array.isArray(faNames) && faNames.map((fn) => (
                                   <SelectItem key={fn.id} value={fn.faName}>
                                     {fn.faName}
                                   </SelectItem>
