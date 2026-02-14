@@ -28,6 +28,7 @@ def list_billing_reports(
     billing_month: Optional[int] = Query(None, ge=1, le=12),
     billing_year: Optional[int] = Query(None, ge=2020, le=2100),
     status: Optional[str] = Query(None),
+    org_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
@@ -35,10 +36,21 @@ def list_billing_reports(
     List organization-wide billing reports with optional filters
     No team filtering - all reports are org-wide
     Admin/SuperAdmin only
+    
+    For superadmin: Can provide orgId as query param to filter by org
+    For admin: Uses current user's org_id
     """
+    # Determine which org_id to use
+    if current_user.org_id is None:
+        # Superadmin - use provided org_id or None to get all
+        target_org_id = org_id
+    else:
+        # Regular admin - always use their org_id
+        target_org_id = current_user.org_id
+    
     reports = billing_service.get_billing_reports(
         db=db,
-        org_id=current_user.org_id,
+        org_id=target_org_id,
         billing_month=billing_month,
         billing_year=billing_year,
         status=status
@@ -62,8 +74,8 @@ def get_billing_report(
     """
     report = billing_service.get_billing_report_by_id(db, report_id)
     
-    # Verify report belongs to user's org
-    if report.org_id != current_user.org_id:
+    # Verify access - superadmin can access any, admin only their org
+    if current_user.org_id is not None and report.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return report
@@ -79,10 +91,26 @@ def preview_billing(
     Preview billing data before generating report
     Shows what will be included without creating the report
     Admin/SuperAdmin only
+    
+    For superadmin: Must provide orgId in request body
+    For admin: Uses current user's org_id
     """
+    # Determine which org_id to use
+    if current_user.org_id is None:
+        # Superadmin - must provide org_id in request
+        if request.org_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Superadmin must provide orgId in request"
+            )
+        target_org_id = request.org_id
+    else:
+        # Regular admin - use their org_id
+        target_org_id = current_user.org_id
+    
     return billing_service.preview_billing_data(
         db=db,
-        org_id=current_user.org_id,
+        org_id=target_org_id,
         request=request
     )
 
@@ -96,10 +124,26 @@ def create_billing_report(
     """
     Create organization-wide billing report grouped by product types
     Admin/SuperAdmin only
+    
+    For superadmin: Must provide orgId in request body
+    For admin: Uses current user's org_id
     """
+    # Determine which org_id to use
+    if current_user.org_id is None:
+        # Superadmin - must provide org_id in request
+        if data.org_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Superadmin must provide orgId in request"
+            )
+        target_org_id = data.org_id
+    else:
+        # Regular admin - use their org_id
+        target_org_id = current_user.org_id
+    
     return billing_service.create_billing_report(
         db=db,
-        org_id=current_user.org_id,
+        org_id=target_org_id,
         current_user_id=current_user.id,
         data=data
     )
@@ -120,7 +164,8 @@ def finalize_billing_report(
     # Get report to verify org
     report = billing_service.get_billing_report_by_id(db, report_id)
     
-    if report.org_id != current_user.org_id:
+    # Verify access - superadmin can access any, admin only their org
+    if current_user.org_id is not None and report.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return billing_service.finalize_billing_report(
@@ -143,7 +188,8 @@ def delete_billing_report(
     # Get report to verify org
     report = billing_service.get_billing_report_by_id(db, report_id)
     
-    if report.org_id != current_user.org_id:
+    # Verify access - superadmin can access any, admin only their org
+    if current_user.org_id is not None and report.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     billing_service.delete_billing_report(db, report_id)
@@ -164,7 +210,8 @@ def export_billing_report_excel(
     # Get report to verify org
     report = billing_service.get_billing_report_by_id(db, report_id)
     
-    if report.org_id != current_user.org_id:
+    # Verify access - superadmin can access any, admin only their org
+    if current_user.org_id is not None and report.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Generate Excel file

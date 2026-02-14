@@ -66,18 +66,22 @@ def format_product_type(team_name: str, product_type: str) -> str:
 
 def get_billing_reports(
     db: Session,
-    org_id: int,
+    org_id: Optional[int],
     billing_month: Optional[int] = None,
     billing_year: Optional[int] = None,
     status: Optional[str] = None
 ) -> List[BillingReportResponse]:
     """
     Get billing reports with filters (no team filtering - all reports are org-wide)
+    If org_id is None (superadmin), returns all reports from all organizations
     """
     query = db.query(BillingReport).filter(
-        BillingReport.org_id == org_id,
         BillingReport.team_id.is_(None)  # All new reports are org-wide
     )
+    
+    # Filter by org_id only if provided (for superadmin, org_id might be None)
+    if org_id is not None:
+        query = query.filter(BillingReport.org_id == org_id)
     
     if billing_month:
         query = query.filter(BillingReport.billing_month == billing_month)

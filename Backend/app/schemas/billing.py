@@ -55,6 +55,7 @@ class BillingReportCreate(BaseModel):
     """Create a new billing report (admin/superadmin only) - always organization-wide"""
     billing_month: int = Field(alias="billingMonth", ge=1, le=12)
     billing_year: int = Field(alias="billingYear", ge=2020, le=2100)
+    org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
 
 
 class BillingReportFinalize(BaseModel):
@@ -66,6 +67,7 @@ class BillingPreviewRequest(BaseModel):
     """Request to preview billing data before generating report"""
     billing_month: int = Field(alias="billingMonth", ge=1, le=12)
     billing_year: int = Field(alias="billingYear", ge=2020, le=2100)
+    org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
 
 
 class BillingPreviewDetail(BaseModel):
