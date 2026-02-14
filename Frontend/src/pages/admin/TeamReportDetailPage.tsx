@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import api, { organizationsApi } from '@/services/api'
 import type { Organization } from '@/types'
+import { getInitials, getRoleBadgeColor } from '@/utils/helpers'
 
 // Interfaces matching the backend API response
 interface TeamState {

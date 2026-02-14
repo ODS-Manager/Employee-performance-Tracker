@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { OrderForm } from '../../components/orders/OrderForm'
 import { ChangePasswordDialog } from '../../components/common/ChangePasswordDialog'
+import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 
 export const OrderEditPage = () => {
   const { user, logout } = useAuthStore()
