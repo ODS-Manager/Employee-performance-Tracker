@@ -906,7 +906,7 @@ async def get_team_fake_names(
         "items": [
             {
                 "id": fn.id,
-                "faName": fn.fa_name,
+                "faName": fn.fa_name.name,  # Access the .name property of the FAName relationship
                 "teamId": fn.team_id
             }
             for fn in fa_names
