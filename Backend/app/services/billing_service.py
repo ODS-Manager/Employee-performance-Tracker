@@ -73,12 +73,11 @@ def get_billing_reports(
     status: Optional[str] = None
 ) -> List[BillingReportResponse]:
     """
-    Get billing reports with filters (no team filtering - all reports are org-wide)
+    Get billing reports with filters
+    Shows both org-wide reports (team_id=NULL) and old team-specific reports
     If org_id is None (superadmin), returns all reports from all organizations
     """
-    query = db.query(BillingReport).filter(
-        BillingReport.team_id.is_(None)  # All new reports are org-wide
-    )
+    query = db.query(BillingReport)
     
     # Filter by org_id only if provided (for superadmin, org_id might be None)
     if org_id is not None:
@@ -117,8 +116,8 @@ def get_billing_reports(
         response = BillingReportResponse(
             id=report.id,
             orgId=report.org_id,
-            teamId=None,
-            teamName="All Teams",
+            teamId=report.team_id,
+            teamName=report.team.team_name if report.team else "All Teams",
             billingMonth=report.billing_month,
             billingYear=report.billing_year,
             status=report.status,
