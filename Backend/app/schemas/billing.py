@@ -13,7 +13,7 @@ class BillingDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     
     id: int
-    state: str
+    state: Optional[str] = None  # NULL for org-wide reports
     product_type: str = Field(alias="productType")  # Format: "WA Direct Full Search"
     single_seat_count: int = Field(alias="singleSeatCount")
     only_step1_count: int = Field(alias="onlyStep1Count")

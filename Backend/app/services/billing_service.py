@@ -311,7 +311,7 @@ def create_billing_report(
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
         detail = BillingDetail(
             report_id=report.id,
-            state="",  # Not used in new format
+            state=None,  # NULL for org-wide reports
             product_type=product_type,
             single_seat_count=counts['single_seat'],
             only_step1_count=counts['only_step1'],

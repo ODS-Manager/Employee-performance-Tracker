@@ -65,7 +65,7 @@ class BillingDetail(Base):
     report_id = Column(Integer, ForeignKey("billing_reports.id", ondelete="CASCADE"), nullable=False)
     
     # Grouping dimensions
-    state = Column(String(5), nullable=False)
+    state = Column(String(5), nullable=True)  # Nullable for org-wide reports
     product_type = Column(String(100), nullable=False)
     
     # File counts - each type counts as 1 for billing
