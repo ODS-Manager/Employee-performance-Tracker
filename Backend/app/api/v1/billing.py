@@ -124,7 +124,7 @@ def preview_billing(
     )
 
 
-@router.post("")
+@router.post("", response_model=BillingReportResponse)
 def create_billing_report(
     data: BillingReportCreate,
     db: Session = Depends(get_db),

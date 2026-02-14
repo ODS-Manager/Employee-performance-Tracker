@@ -10,7 +10,7 @@ from datetime import datetime
 
 class BillingDetailResponse(BaseModel):
     """Billing detail for a product type (team + product type combination)"""
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     
     id: int
     state: str
@@ -23,7 +23,7 @@ class BillingDetailResponse(BaseModel):
 
 class BillingReportResponse(BaseModel):
     """Billing report response with details - organization-wide, no team filtering"""
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     
     id: int
     org_id: int = Field(alias="orgId")
