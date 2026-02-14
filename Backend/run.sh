@@ -4,10 +4,10 @@
 echo "Starting Employee Performance Tracker Backend..."
 
 # Set Python path
-export PYTHONPATH="${PYTHONPATH}:/home/buddy/Work/Employee-performance-Tracker/Backend"
+export PYTHONPATH="${PYTHONPATH}:/home/buddy/Work/ODS/Employee-performance-Tracker/Backend"
 
 # Change to backend directory
-cd /home/buddy/Work/Employee-performance-Tracker/Backend
+cd /home/buddy/Work/ODS/Employee-performance-Tracker/Backend
 
 # Start the server
 python app/main.py

@@ -28,6 +28,18 @@ class Settings(BaseSettings):
     MAX_REQUESTS_PER_MINUTE: int = 60
     SESSION_CLEANUP_ENABLED: bool = True
     AUTO_REFRESH_BEFORE_EXPIRY_MINUTES: int = 5  # Refresh 5 min before expiry
+    MAX_CONCURRENT_SESSIONS_PER_USER: int = 5  # Maximum concurrent sessions per user
+    
+    # Security - Cookie Settings
+    COOKIE_SECURE: bool = True  # Set to True in production (requires HTTPS)
+    COOKIE_HTTPONLY: bool = True  # Prevents JavaScript access to cookies
+    COOKIE_SAMESITE: str = "lax"  # Options: "strict", "lax", "none"
+    COOKIE_DOMAIN: Union[str, None] = None  # Set to your domain in production
+    
+    # Security - CSRF Protection
+    CSRF_TOKEN_EXPIRE_MINUTES: int = 60  # CSRF token expiration
+    CSRF_COOKIE_NAME: str = "csrf_token"
+    CSRF_HEADER_NAME: str = "X-CSRF-Token"
     
     # CORS configuration removed for testing
     # CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "https://ods-frontend-302004244593.asia-south1.run.app"]

@@ -115,7 +115,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
  */
 export const hasPermission = (user: User | null, permission: Permission): boolean => {
   if (!user) return false
-  const permissions = rolePermissions[user.userRole]
+  const userRoleKey = user.userRole?.toLowerCase() as UserRole
+  const permissions = rolePermissions[userRoleKey]
   return permissions?.includes(permission) ?? false
 }
 
@@ -139,7 +140,7 @@ export const hasAllPermissions = (user: User | null, permissions: Permission[]):
  * Check if user has a specific role
  */
 export const hasRole = (user: User | null, role: UserRole): boolean => {
-  return user?.userRole === role
+  return user?.userRole?.toLowerCase() === role.toLowerCase()
 }
 
 /**
@@ -147,35 +148,35 @@ export const hasRole = (user: User | null, role: UserRole): boolean => {
  */
 export const hasAnyRole = (user: User | null, roles: UserRole[]): boolean => {
   if (!user) return false
-  return roles.includes(user.userRole)
+  return roles.some(role => role.toLowerCase() === user.userRole?.toLowerCase())
 }
 
 /**
  * Check if user is a superadmin
  */
 export const isSuperAdmin = (user: User | null): boolean => {
-  return user?.userRole === 'superadmin'
+  return user?.userRole?.toLowerCase() === 'superadmin'
 }
 
 /**
  * Check if user is an admin
  */
 export const isAdmin = (user: User | null): boolean => {
-  return user?.userRole === 'admin'
+  return user?.userRole?.toLowerCase() === 'admin'
 }
 
 /**
  * Check if user is a team lead
  */
 export const isTeamLead = (user: User | null): boolean => {
-  return user?.userRole === 'team_lead'
+  return user?.userRole?.toLowerCase() === 'team_lead'
 }
 
 /**
  * Check if user is an employee
  */
 export const isEmployee = (user: User | null): boolean => {
-  return user?.userRole === 'employee'
+  return user?.userRole?.toLowerCase() === 'employee'
 }
 
 /**

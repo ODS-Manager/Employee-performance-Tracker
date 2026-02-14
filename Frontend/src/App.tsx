@@ -58,9 +58,10 @@ const DefaultRoute = () => {
   }
   
   // Redirect to appropriate dashboard based on user role
-  if (user.userRole === 'superadmin' || user.userRole === 'admin') {
+  const userRole = user.userRole?.toLowerCase()
+  if (userRole === 'superadmin' || userRole === 'admin') {
     return <Navigate to="/admin/dashboard" replace />
-  } else if (user.userRole === 'team_lead') {
+  } else if (userRole === 'team_lead') {
     return <Navigate to="/teamlead/dashboard" replace />
   } else {
     return <Navigate to="/employee/dashboard" replace />

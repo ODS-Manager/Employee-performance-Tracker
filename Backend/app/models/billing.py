@@ -19,7 +19,7 @@ class BillingReport(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
     
     # Billing period
     billing_month = Column(Integer, nullable=False)  # 1-12

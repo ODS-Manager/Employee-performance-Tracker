@@ -1,9 +1,9 @@
 """
 Authentication API Routes
 Login, logout, token refresh, password management with session management
+SECURE: Uses httpOnly cookies and CSRF protection
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -11,7 +11,7 @@ from typing import Optional
 import uuid
 
 from app.database import get_db
-from app.core.config import settings  # Add missing import
+from app.core.config import settings
 from app.models.user import User
 from app.models.password_reset import PasswordResetToken
 from app.core.security import (
@@ -22,7 +22,15 @@ from app.core.security import (
     decode_token,
     get_token_expiry
 )
-from app.core.dependencies import get_current_active_user, security
+from app.core.dependencies import get_current_active_user
+from app.core.security_utils import (
+    CSRFProtection,
+    SessionSecurity,
+    SecurityAuditLogger,
+    get_client_ip,
+    set_token_cookies,
+    clear_token_cookies
+)
 from app.services.session_service import session_service
 from app.schemas.user import (
     LoginRequest,
@@ -105,37 +113,22 @@ async def debug_login():
             "connection_test": "failed"
         }
 
-@router.post("/login")
-async def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
+
+@router.post("/login", response_model=LoginResponse)
+async def login(request: LoginRequest, req: Request, response: Response, db: Session = Depends(get_db)):
     """
     Authenticate user and return tokens with session management
     
     Features:
     - Rate limiting (5 attempts per 15 minutes)
     - Login attempt tracking
-    - Active session creation
+    - Active session creation with fingerprinting
     - Device and IP tracking
+    - httpOnly cookie-based authentication
+    - CSRF protection
     """
-    # Test database connection directly first
-    try:
-        from sqlalchemy import create_engine, text
-        engine = create_engine(settings.DATABASE_URL)
-        with engine.connect() as connection:
-            # Use PostgreSQL-compatible table check
-            if settings.DATABASE_URL.startswith("sqlite"):
-                result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
-                users_table = result.fetchone()
-            else:
-                # PostgreSQL table check
-                result = connection.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='users'"))
-                users_table = result.fetchone()
-        if not users_table:
-            return {"error": "Database not properly initialized"}
-    except Exception as e:
-        return {"error": f"Database check failed: {str(e)}"}
-    
     # Get client information
-    client_ip = req.client.host if req.client else "Unknown"
+    client_ip = get_client_ip(req)
     user_agent = req.headers.get("user-agent", "Unknown")
     
     # Create identifier for rate limiting (username + IP)
@@ -145,6 +138,17 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     try:
         if session_service.is_login_blocked(rate_limit_identifier):
             remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
+            
+            # Log failed login attempt
+            await SecurityAuditLogger.log_security_event(
+                SecurityAuditLogger.EVENT_FAILED_LOGIN,
+                None,
+                client_ip,
+                user_agent,
+                None,
+                {"reason": "rate_limited", "username": request.user_name}
+            )
+            
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
@@ -156,264 +160,92 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
         pass
     
     # Find user by username
-    try:
-        user = db.query(User).filter(User.user_name == request.user_name).first()
-        
-        if not user:
-            # Record failed attempt
-            try:
-                session_service.record_login_attempt(rate_limit_identifier, success=False)
-            except:
-                pass
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username or password"
-            )
-        
-        # Get the actual password hash value directly
+    user = db.query(User).filter(User.user_name == request.user_name).first()
+    
+    if not user:
+        # Record failed attempt
         try:
-            password_hash = user.password_hash
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"User data access error: {str(e)}"
-            )
-        
-        # Verify password with the actual hash value
-        try:
-            if not verify_password(request.password, password_hash):
-                # Record failed attempt
-                try:
-                    session_service.record_login_attempt(rate_limit_identifier, success=False)
-                except:
-                    pass
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid username or password"
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Password verification error: {str(e)}"
-            )
-        
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is deactivated"
-            )
-        
-        # Successful login - clear failed attempts
-        try:
-            session_service.record_login_attempt(rate_limit_identifier, success=True)
+            session_service.record_login_attempt(rate_limit_identifier, success=False)
         except:
             pass
         
-        # Update last login
+        # Log failed login attempt
+        await SecurityAuditLogger.log_security_event(
+            SecurityAuditLogger.EVENT_FAILED_LOGIN,
+            None,
+            client_ip,
+            user_agent,
+            None,
+            {"reason": "invalid_username", "username": request.user_name}
+        )
+        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    if not verify_password(request.password, user.password_hash):
+        # Record failed attempt
         try:
-            user.last_login = datetime.utcnow()
-            db.commit()
-            db.refresh(user)
-        except Exception as e:
-            # Continue without updating last login
+            session_service.record_login_attempt(rate_limit_identifier, success=False)
+        except:
             pass
         
-        # Create tokens
-        try:
-            access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
-            refresh_token = create_refresh_token({"sub": str(user.id)})
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Token creation error: {str(e)}"
-            )
+        # Log failed login attempt
+        await SecurityAuditLogger.log_security_event(
+            SecurityAuditLogger.EVENT_FAILED_LOGIN,
+            user.id,
+            client_ip,
+            user_agent,
+            None,
+            {"reason": "invalid_password"}
+        )
         
-        # Create session
-        try:
-            session_id = str(uuid.uuid4())
-            session_service.create_session(
-                session_id=session_id,
-                user_id=user.id,
-                ip_address=client_ip,
-                user_agent=user_agent,
-                expires_at=datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_MINUTES // 60)
-            )
-        except Exception as e:
-            # Continue without session creation
-            session_id = "no-session"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    if not user.is_active:
+        # Log failed login attempt
+        await SecurityAuditLogger.log_security_event(
+            SecurityAuditLogger.EVENT_FAILED_LOGIN,
+            user.id,
+            client_ip,
+            user_agent,
+            None,
+            {"reason": "account_inactive"}
+        )
         
-        return {
-            "accessToken": access_token,
-            "refreshToken": refresh_token,
-            "tokenType": "bearer",
-            "user": {
-                "id": user.id,
-                "userName": user.user_name,
-                "employeeId": user.employee_id,
-                "userRole": user.user_role,
-                "orgId": user.org_id,
-                "passwordLastChanged": user.password_last_changed.isoformat() if user.password_last_changed else None,
-                "mustChangePassword": user.must_change_password or False,
-                "lastLogin": user.last_login.isoformat() if user.last_login else None,
-                "isActive": user.is_active,
-                "deactivatedAt": user.deactivated_at.isoformat() if user.deactivated_at else None,
-                "createdAt": user.created_at.isoformat() if user.created_at else None,
-                "modifiedAt": user.modified_at.isoformat() if user.modified_at else None
-            }
-        }
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated"
+        )
+    
+    # Successful login - clear failed attempts
+    try:
+        session_service.record_login_attempt(rate_limit_identifier, success=True)
+    except:
+        pass
+    
+    # Update last login
+    try:
+        user.last_login = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
     except Exception as e:
-        # Log unexpected errors (but don't expose sensitive details)
-        import traceback
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected server error occurred"
-        )
-    """
-    Authenticate user and return tokens with session management
-    
-    Features:
-    - Rate limiting (5 attempts per 15 minutes)
-    - Login attempt tracking
-    - Active session creation
-    - Device and IP tracking
-    """
-    # Get client information
-    client_ip = req.client.host if req.client else "Unknown"
-    user_agent = req.headers.get("user-agent", "Unknown")
-    
-    # Create identifier for rate limiting (username + IP)
-    rate_limit_identifier = f"{request.user_name}:{client_ip}"
-    
-    # Check if login is blocked due to too many failed attempts
-    if session_service.is_login_blocked(rate_limit_identifier):
-        remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
-        )
-    
-    # Find user by username
-    user = db.query(User).filter(User.user_name == request.user_name).first()
-    
-    if not user:
-        # Record failed attempt
-        session_service.record_login_attempt(rate_limit_identifier, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-    
-    if not verify_password(request.password, user.password_hash):
-        # Record failed attempt
-        session_service.record_login_attempt(rate_limit_identifier, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated"
-        )
-    
-    # Successful login - clear failed attempts
-    session_service.record_login_attempt(rate_limit_identifier, success=True)
-    
-    # Update last login
-    user.last_login = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
-    
-    # Create tokens
-    access_token = create_access_token({"sub": str(user.id), "role": user.user_role})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
-    
-    # Create session
-    session_id = str(uuid.uuid4())
-    session_service.create_session(
-        session_id=session_id,
-        user_id=user.id,
-        ip_address=client_ip,
-        user_agent=user_agent,
-        expires_at=datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_MINUTES // 60)
-    )
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        "session_id": session_id,
-        "user_id": user.id,
-        "username": user.user_name,
-        "role": user.user_role
-    }
-    """
-    Authenticate user and return tokens with session management
-    
-    Features:
-    - Rate limiting (5 attempts per 15 minutes)
-    - Login attempt tracking
-    - Active session creation
-    - Device and IP tracking
-    """
-    # Get client information
-    client_ip = req.client.host if req.client else "Unknown"
-    user_agent = req.headers.get("user-agent", "Unknown")
-    
-    # Create identifier for rate limiting (username + IP)
-    rate_limit_identifier = f"{request.user_name}:{client_ip}"
-    
-    # Check if login is blocked due to too many failed attempts
-    if session_service.is_login_blocked(rate_limit_identifier):
-        remaining_time = session_service.get_login_block_ttl(rate_limit_identifier)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many failed login attempts. Please try again in {remaining_time} seconds."
-        )
-    
-    # Find user by username
-    user = db.query(User).filter(User.user_name == request.user_name).first()
-    
-    if not user:
-        # Record failed attempt
-        session_service.record_login_attempt(rate_limit_identifier, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-    
-    if not verify_password(request.password, user.password_hash):
-        # Record failed attempt
-        session_service.record_login_attempt(rate_limit_identifier, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated"
-        )
-    
-    # Successful login - clear failed attempts
-    session_service.record_login_attempt(rate_limit_identifier, success=True)
-    
-    # Update last login
-    user.last_login = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
+        # Continue without updating last login
+        pass
     
     # Generate unique JTIs for access and refresh tokens
     access_jti = str(uuid.uuid4())
     refresh_jti = str(uuid.uuid4())
+    
+    # Generate CSRF token
+    csrf_token = CSRFProtection.generate_csrf_token()
+    
+    # Generate session fingerprint
+    fingerprint = SessionSecurity.generate_fingerprint(req)
     
     # Create tokens with version
     token_data = {
@@ -427,39 +259,53 @@ async def login(request: LoginRequest, req: Request, db: Session = Depends(get_d
     access_token = create_access_token(token_data, jti=access_jti)
     refresh_token = create_refresh_token(token_data, jti=refresh_jti)
     
-    # Create session in Redis
-    device_info = user_agent.split()[0] if user_agent != "Unknown" else "Unknown"
-    session_service.create_session(
-        user_id=user.id,
-        jti=access_jti,
-        device_info=device_info,
-        ip_address=client_ip,
-        user_agent=user_agent
+    # Set tokens as httpOnly cookies
+    set_token_cookies(
+        response,
+        access_token,
+        refresh_token,
+        settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     
-    # Return camelCase response directly
-    return {
-        "accessToken": access_token,
-        "refreshToken": refresh_token,
-        "tokenType": "bearer",
-        "user": {
-            "id": user.id,
-            "userName": user.user_name,
-            "employeeId": user.employee_id,
-            "userRole": user.user_role,
-            "orgId": user.org_id,
-            "passwordLastChanged": user.password_last_changed.isoformat() if user.password_last_changed else None,
-            "mustChangePassword": user.must_change_password if user.must_change_password else False,
-            "lastLogin": user.last_login.isoformat() if user.last_login else None,
-            "isActive": user.is_active,
-            "createdAt": user.created_at.isoformat() if user.created_at else None,
-            "modifiedAt": user.modified_at.isoformat() if user.modified_at else None
-        }
-    }
+    # Set CSRF cookie
+    CSRFProtection.set_csrf_cookie(response, csrf_token)
+    
+    # Create session in Redis with fingerprint
+    device_info = user_agent.split()[0] if user_agent != "Unknown" else "Unknown"
+    try:
+        session_service.create_session(
+            user_id=user.id,
+            jti=access_jti,
+            device_info=device_info,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            fingerprint=fingerprint
+        )
+    except Exception as e:
+        # If session creation fails, log but continue
+        print(f"Session creation error: {e}")
+    
+    # Log successful login
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_SUCCESSFUL_LOGIN,
+        user.id,
+        client_ip,
+        user_agent
+    )
+    
+    # Return user data only (no tokens) - Pydantic will handle serialization
+    user_response = UserResponse.model_validate(user)
+    
+    return LoginResponse(
+        success=True,
+        message="Login successful",
+        user=user_response
+    )
 
 
-@router.post("/refresh")
-async def refresh_token(request: RefreshTokenRequest, req: Request, db: Session = Depends(get_db)):
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh_token(req: Request, response: Response, db: Session = Depends(get_db)):
     """
     Refresh access token using refresh token with rotation
     
@@ -467,8 +313,18 @@ async def refresh_token(request: RefreshTokenRequest, req: Request, db: Session 
     - One-time use refresh tokens
     - Automatic refresh token rotation
     - Detects token reuse (potential security breach)
+    - httpOnly cookie-based authentication
     """
-    payload = decode_token(request.refresh_token)
+    # Extract refresh token from cookie
+    refresh_token_value = req.cookies.get("refresh_token")
+    
+    if not refresh_token_value:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided"
+        )
+    
+    payload = decode_token(refresh_token_value)
     
     if payload is None:
         raise HTTPException(
@@ -487,10 +343,18 @@ async def refresh_token(request: RefreshTokenRequest, req: Request, db: Session 
     jti = payload.get("jti")
     if jti and session_service.is_refresh_token_used(jti):
         # Token reuse detected - possible security breach
-        # Invalidate all user tokens
         user_id = payload.get("sub")
         if user_id:
             session_service.revoke_all_user_sessions(int(user_id))
+            
+            # Log security alert
+            await SecurityAuditLogger.log_security_event(
+                SecurityAuditLogger.EVENT_TOKEN_REUSE,
+                int(user_id),
+                get_client_ip(req),
+                req.headers.get("user-agent"),
+                {"jti": jti}
+            )
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -528,9 +392,12 @@ async def refresh_token(request: RefreshTokenRequest, req: Request, db: Session 
     new_refresh_jti = str(uuid.uuid4())
     
     # Get client information for session
-    client_ip = req.client.host if req.client else "Unknown"
+    client_ip = get_client_ip(req)
     user_agent = req.headers.get("user-agent", "Unknown")
     device_info = user_agent.split()[0] if user_agent != "Unknown" else "Unknown"
+    
+    # Generate session fingerprint
+    fingerprint = SessionSecurity.generate_fingerprint(req)
     
     # Create new tokens with rotation
     token_data = {
@@ -541,28 +408,50 @@ async def refresh_token(request: RefreshTokenRequest, req: Request, db: Session 
         "version": user.token_version
     }
     
-    access_token = create_access_token(token_data, jti=new_access_jti)
-    refresh_token = create_refresh_token(token_data, jti=new_refresh_jti)
+    new_access_token = create_access_token(token_data, jti=new_access_jti)
+    new_refresh_token = create_refresh_token(token_data, jti=new_refresh_jti)
+    
+    # Set new tokens as httpOnly cookies
+    set_token_cookies(
+        response,
+        new_access_token,
+        new_refresh_token,
+        settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    )
     
     # Create new session for the new access token
-    session_service.create_session(
-        user_id=user.id,
-        jti=new_access_jti,
-        device_info=device_info,
-        ip_address=client_ip,
-        user_agent=user_agent
+    try:
+        session_service.create_session(
+            user_id=user.id,
+            jti=new_access_jti,
+            device_info=device_info,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            fingerprint=fingerprint
+        )
+    except Exception as e:
+        # If session creation fails, log but continue
+        print(f"Session creation error: {e}")
+    
+    # Log token refresh
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_TOKEN_REFRESH,
+        user.id,
+        client_ip,
+        user_agent
     )
     
     return {
-        "accessToken": access_token,
-        "refreshToken": refresh_token,
-        "tokenType": "bearer"
+        "success": True,
+        "message": "Token refreshed successfully"
     }
 
 
 @router.post("/logout")
 async def logout(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
+    response: Response,
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -572,23 +461,38 @@ async def logout(
     - Blacklists current access token
     - Removes active session from Redis
     - Prevents token reuse
+    - Clears httpOnly cookies
     """
-    token = credentials.credentials
-    payload = decode_token(token)
+    # Get token from cookie
+    token = request.cookies.get("access_token")
     
-    if payload:
-        jti = payload.get("jti")
-        if jti:
-            # Calculate remaining TTL for blacklist
-            expiry = get_token_expiry(payload)
-            if expiry:
-                remaining_seconds = int((expiry - datetime.utcnow()).total_seconds())
-                if remaining_seconds > 0:
-                    # Blacklist the token
-                    session_service.blacklist_token(jti, ttl=remaining_seconds)
-            
-            # Remove session
-            session_service.revoke_session(current_user.id, jti)
+    if token:
+        payload = decode_token(token)
+        
+        if payload:
+            jti = payload.get("jti")
+            if jti:
+                # Calculate remaining TTL for blacklist
+                expiry = get_token_expiry(payload)
+                if expiry:
+                    remaining_seconds = int((expiry - datetime.utcnow()).total_seconds())
+                    if remaining_seconds > 0:
+                        # Blacklist the token
+                        session_service.blacklist_token(jti, ttl=remaining_seconds)
+                
+                # Remove session
+                session_service.revoke_session(current_user.id, jti)
+    
+    # Clear token cookies
+    clear_token_cookies(response)
+    
+    # Log logout
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_LOGOUT,
+        current_user.id,
+        get_client_ip(request),
+        request.headers.get("user-agent")
+    )
     
     return {"message": "Successfully logged out"}
 
@@ -600,7 +504,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
         "id": current_user.id,
         "userName": current_user.user_name,
         "employeeId": current_user.employee_id,
-        "userRole": current_user.user_role,
+        "userRole": current_user.user_role.lower(),
         "orgId": current_user.org_id,
         "passwordLastChanged": current_user.password_last_changed.isoformat() if current_user.password_last_changed else None,
         "mustChangePassword": current_user.must_change_password if current_user.must_change_password else False,
@@ -614,6 +518,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
 @router.post("/change-password")
 async def change_password(
     request: ChangePasswordRequest,
+    req: Request,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -630,6 +535,15 @@ async def change_password(
     """
     # Verify current password first
     if not verify_password(request.old_password, current_user.password_hash):
+        # Log failed password change
+        await SecurityAuditLogger.log_security_event(
+            SecurityAuditLogger.EVENT_PASSWORD_CHANGE_FAILED,
+            current_user.id,
+            get_client_ip(req),
+            req.headers.get("user-agent"),
+            {"reason": "incorrect_old_password"}
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
@@ -663,6 +577,14 @@ async def change_password(
     # Revoke all user sessions in Redis
     revoked_count = session_service.revoke_all_user_sessions(current_user.id)
     
+    # Log successful password change
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_PASSWORD_CHANGE,
+        current_user.id,
+        get_client_ip(req),
+        req.headers.get("user-agent")
+    )
+    
     return {
         "message": "Password changed successfully. All active sessions have been terminated. Please login again.",
         "sessionsRevoked": revoked_count
@@ -670,7 +592,7 @@ async def change_password(
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+async def forgot_password(request: ForgotPasswordRequest, req: Request, db: Session = Depends(get_db)):
     """Request password reset"""
     import secrets
     
@@ -692,6 +614,14 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
     db.add(reset_token)
     db.commit()
     
+    # Log password reset request
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_PASSWORD_RESET_REQUEST,
+        user.id,
+        get_client_ip(req),
+        req.headers.get("user-agent")
+    )
+    
     # TODO: Send email with reset link
     return {
         "message": "If the username exists, a reset link will be sent",
@@ -700,7 +630,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
 
 
 @router.post("/reset-password")
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+async def reset_password(request: ResetPasswordRequest, req: Request, db: Session = Depends(get_db)):
     """Reset password using reset token"""
     reset_tokens = db.query(PasswordResetToken).filter(
         PasswordResetToken.expires_at > datetime.utcnow(),
@@ -733,6 +663,14 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     
     db.commit()
     
+    # Log password reset
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_PASSWORD_RESET,
+        user.id,
+        get_client_ip(req),
+        req.headers.get("user-agent")
+    )
+    
     return {"message": "Password reset successfully"}
 
 
@@ -756,6 +694,7 @@ async def get_active_sessions(current_user: User = Depends(get_current_active_us
 @router.delete("/sessions/{session_id}")
 async def revoke_specific_session(
     session_id: str,
+    request: Request,
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -779,6 +718,15 @@ async def revoke_specific_session(
     success = session_service.revoke_session(current_user.id, session_id)
     
     if success:
+        # Log session revocation
+        await SecurityAuditLogger.log_security_event(
+            SecurityAuditLogger.EVENT_SESSION_REVOKED,
+            current_user.id,
+            get_client_ip(request),
+            request.headers.get("user-agent"),
+            {"session_id": session_id}
+        )
+        
         return {"message": "Session revoked successfully"}
     else:
         raise HTTPException(
@@ -789,6 +737,7 @@ async def revoke_specific_session(
 
 @router.delete("/sessions", response_model=RevokeAllSessionsResponse)
 async def revoke_all_sessions(
+    request: Request,
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -798,6 +747,15 @@ async def revoke_all_sessions(
     """
     # Revoke all sessions
     revoked_count = session_service.revoke_all_user_sessions(current_user.id)
+    
+    # Log session revocation
+    await SecurityAuditLogger.log_security_event(
+        SecurityAuditLogger.EVENT_ALL_SESSIONS_REVOKED,
+        current_user.id,
+        get_client_ip(request),
+        request.headers.get("user-agent"),
+        {"sessions_revoked": revoked_count}
+    )
     
     return {
         "message": f"All {revoked_count} sessions have been revoked. You will need to login again on all devices.",

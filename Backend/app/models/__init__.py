@@ -45,6 +45,12 @@ from app.models.team_user_alias import TeamUserAlias
 # Attendance
 from app.models.attendance import AttendanceRecord, AttendanceAuditLog
 
+# Audit logs
+from app.models.audit_log import AuditLog
+
+# Billing
+from app.models.billing import BillingReport, BillingDetail
+
 __all__ = [
     # Reference tables
     "TransactionType",
@@ -78,5 +84,10 @@ __all__ = [
     "TeamUserAlias",
     # Attendance
     "AttendanceRecord",
-    "AttendanceAuditLog"
+    "AttendanceAuditLog",
+    # Audit logs
+    "AuditLog",
+    # Billing
+    "BillingReport",
+    "BillingDetail"
 ]

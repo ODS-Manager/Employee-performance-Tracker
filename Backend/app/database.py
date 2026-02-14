@@ -10,12 +10,14 @@ logger = logging.getLogger(__name__)
 # Create engine with connection pool settings
 try:
     if settings.DATABASE_URL.startswith("sqlite"):
-        # SQLite configuration
+        # SQLite configuration with proper write settings
         engine = create_engine(
             settings.DATABASE_URL,
             echo=settings.DEBUG,
+            pool_pre_ping=True,
             connect_args={
-                "check_same_thread": False,  # Allow multi-threaded access
+                "check_same_thread": False,  # Allow multi-threaded access  
+                "timeout": 30,  # 30 second timeout for write operations
             }
         )
         logger.info("Database engine created with SQLite")

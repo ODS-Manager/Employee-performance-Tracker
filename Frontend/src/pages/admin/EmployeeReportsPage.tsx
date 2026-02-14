@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
 import { usersApi, organizationsApi, metricsApi } from '../../services/api'
+import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
 import type { Organization, TeamMetrics, User } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -84,7 +85,7 @@ export const EmployeeReportsPage = () => {
   } = useDashboardFilterStore()
 
   useEffect(() => {
-    if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
+    if (!user || !hasAnyUserRole(user.userRole, ['admin', 'superadmin'])) {
       navigate('/login')
     } else {
       fetchData()
@@ -104,7 +105,7 @@ export const EmployeeReportsPage = () => {
       
       // Filter out superadmin from the list (they're not regular employees)
       const filteredEmployees = (usersRes.items || []).filter((u: User) => 
-        u.userRole !== 'superadmin'
+        !isUserRole(u.userRole, 'superadmin')
       )
       setEmployees(filteredEmployees)
       setOrganizations(orgsRes.items || [])
@@ -116,13 +117,55 @@ export const EmployeeReportsPage = () => {
     }
   }
 
-  // Calculate stats
-  const activeCount = employees.filter(e => e.isActive).length
-  const inactiveCount = employees.length - activeCount
-  const activeEmployees = employees.filter(e => e.isActive)
-  const adminCount = activeEmployees.filter(e => e.userRole === 'admin').length
-  const teamLeadCount = activeEmployees.filter(e => e.userRole === 'team_lead').length
-  const employeeCount = activeEmployees.filter(e => e.userRole === 'employee').length
+  // Filter employees based on selected filters
+  const filteredEmployees = useMemo(() => {
+    let filtered = [...employees]
+    
+    // Apply organization filter
+    if (selectedOrg !== 'all') {
+      const orgId = parseInt(selectedOrg)
+      filtered = filtered.filter(emp => emp.orgId === orgId)
+    }
+    
+    // Apply date range filter based on filter month/year
+    if (filterMonth && filterYear) {
+      const filterDate = new Date(parseInt(filterYear), parseInt(filterMonth) - 1, 1)
+      const nextMonth = new Date(filterDate.getFullYear(), filterDate.getMonth() + 1, 1)
+      
+      filtered = filtered.filter(emp => {
+        if (!emp.createdAt) return false
+        
+        const empCreateDate = new Date(emp.createdAt)
+        
+        // Employee must have been created before or during the filter month
+        // and still be active in that month (not deactivated before the filter month)
+        const wasCreatedBeforeOrDuring = empCreateDate < nextMonth
+        const wasStillActiveInMonth = !emp.deactivatedAt || new Date(emp.deactivatedAt) >= filterDate
+        
+        return wasCreatedBeforeOrDuring && wasStillActiveInMonth
+      })
+    }
+    
+    return filtered
+  }, [employees, selectedOrg, filterMonth, filterYear])
+
+  // Check if filters are active
+  const hasActiveFilters = selectedOrg !== 'all' || (filterMonth && filterYear)
+  
+  // Get organization name for display
+  const getOrgName = (orgId: string): string => {
+    if (orgId === 'all') return 'All Organizations'
+    const org = organizations.find(o => o.id.toString() === orgId)
+    return org?.name || 'Unknown Organization'
+  }
+
+  // Calculate stats from filtered employees
+  const activeCount = filteredEmployees.filter(e => e.isActive).length
+  const inactiveCount = filteredEmployees.length - activeCount
+  const activeEmployees = filteredEmployees.filter(e => e.isActive)
+  const adminCount = activeEmployees.filter(e => isUserRole(e.userRole, 'admin')).length
+  const teamLeadCount = activeEmployees.filter(e => isUserRole(e.userRole, 'team_lead')).length
+  const employeeCount = activeEmployees.filter(e => isUserRole(e.userRole, 'employee')).length
 
   // Generate trend data based on actual employee creation dates
   const generateTrendData = (): TrendData[] => {
@@ -143,7 +186,7 @@ export const EmployeeReportsPage = () => {
     // Find the earliest employee creation date
     let earliestDate: Date | null = null
     
-    employees.forEach(emp => {
+    filteredEmployees.forEach(emp => {
       // Track hires by createdAt
       if (emp.createdAt) {
         const createdDate = new Date(emp.createdAt)
@@ -304,7 +347,7 @@ export const EmployeeReportsPage = () => {
               </SelectContent>
             </Select>
             
-            {user?.userRole === 'superadmin' && (
+            {isUserRole(user?.userRole, 'superadmin') && (
               <Select value={selectedOrg} onValueChange={setSelectedOrg}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="All Organizations" />
@@ -378,17 +421,37 @@ export const EmployeeReportsPage = () => {
           </div>
         </div>
 
+        {/* Active Filters Indicator */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="h-4 w-4 text-slate-500" />
+            <span className="text-sm text-slate-600 font-medium">Active filters:</span>
+            {selectedOrg !== 'all' && (
+              <Badge variant="secondary" className="text-xs">
+                Organization: {getOrgName(selectedOrg)}
+              </Badge>
+            )}
+            {filterMonth && filterYear && (
+              <Badge variant="secondary" className="text-xs">
+                Period: {new Date(parseInt(filterYear), parseInt(filterMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Summary Cards */}
         <div className="grid gap-6 md:grid-cols-2 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {hasActiveFilters ? 'Filtered Employees' : 'Total Employees'}
+              </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employees.length}</div>
+              <div className="text-2xl font-bold">{filteredEmployees.length}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Across all roles
+                {hasActiveFilters ? `Filtered from ${employees.length} total` : 'Across all roles'}
               </p>
             </CardContent>
           </Card>
@@ -401,7 +464,7 @@ export const EmployeeReportsPage = () => {
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{activeCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {((activeCount / Math.max(employees.length, 1)) * 100).toFixed(0)}% of workforce
+                {((activeCount / Math.max(filteredEmployees.length, 1)) * 100).toFixed(0)}% of {hasActiveFilters ? 'filtered' : 'workforce'}
               </p>
             </CardContent>
           </Card>
@@ -553,7 +616,7 @@ export const EmployeeReportsPage = () => {
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-green-500 rounded-full transition-all"
-                      style={{ width: `${(activeCount / Math.max(employees.length, 1)) * 100}%` }}
+                      style={{ width: `${(activeCount / Math.max(filteredEmployees.length, 1)) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -569,7 +632,7 @@ export const EmployeeReportsPage = () => {
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-slate-400 rounded-full transition-all"
-                      style={{ width: `${(inactiveCount / Math.max(employees.length, 1)) * 100}%` }}
+                      style={{ width: `${(inactiveCount / Math.max(filteredEmployees.length, 1)) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -579,13 +642,13 @@ export const EmployeeReportsPage = () => {
                 <div className="grid grid-cols-2 gap-4 text-center">
                   <div>
                     <div className="text-2xl font-bold text-green-600">
-                      {((activeCount / Math.max(employees.length, 1)) * 100).toFixed(0)}%
+                      {((activeCount / Math.max(filteredEmployees.length, 1)) * 100).toFixed(0)}%
                     </div>
                     <div className="text-xs text-muted-foreground">Active Rate</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-slate-600">
-                      {employees.length}
+                      {filteredEmployees.length}
                     </div>
                     <div className="text-xs text-muted-foreground">Total Count</div>
                   </div>

@@ -542,19 +542,18 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string
-  refreshToken: string
-  tokenType: string
+  success: boolean
+  message: string
   user: User
 }
 
 export interface RefreshTokenRequest {
-  refreshToken: string
+  // No longer needed - token comes from httpOnly cookie
 }
 
 export interface RefreshTokenResponse {
-  accessToken: string
-  tokenType: string
+  success: boolean
+  message: string
 }
 
 export interface ChangePasswordRequest {
@@ -564,8 +563,6 @@ export interface ChangePasswordRequest {
 
 export interface AuthState {
   user: User | null
-  accessToken: string | null
-  refreshToken: string | null
   isAuthenticated: boolean
 }
 

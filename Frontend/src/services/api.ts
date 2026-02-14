@@ -80,15 +80,30 @@ import type {
   FANameListResponse,
 } from '../types'
 
-// Use backend URL directly for Cloud Run deployment
-const API_URL = 'https://employee-performance-api-302004244593.asia-south1.run.app/api/v1'
+// Use environment variable for API URL, fallback to production for deployment
+const API_URL = import.meta.env.VITE_API_URL || 'https://employee-performance-api-302004244593.asia-south1.run.app/api/v1'
+
+// Helper function to get CSRF token from cookies
+const getCsrfToken = (): string | null => {
+  const name = 'csrf_token='
+  const decodedCookie = decodeURIComponent(document.cookie)
+  const cookieArray = decodedCookie.split(';')
+  
+  for (let i = 0; i < cookieArray.length; i++) {
+    let cookie = cookieArray[i].trim()
+    if (cookie.indexOf(name) === 0) {
+      return cookie.substring(name.length, cookie.length)
+    }
+  }
+  return null
+}
 
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false, // Important for CORS
+  withCredentials: true, // IMPORTANT: Required for sending/receiving cookies
 })
 
 // Test direct backend connection (fallback)
@@ -116,23 +131,26 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void
 }> = []
 
-const processQueue = (error: unknown, token: string | null = null) => {
+const processQueue = (error: unknown, success: boolean = false) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error)
     } else {
-      prom.resolve(token)
+      prom.resolve(success)
     }
   })
   failedQueue = []
 }
 
-// Request interceptor for adding auth token
+// Request interceptor for adding CSRF token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Add CSRF token to non-GET requests
+    if (config.method && !['get', 'head', 'options'].includes(config.method.toLowerCase())) {
+      const csrfToken = getCsrfToken()
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken
+      }
     }
     return config
   },
@@ -141,7 +159,7 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for handling errors with token refresh
+// Response interceptor for handling errors with automatic token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -149,59 +167,35 @@ api.interceptors.response.use(
 
     // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Skip refresh for login and refresh endpoints
+      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error)
+      }
+
       // If already refreshing, queue this request
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`
-            return api(originalRequest)
-          })
+          .then(() => api(originalRequest))
           .catch((err) => Promise.reject(err))
       }
 
       originalRequest._retry = true
       isRefreshing = true
 
-      const refreshToken = localStorage.getItem('refreshToken')
-
-      // If no refresh token, redirect to login (only if not already on login page)
-      if (!refreshToken) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
-        return Promise.reject(error)
-      }
-
       try {
-        // Try to refresh the token
-        const response = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken: refreshToken,
-        })
-
-        const { accessToken, refreshToken: newRefreshToken } = response.data
-
-        // Save new tokens
-        localStorage.setItem('token', accessToken)
-        if (newRefreshToken) {
-          localStorage.setItem('refreshToken', newRefreshToken)
-        }
-
-        // Update the failed request with new token
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`
+        // Try to refresh the token (token comes from httpOnly cookie)
+        await api.post('/auth/refresh')
 
         // Process queued requests
-        processQueue(null, accessToken)
+        processQueue(null, true)
 
+        // Retry the original request
         return api(originalRequest)
       } catch (refreshError) {
         // Refresh failed, redirect to login (only if not already on login page)
-        processQueue(refreshError, null)
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
+        processQueue(refreshError, false)
         if (window.location.pathname !== '/login') {
           window.location.href = '/login'
         }
@@ -222,8 +216,9 @@ export const authApi = {
     return response.data
   },
 
-  refresh: async (data: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
-    const response = await api.post('/auth/refresh', data)
+  refresh: async (): Promise<RefreshTokenResponse> => {
+    // No request body needed - refresh token comes from httpOnly cookie
+    const response = await api.post('/auth/refresh')
     return response.data
   },
 

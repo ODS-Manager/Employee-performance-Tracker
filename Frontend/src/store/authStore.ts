@@ -5,17 +5,14 @@ import { authApi } from '../services/api'
 
 interface AuthStore {
   user: User | null
-  token: string | null
-  refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
   
   // Actions
-  setAuth: (user: User, token: string, refreshToken: string) => void
+  setAuth: (user: User) => void
   setUser: (user: User) => void
-  logout: () => void
+  logout: () => Promise<void>
   login: (userName: string, password: string) => Promise<void>
-  refreshAccessToken: () => Promise<void>
   checkAuth: () => Promise<void>
 }
 
@@ -23,32 +20,39 @@ export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
-      token: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
 
-      setAuth: (user, token, refreshToken) => {
-        localStorage.setItem('token', token)
-        localStorage.setItem('refreshToken', refreshToken)
-        set({ user, token, refreshToken, isAuthenticated: true })
+      setAuth: (user) => {
+        // Tokens are now stored in httpOnly cookies by the server
+        // No need to store them in localStorage
+        set({ user, isAuthenticated: true })
       },
 
       setUser: (user) => set({ user }),
 
-      logout: () => {
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        set({ user: null, token: null, refreshToken: null, isAuthenticated: false })
+      logout: async () => {
+        try {
+          // Call backend logout to clear httpOnly cookies
+          await authApi.logout()
+        } catch (error) {
+          console.error('Logout error:', error)
+        } finally {
+          // Clear local state regardless of backend success
+          set({ user: null, isAuthenticated: false })
+        }
       },
 
       login: async (userName: string, password: string) => {
         try {
           set({ isLoading: true })
           const response = await authApi.login({ userName, password })
-          const { user, accessToken, refreshToken } = response
           
-          get().setAuth(user, accessToken, refreshToken)
+          if (response.success && response.user) {
+            get().setAuth(response.user)
+          } else {
+            throw new Error(response.message || 'Login failed')
+          }
         } catch (error) {
           set({ isLoading: false })
           throw error
@@ -57,34 +61,15 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      refreshAccessToken: async () => {
-        try {
-          const { refreshToken } = get()
-          if (!refreshToken) throw new Error('No refresh token')
-
-          const response = await authApi.refresh({ refreshToken })
-          const { accessToken } = response
-
-          localStorage.setItem('token', accessToken)
-          set({ token: accessToken })
-        } catch (error) {
-          get().logout()
-          throw error
-        }
-      },
-
       checkAuth: async () => {
         try {
-          const { token } = get()
-          if (!token) {
-            set({ isAuthenticated: false })
-            return
-          }
-
+          // Try to get current user from backend
+          // Backend will validate the httpOnly cookie
           const user = await authApi.me()
           set({ user, isAuthenticated: true })
         } catch (error) {
-          get().logout()
+          // If request fails (e.g., cookie expired), clear auth state
+          set({ user: null, isAuthenticated: false })
         }
       },
     }),
@@ -92,8 +77,6 @@ export const useAuthStore = create<AuthStore>()(
       name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
-        token: state.token,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

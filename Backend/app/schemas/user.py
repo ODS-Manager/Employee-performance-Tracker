@@ -2,7 +2,7 @@
 User Schemas
 Pydantic schemas for user management and authentication
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, List
 from datetime import datetime
 
@@ -29,6 +29,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     user_name: Optional[str] = Field(None, max_length=100, alias="userName")
+    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")
     user_role: Optional[str] = Field(None, alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
     is_active: Optional[bool] = Field(None, alias="isActive")
@@ -38,17 +39,23 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    user_name: str = Field(serialization_alias="userName")
-    employee_id: str = Field(serialization_alias="employeeId")
-    user_role: str = Field(serialization_alias="userRole")
-    org_id: Optional[int] = Field(serialization_alias="orgId")
+    user_name: str = Field(..., serialization_alias="userName")
+    employee_id: str = Field(..., serialization_alias="employeeId")
+    user_role: str = Field(..., serialization_alias="userRole")
+    org_id: Optional[int] = Field(None, serialization_alias="orgId")
     password_last_changed: Optional[datetime] = Field(None, serialization_alias="passwordLastChanged")
+    must_change_password: bool = Field(default=False, serialization_alias="mustChangePassword")
     last_login: Optional[datetime] = Field(None, serialization_alias="lastLogin")
-    is_active: bool = Field(serialization_alias="isActive")
-    created_at: datetime = Field(serialization_alias="createdAt")
-    modified_at: datetime = Field(serialization_alias="modifiedAt")
+    is_active: bool = Field(..., serialization_alias="isActive")
+    created_at: datetime = Field(..., serialization_alias="createdAt")
+    modified_at: datetime = Field(..., serialization_alias="modifiedAt")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    
+    @field_serializer('user_role')
+    def serialize_user_role(self, user_role: str) -> str:
+        """Convert user role to lowercase for frontend compatibility"""
+        return user_role.lower() if user_role else user_role
 
 
 class UserWithTeamsResponse(UserResponse):
@@ -70,23 +77,34 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    access_token: str = Field(serialization_alias="accessToken")
-    refresh_token: str = Field(serialization_alias="refreshToken")
-    token_type: str = Field(default="bearer", serialization_alias="tokenType")
+    """
+    Secure login response - tokens are set as httpOnly cookies
+    Only user data is returned in the response body
+    """
+    success: bool = True
     user: UserResponse
+    message: str = "Login successful"
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str = Field(..., alias="refreshToken")
+    """
+    Refresh token request - token comes from httpOnly cookie
+    This model is kept for backward compatibility but token is extracted from cookie
+    """
+    refresh_token: Optional[str] = Field(None, alias="refreshToken")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class RefreshTokenResponse(BaseModel):
-    access_token: str = Field(serialization_alias="accessToken")
-    token_type: str = Field(default="bearer", serialization_alias="tokenType")
+    """
+    Secure refresh response - tokens are set as httpOnly cookies
+    Only success message is returned
+    """
+    success: bool = True
+    message: str = "Token refreshed successfully"
 
     model_config = ConfigDict(populate_by_name=True)
 

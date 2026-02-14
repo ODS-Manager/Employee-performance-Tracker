@@ -137,7 +137,7 @@ try:
     # 4. Add some FA Names
     print("  📝 Creating FA names...")
     from app.models.fa_name import FAName
-    from app.models.team import TeamFAName
+    from app.models.team_fa_name import TeamFAName
     
     fa_names = ["Aaron", "Adam", "Alan", "Albert", "Alex", "Alisa", "Ally", "Amelia", "Anding", "Angelina"]
     fa_name_objects = []

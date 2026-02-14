@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { qualityAuditApi, usersApi, teamsApi } from '../../services/api'
+import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
 import type { QualityAudit, QualityAuditCreate, User, Team, ProcessTypeOFE } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -40,7 +41,7 @@ export const QualityAuditPage = () => {
   const [editingId, setEditingId] = useState<number | null>(null)
   
   // Determine if user is team lead based on role
-  const isTeamLead = user?.userRole === 'team_lead'
+  const isTeamLead = isUserRole(user?.userRole, 'team_lead')
   
   // Form state
   const [formData, setFormData] = useState<QualityAuditCreate>({
@@ -61,7 +62,7 @@ export const QualityAuditPage = () => {
   const [filterExaminerId, setFilterExaminerId] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!user || !['admin', 'superadmin', 'team_lead'].includes(user.userRole)) {
+    if (!user || !hasAnyUserRole(user.userRole, ['admin', 'superadmin', 'team_lead'])) {
       navigate('/login')
     } else {
       fetchInitialData()
@@ -141,7 +142,7 @@ export const QualityAuditPage = () => {
       
       const [auditsRes, examinersRes, teamsRes, processTypesRes] = await Promise.all([
         qualityAuditApi.list(),
-        usersApi.list(),
+        usersApi.list({ pageSize: 1000 }),
         teamsApi.list({ isActive: true }),
         qualityAuditApi.getProcessTypes(),
       ])

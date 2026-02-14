@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, weeklyTargetsApi } from '../../services/api'
+import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
 import type { Team, TeamWeeklyTargetsResponse, TeamMemberTargetEntry, CurrentWeekInfo } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -51,7 +52,7 @@ export const EmployeeTargetsPage = () => {
   const { teamId: urlTeamId } = useParams<{ teamId: string }>()
   
   // Determine if user is team lead
-  const isTeamLead = user?.userRole === 'team_lead'
+  const isTeamLead = isUserRole(user?.userRole, 'team_lead')
   
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(
     urlTeamId ? parseInt(urlTeamId) : null
@@ -62,7 +63,7 @@ export const EmployeeTargetsPage = () => {
 
   // Redirect if not admin or team lead
   useEffect(() => {
-    if (!user || !['admin', 'superadmin', 'team_lead'].includes(user.userRole)) {
+    if (!user || !hasAnyUserRole(user.userRole, ['admin', 'superadmin', 'team_lead'])) {
       navigate('/login')
     }
   }, [user, navigate])
@@ -181,8 +182,19 @@ export const EmployeeTargetsPage = () => {
       toast.success(`Copied ${data.createdCount + data.updatedCount} targets from previous week`)
       refetchTargets()
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to copy targets')
+    onError: (error: any) => {
+      let errorMessage = 'Failed to copy targets'
+      const detail = error.response?.data?.detail
+      
+      if (detail) {
+        if (typeof detail === 'string') {
+          errorMessage = detail
+        } else if (Array.isArray(detail)) {
+          errorMessage = detail.map((err: any) => err.msg || err).join(', ')
+        }
+      }
+      
+      toast.error(errorMessage)
     },
   })
 

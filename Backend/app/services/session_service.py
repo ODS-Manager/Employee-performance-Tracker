@@ -136,10 +136,11 @@ class SessionService:
         jti: str,
         device_info: Optional[str] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
+        fingerprint: Optional[str] = None
     ) -> str:
         """
-        Create a new active session
+        Create a new active session with fingerprinting and session limits
         
         Args:
             user_id: User ID
@@ -147,6 +148,7 @@ class SessionService:
             device_info: Device information
             ip_address: Client IP address
             user_agent: User agent string
+            fingerprint: Session fingerprint for hijacking detection
         
         Returns:
             Session ID
@@ -156,6 +158,9 @@ class SessionService:
             return jti  # Return JTI as fallback
         
         try:
+            # Enforce session limits before creating new session
+            self._enforce_session_limits(user_id)
+            
             session_id = jti  # Use JTI as session ID for consistency
             key = self._build_key(self.PREFIX_SESSION, user_id, session_id)
             
@@ -166,6 +171,7 @@ class SessionService:
                 "device_info": device_info or "Unknown",
                 "ip_address": ip_address or "Unknown",
                 "user_agent": user_agent or "Unknown",
+                "fingerprint": fingerprint,
                 "created_at": datetime.utcnow().isoformat(),
                 "last_activity": datetime.utcnow().isoformat()
             }
@@ -330,6 +336,97 @@ class SessionService:
         except Exception as e:
             logger.error(f"Error revoking all sessions for user {user_id}: {e}")
             return 0
+    
+    def _enforce_session_limits(self, user_id: int) -> None:
+        """
+        Enforce maximum concurrent sessions per user
+        Removes oldest sessions if limit is exceeded
+        
+        Args:
+            user_id: User ID
+        """
+        if not self.is_connected:
+            return
+        
+        try:
+            from app.core.config import settings
+            max_sessions = getattr(settings, 'MAX_CONCURRENT_SESSIONS_PER_USER', 5)
+            
+            sessions = self.get_user_sessions(user_id)
+            
+            if len(sessions) >= max_sessions:
+                # Sort by created_at (oldest first)
+                sessions.sort(key=lambda x: x.get("created_at", ""))
+                
+                # Remove oldest sessions to make room for new one
+                num_to_remove = len(sessions) - max_sessions + 1
+                for i in range(num_to_remove):
+                    session_to_remove = sessions[i]
+                    session_id = session_to_remove.get("session_id")
+                    if session_id:
+                        self.revoke_session(user_id, session_id)
+                        logger.info(f"Session {session_id} removed due to session limit for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error enforcing session limits for user {user_id}: {e}")
+    
+    def validate_session_fingerprint(self, user_id: int, session_id: str, current_fingerprint: str) -> bool:
+        """
+        Validate session fingerprint to detect potential hijacking
+        
+        Args:
+            user_id: User ID
+            session_id: Session ID  
+            current_fingerprint: Current request fingerprint
+        
+        Returns:
+            True if fingerprint matches, False otherwise
+        """
+        if not self.is_connected:
+            return True  # Allow if Redis unavailable
+        
+        try:
+            session = self.get_session(user_id, session_id)
+            if not session:
+                return False
+            
+            stored_fingerprint = session.get("fingerprint")
+            if not stored_fingerprint:
+                # Old session without fingerprint, allow it
+                return True
+            
+            # Compare fingerprints
+            if stored_fingerprint != current_fingerprint:
+                logger.warning(f"Fingerprint mismatch for session {session_id}, user {user_id}")
+                return False
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error validating fingerprint for session {session_id}: {e}")
+            return True  # Allow on error to prevent false positives
+    
+    def get_session_by_jti(self, user_id: int, jti: str) -> Optional[Dict[str, Any]]:
+        """
+        Get session by JTI
+        
+        Args:
+            user_id: User ID
+            jti: Token unique identifier
+        
+        Returns:
+            Session data or None
+        """
+        if not self.is_connected:
+            return None
+        
+        try:
+            sessions = self.get_user_sessions(user_id)
+            for session in sessions:
+                if session.get("jti") == jti:
+                    return session
+            return None
+        except Exception as e:
+            logger.error(f"Error getting session by JTI {jti}: {e}")
+            return None
     
     # ============ Refresh Token Rotation ============
     

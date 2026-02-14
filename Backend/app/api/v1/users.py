@@ -61,7 +61,7 @@ def serialize_team_membership(user_team: UserTeam, team: Team) -> dict:
 @router.get("")
 async def list_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(400, ge=1, le=1000),
     role: Optional[str] = Query(None, description="Filter by role"),
     org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
     team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team membership"),
@@ -434,6 +434,18 @@ async def update_user(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already exists"
+            )
+    
+    # Check for employee_id uniqueness if changing
+    if 'employee_id' in update_data:
+        existing = db.query(User).filter(
+            User.employee_id == update_data['employee_id'],
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee ID already exists"
             )
     
     # Capture old snapshot for audit logging

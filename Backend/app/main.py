@@ -1,23 +1,52 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.config import settings
+from app.core.middleware import CSRFMiddleware, SecurityHeadersMiddleware
 from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, employee_weekly_targets, team_user_aliases, attendance, fa_names
+from app.tasks.session_cleanup import start_session_cleanup_scheduler
+
+# Scheduler instance
+scheduler = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager
+    Handles startup and shutdown events
+    """
+    # Startup
+    global scheduler
+    scheduler = start_session_cleanup_scheduler()
+    scheduler.start()
+    yield
+    # Shutdown
+    if scheduler:
+        scheduler.shutdown()
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Order & Performance Management System API",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
-# CORS middleware
+# Security Headers Middleware (applied first)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CSRF Protection Middleware
+app.add_middleware(CSRFMiddleware)
+
+# CORS middleware (applied last, runs first)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://ods-frontend-302004244593.asia-south1.run.app", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_credentials=True,  # Important: required for cookies
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Set-Cookie"],  # Expose cookies to frontend
 )
 
 # Include routers
