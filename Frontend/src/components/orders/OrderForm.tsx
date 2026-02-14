@@ -1155,11 +1155,15 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                                 <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {Array.isArray(faNames) && faNames.map((fn) => (
-                                  <SelectItem key={fn.id} value={fn.faName}>
-                                    {fn.faName}
-                                  </SelectItem>
-                                ))}
+                                {Array.isArray(faNames) && faNames.map((fn) => {
+                                  // Safety: backend returns 'name' property, frontend expects 'faName'
+                                  const displayName = fn.faName || fn.name || String(fn.id)
+                                  return (
+                                    <SelectItem key={fn.id} value={displayName}>
+                                      {displayName}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1215,11 +1219,15 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                                 <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {Array.isArray(faNames) && faNames.map((fn) => (
-                                  <SelectItem key={fn.id} value={fn.faName}>
-                                    {fn.faName}
-                                  </SelectItem>
-                                ))}
+                                {Array.isArray(faNames) && faNames.map((fn) => {
+                                  // Safety: backend returns 'name' property, frontend expects 'faName'
+                                  const displayName = fn.faName || fn.name || String(fn.id)
+                                  return (
+                                    <SelectItem key={fn.id} value={displayName}>
+                                      {displayName}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
