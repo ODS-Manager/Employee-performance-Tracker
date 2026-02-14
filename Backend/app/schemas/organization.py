@@ -35,7 +35,7 @@ class OrganizationResponse(BaseModel):
     created_at: datetime = Field(serialization_alias="createdAt")
     modified_at: datetime = Field(serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
 
 
 class OrganizationListResponse(BaseModel):

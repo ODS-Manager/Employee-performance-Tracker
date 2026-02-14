@@ -50,7 +50,7 @@ class UserResponse(BaseModel):
     created_at: datetime = Field(..., serialization_alias="createdAt")
     modified_at: datetime = Field(..., serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     
     @field_serializer('user_role')
     def serialize_user_role(self, user_role: str) -> str:
@@ -151,7 +151,7 @@ class SessionResponse(BaseModel):
     last_activity: str = Field(serialization_alias="lastActivity")
     expires_in_seconds: int = Field(serialization_alias="expiresInSeconds")
     
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
 class SessionListResponse(BaseModel):
@@ -172,7 +172,7 @@ class RevokeAllSessionsResponse(BaseModel):
     message: str
     sessions_revoked: int = Field(serialization_alias="sessionsRevoked")
     
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
 # ============ Team Membership Schema (for circular import resolution) ============
@@ -183,8 +183,9 @@ class TeamMembershipResponse(BaseModel):
     role: str
     joined_at: datetime = Field(serialization_alias="joinedAt")
     is_active: bool = Field(serialization_alias="isActive")
+    team_is_active: bool = Field(default=True, serialization_alias="teamIsActive")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
 
 
 # Update forward reference

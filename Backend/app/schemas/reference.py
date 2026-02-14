@@ -33,7 +33,7 @@ class TransactionTypeResponse(BaseModel):
     created_at: datetime = Field(serialization_alias="createdAt")
     modified_at: datetime = Field(serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
 
 
 # ============ Process Type Schemas ============
@@ -62,7 +62,7 @@ class ProcessTypeResponse(BaseModel):
     created_at: datetime = Field(serialization_alias="createdAt")
     modified_at: datetime = Field(serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
 
 
 # ============ Order Status Schemas ============
@@ -91,7 +91,7 @@ class OrderStatusResponse(BaseModel):
     created_at: datetime = Field(serialization_alias="createdAt")
     modified_at: datetime = Field(serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
 
 
 # ============ Division Schemas ============
@@ -116,4 +116,4 @@ class DivisionResponse(BaseModel):
     created_at: datetime = Field(serialization_alias="createdAt")
     modified_at: datetime = Field(serialization_alias="modifiedAt")
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
