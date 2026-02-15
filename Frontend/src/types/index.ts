@@ -796,11 +796,13 @@ export interface BillingReportListResponse {
 export interface BillingReportCreate {
   billingMonth: number  // No team selection - always org-wide
   billingYear: number
+  orgId?: number  // Optional - for superadmin to select organization
 }
 
 export interface BillingPreviewRequest {
   billingMonth: number  // No team selection - always org-wide
   billingYear: number
+  orgId?: number  // Optional - for superadmin to select organization
 }
 
 export interface BillingPreviewDetail {

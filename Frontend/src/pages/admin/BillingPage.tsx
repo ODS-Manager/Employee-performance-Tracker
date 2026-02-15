@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { billingApi } from '../../services/api'
-import type { BillingReport, BillingPreviewResponse } from '../../types'
+import { billingApi, organizationsApi } from '../../services/api'
+import type { BillingReport, BillingPreviewResponse, Organization } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
@@ -36,6 +36,10 @@ export const BillingPage = () => {
   const [showPreview, setShowPreview] = useState(false)
   const [preview, setPreview] = useState<BillingPreviewResponse | null>(null)
   const [selectedReport, setSelectedReport] = useState<BillingReport | null>(null)
+
+  // Organizations state (for superadmin)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState<number | undefined>(undefined)
 
   // Filter state
   const [filterMonth, setFilterMonth] = useState<number | null>(null)
@@ -81,6 +85,15 @@ export const BillingPage = () => {
   const fetchInitialData = async () => {
     try {
       setLoading(true)
+      // Fetch organizations if superadmin
+      if (user?.userRole === 'superadmin') {
+        const orgsRes = await organizationsApi.list({ isActive: true })
+        setOrganizations(orgsRes.items || [])
+        // Set first org as default
+        if (orgsRes.items && orgsRes.items.length > 0) {
+          setSelectedOrgId(orgsRes.items[0].id)
+        }
+      }
       const reportsRes = await billingApi.list()
       setReports(reportsRes.items || [])
     } catch (error) {
@@ -111,11 +124,18 @@ export const BillingPage = () => {
       return
     }
 
+    // Check if superadmin and no org selected
+    if (user?.userRole === 'superadmin' && !selectedOrgId) {
+      toast.error('Please select an organization')
+      return
+    }
+
     try {
       setProcessing(true)
       const previewData = await billingApi.preview({
         billingMonth: formMonth,
         billingYear: formYear,
+        orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
       })
 
       if (previewData.totalFiles === 0) {
@@ -139,11 +159,18 @@ export const BillingPage = () => {
       return
     }
 
+    // Check if superadmin and no org selected
+    if (user?.userRole === 'superadmin' && !selectedOrgId) {
+      toast.error('Please select an organization')
+      return
+    }
+
     try {
       setProcessing(true)
       await billingApi.create({
         billingMonth: formMonth,
         billingYear: formYear,
+        orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
       })
 
       toast.success('Billing report created successfully')
@@ -286,6 +313,28 @@ export const BillingPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Organization selector for superadmin */}
+                {user?.userRole === 'superadmin' && (
+                  <div className="space-y-2">
+                    <Label>Organization *</Label>
+                    <Select
+                      value={selectedOrgId?.toString() || ''}
+                      onValueChange={(value) => setSelectedOrgId(parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {organizations.map((org) => (
+                          <SelectItem key={org.id} value={org.id.toString()}>
+                            {org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Month *</Label>
