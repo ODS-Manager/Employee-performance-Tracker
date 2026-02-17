@@ -2,18 +2,29 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
+import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { Download, Users, Loader2 } from 'lucide-react'
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '../../components/ui/dropdown-menu'
+import { Download, Users, Loader2, Shield, Settings, LogOut, Calendar as CalendarIcon } from 'lucide-react'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
 import { useAuthStore } from '../../store/authStore'
+import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import toast from 'react-hot-toast'
 
 export const TeamAttendanceReportsPage: React.FC = () => {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [teams, setTeams] = useState<TeamSimple[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'))
@@ -98,6 +109,12 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     toast.success('Report exported successfully')
   }
 
+  const handleLogout = () => {
+    handleLogoutFlow(logout, navigate)
+  }
+
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId)
+
   // Generate month options (current month and past 11 months)
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const date = subMonths(new Date(), i)
@@ -110,6 +127,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
+        <TeamLeadNav />
         <div className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="flex items-center justify-center py-12">
@@ -123,27 +141,110 @@ export const TeamAttendanceReportsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TeamLeadNav />
-      
-      <div className="bg-white border-b border-slate-200">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
-              <p className="text-sm text-slate-600 mt-1">View attendance statistics and export data</p>
+              <p className="text-sm text-slate-600">
+                {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to view reports' : 'View attendance statistics'}
+              </p>
             </div>
-            <Button
-              onClick={handleExportCSV}
-              disabled={!report}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            
+            <div className="flex items-center gap-4">
+              {/* Team Filter - Show if multiple teams */}
+              {teams.length > 1 && (
+                <Select
+                  value={selectedTeamId?.toString() || ''}
+                  onValueChange={(value) => setSelectedTeamId(parseInt(value))}
+                >
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select a team..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id.toString()}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Team Badge - Show if single team */}
+              {teams.length === 1 && selectedTeam && (
+                <Badge variant="outline" className="px-3 py-1">
+                  <Users className="w-3 h-3 mr-1" />
+                  {selectedTeam.name}
+                </Badge>
+              )}
+
+              {/* Mark Attendance Button */}
+              <Button
+                variant="outline"
+                onClick={() => navigate('/teamlead/attendance')}
+                className="flex items-center gap-2"
+              >
+                <CalendarIcon className="h-4 w-4" />
+                Mark Attendance
+              </Button>
+
+              {/* Export Button */}
+              <Button
+                onClick={handleExportCSV}
+                disabled={!report}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+              
+              {/* Team Lead Badge */}
+              <Badge variant="outline" className="px-3 py-1">
+                <Shield className="w-3 h-3 mr-1" />
+                Team Lead
+              </Badge>
+              
+              {/* User Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {getInitials(user?.userName || '')}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium">{user?.userName}</p>
+                      <p className="text-xs text-muted-foreground">@{user?.userName}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
+      {/* Navigation */}
+      <TeamLeadNav />
+
+      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           {/* Filters */}
