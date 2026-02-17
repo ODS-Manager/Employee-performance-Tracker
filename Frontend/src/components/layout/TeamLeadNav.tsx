@@ -43,6 +43,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/teamlead/orders': { label: 'Orders', parent: '/teamlead/dashboard' },
   '/teamlead/productivity': { label: 'Productivity', parent: '/teamlead/dashboard' },
   '/teamlead/attendance': { label: 'Attendance', parent: '/teamlead/dashboard' },
+  '/teamlead/attendance/reports': { label: 'Attendance Reports', parent: '/teamlead/attendance' },
   '/teamlead/quality-audit': { label: 'Quality Audit', parent: '/teamlead/dashboard' },
   '/teamlead/team-management': { label: 'Manage Teams', parent: '/teamlead/dashboard' },
   '/teamlead/employee/:userId/performance': { label: 'Employee Performance', parent: '/teamlead/productivity' },

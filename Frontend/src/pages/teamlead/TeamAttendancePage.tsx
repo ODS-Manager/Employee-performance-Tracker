@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { Calendar, FileText, Loader2, ArrowLeft } from 'lucide-react'
+import { Calendar, FileText, Loader2 } from 'lucide-react'
 import { DailyRosterView } from '../../components/attendance/DailyRosterView'
+import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { teamsApi } from '../../services/api'
 import { TeamSimple } from '../../types'
 import { useAuthStore } from '../../store/authStore'
@@ -83,24 +84,14 @@ export const TeamAttendancePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-6">
+      <TeamLeadNav />
+      
+      <div className="bg-white border-b border-slate-200">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/teamlead/dashboard')}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <div className="border-l border-slate-300 h-6"></div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Team Attendance</h1>
-                <p className="text-sm text-slate-600 mt-1">Mark daily attendance for your team members</p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Team Attendance</h1>
+              <p className="text-sm text-slate-600 mt-1">Mark daily attendance for your team members</p>
             </div>
             <Button
               variant="outline"
@@ -112,7 +103,7 @@ export const TeamAttendancePage: React.FC = () => {
             </Button>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-6">

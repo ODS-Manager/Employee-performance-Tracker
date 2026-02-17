@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { ArrowLeft, Download, Users, Loader2 } from 'lucide-react'
+import { Download, Users, Loader2 } from 'lucide-react'
+import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
 import { useAuthStore } from '../../store/authStore'
@@ -122,32 +123,14 @@ export const TeamAttendanceReportsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-6">
+      <TeamLeadNav />
+      
+      <div className="bg-white border-b border-slate-200">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/teamlead/dashboard')}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <div className="border-l border-slate-300 h-6"></div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/teamlead/attendance')}
-              >
-                Mark Attendance
-              </Button>
-              <div className="border-l border-slate-300 h-6"></div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
-                <p className="text-sm text-slate-600 mt-1">View attendance statistics and export data</p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
+              <p className="text-sm text-slate-600 mt-1">View attendance statistics and export data</p>
             </div>
             <Button
               onClick={handleExportCSV}
@@ -159,7 +142,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
             </Button>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-6">
