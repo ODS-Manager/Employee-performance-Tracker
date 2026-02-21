@@ -105,6 +105,9 @@ debug_*.py
 *.backup
 *~
 
+# Local admin/ops scripts (do not commit)
+drop_all_tables_gcp.local.sh
+
 # OS specific
 Thumbs.db
 .DS_Store
