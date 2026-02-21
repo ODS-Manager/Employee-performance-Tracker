@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from '../../components/ui/select'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { 
   Settings,
   LogOut,
@@ -106,8 +108,8 @@ export const ScoreManagementPage = () => {
     },
   })
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const handleSave = () => {
@@ -123,56 +125,7 @@ export const ScoreManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Score Management</h1>
-              <p className="text-sm text-slate-600">
-                Configure productivity scoring for teams
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <Badge variant="outline" className="px-3 py-1">
-                <Shield className="w-3 h-3 mr-1" />
-                {user?.userRole}
-              </Badge>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {getInitials(user?.userName || '')}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user?.userName}</p>
-                      <p className="text-xs text-muted-foreground">@{user?.userName}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Score Management" subtitle="Configure productivity scoring for teams" />
 
       {/* Navigation */}
       <AdminNav />
@@ -405,7 +358,7 @@ export const ScoreManagementPage = () => {
                     <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
                       <h4 className="font-semibold text-sm mb-3">Example Calculation</h4>
                       <div className="text-sm space-y-1 text-slate-700">
-                        <p>If an employee completes in one day:</p>
+                        <p>If an examiner completes in one day:</p>
                         <ul className="list-disc list-inside ml-2 space-y-1">
                           <li>2 Step 1 completions = 2 × {step1Score} = {(2 * parseFloat(step1Score || '0')).toFixed(1)} points</li>
                           <li>3 Step 2 completions = 3 × {step2Score} = {(3 * parseFloat(step2Score || '0')).toFixed(1)} points</li>

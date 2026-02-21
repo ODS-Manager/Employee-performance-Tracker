@@ -13,7 +13,7 @@ from app.core.dependencies import (
     ROLE_SUPERADMIN,
     ROLE_ADMIN,
     ROLE_TEAM_LEAD,
-    ROLE_EMPLOYEE,
+    ROLE_EXAMINER,
     get_user_teams
 )
 
@@ -140,7 +140,7 @@ class QueryBuilder:
         Returns:
             Filtered query (EMPLOYEE gets filtered to self, others unrestricted)
         """
-        if current_user.user_role == ROLE_EMPLOYEE:
+        if current_user.user_role == ROLE_EXAMINER:
             query = query.filter(model_user_field == current_user.id)
         # SUPERADMIN, ADMIN, TEAM_LEAD have no additional filter
         return query
@@ -165,7 +165,7 @@ class QueryBuilder:
         """
         from sqlalchemy import or_
         
-        if current_user.user_role == ROLE_EMPLOYEE:
+        if current_user.user_role == ROLE_EXAMINER:
             if my_orders:
                 return or_(
                     Order.step1_user_id == current_user.id,

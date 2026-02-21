@@ -12,26 +12,27 @@ import TeamLeadMembersPage from './pages/teamlead/TeamMembersPage'
 import TeamLeadOrdersPage from './pages/teamlead/TeamOrdersPage'
 import TeamLeadProductivityPage from './pages/teamlead/TeamProductivityPage'
 import TeamLeadTeamManagementPage from './pages/teamlead/TeamLeadTeamManagementPage'
-import EmployeePerformancePage from './pages/teamlead/EmployeePerformancePage'
-import EmployeeDashboard from './pages/employee/EmployeeDashboard'
-import OrderEntryPage from './pages/employee/OrderEntryPage'
-import OrderEditPage from './pages/employee/OrderEditPage'
+import ExaminerPerformancePage from './pages/teamlead/ExaminerPerformancePage'
+import ExaminerDashboard from './pages/examiner/ExaminerDashboard'
+import OrderEntryPage from './pages/examiner/OrderEntryPage'
+import OrderEditPage from './pages/examiner/OrderEditPage'
 import TeamReportsPage from './pages/admin/TeamReportsPage'
 import TeamReportDetailPage from './pages/admin/TeamReportDetailPage'
-import EmployeeReportsPage from './pages/admin/EmployeeReportsPage'
-import EmployeeManagementPage from './pages/admin/EmployeeManagementPage'
+import ExaminerReportsPage from './pages/admin/ExaminerReportsPage'
+import ExaminerManagementPage from './pages/admin/ExaminerManagementPage'
 import OrderAnalysisPage from './pages/admin/OrderAnalysisPage'
 import OnboardingPage from './pages/admin/OnboardingPage'
 import TeamManagementPage from './pages/admin/TeamManagementPage'
 import ScoreManagementPage from './pages/admin/ScoreManagementPage'
 import QualityAuditPage from './pages/admin/QualityAuditPage'
 import BillingPage from './pages/admin/BillingPage'
+import BillingReportView from './pages/admin/BillingReportView'
 import TeamMembersPage from './pages/admin/TeamMembersPage'
-import EmployeeDetailPage from './pages/admin/EmployeeDetailPage'
-import EmployeePerformanceDetailPage from './pages/admin/EmployeePerformanceDetailPage'
+import ExaminerDetailPage from './pages/admin/ExaminerDetailPage'
+import ExaminerPerformanceDetailPage from './pages/admin/ExaminerPerformanceDetailPage'
 import OrganizationsPage from './pages/admin/OrganizationsPage'
 import ProductivityReportsPage from './pages/admin/ProductivityReportsPage'
-import EmployeeTargetsPage from './pages/admin/EmployeeTargetsPage'
+import ExaminerTargetsPage from './pages/admin/ExaminerTargetsPage'
 import TeamAttendancePage from './pages/teamlead/TeamAttendancePage'
 import TeamAttendanceReportsPage from './pages/teamlead/TeamAttendanceReportsPage'
 import './App.css'
@@ -64,7 +65,7 @@ const DefaultRoute = () => {
   } else if (userRole === 'team_lead') {
     return <Navigate to="/teamlead/dashboard" replace />
   } else {
-    return <Navigate to="/employee/dashboard" replace />
+    return <Navigate to="/examiner/dashboard" replace />
   }
 }
 
@@ -111,18 +112,18 @@ function App() {
               }
             />
             <Route
-              path="/admin/employees"
+              path="/admin/examiners"
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
-                  <EmployeeReportsPage />
+                  <ExaminerReportsPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/admin/employee-management"
+              path="/admin/examiner-management"
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
-                  <EmployeeManagementPage />
+                  <ExaminerManagementPage />
                 </ProtectedRoute>
               }
             />
@@ -175,6 +176,14 @@ function App() {
               }
             />
             <Route
+              path="/admin/billing/:id"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <BillingReportView />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/teams/:teamId/members"
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
@@ -183,18 +192,18 @@ function App() {
               }
             />
             <Route
-              path="/admin/employees/:userId"
+              path="/admin/examiners/:userId"
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
-                  <EmployeeDetailPage />
+                  <ExaminerDetailPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/admin/employees/:userId/performance"
+              path="/admin/examiners/:userId/performance"
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
-                  <EmployeePerformanceDetailPage />
+                  <ExaminerPerformanceDetailPage />
                 </ProtectedRoute>
               }
             />
@@ -215,10 +224,10 @@ function App() {
               }
             />
             <Route
-              path="/admin/employee-targets"
+              path="/admin/examiner-targets"
               element={
-                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
-                  <EmployeeTargetsPage />
+                <ProtectedRoute requiredRoles={['admin']}>
+                  <ExaminerTargetsPage />
                 </ProtectedRoute>
               }
             />
@@ -276,16 +285,16 @@ function App() {
               path="/teamlead/teams/:teamId/targets"
               element={
                 <ProtectedRoute requiredRoles={['team_lead']}>
-                  <EmployeeTargetsPage />
+                  <ExaminerTargetsPage />
                 </ProtectedRoute>
               }
             />
 
             <Route
-              path="/teamlead/employee/:userId/performance"
+              path="/teamlead/examiner/:userId/performance"
               element={
                 <ProtectedRoute requiredRoles={['team_lead']}>
-                  <EmployeePerformancePage />
+                  <ExaminerPerformancePage />
                 </ProtectedRoute>
               }
             />
@@ -314,27 +323,27 @@ function App() {
               }
             />
 
-{/* Employee Routes */}
+{/* Examiner Routes */}
             <Route
-              path="/employee/dashboard"
+              path="/examiner/dashboard"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
-                  <EmployeeDashboard />
+                <ProtectedRoute requiredRoles={['examiner']}>
+                  <ExaminerDashboard />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/employee/new-order"
+              path="/examiner/new-order"
               element={
-                <ProtectedRoute requiredRoles={['employee', 'team_lead', 'admin', 'superadmin']}>
+                <ProtectedRoute requiredRoles={['examiner', 'team_lead', 'admin', 'superadmin']}>
                   <OrderEntryPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/employee/edit-order/:orderId"
+              path="/examiner/edit-order/:orderId"
               element={
-                <ProtectedRoute requiredRoles={['employee', 'team_lead', 'admin', 'superadmin']}>
+                <ProtectedRoute requiredRoles={['examiner', 'team_lead', 'admin', 'superadmin']}>
                   <OrderEditPage />
                 </ProtectedRoute>
               }

@@ -10,7 +10,7 @@ import type { UserRole } from '../types'
  * @returns Two-letter initials in uppercase
  */
 export const getInitials = (name: string): string => {
-  if (!name) return '??'
+  if (!name) return ''
   return name
     .split(' ')
     .map(n => n[0])
@@ -24,8 +24,11 @@ export const getInitials = (name: string): string => {
  * @param logout - Zustand logout function from auth store
  * @param navigate - React Router navigate function
  */
-export const handleLogoutFlow = (logout: () => void, navigate: (path: string) => void): void => {
-  logout()
+export const handleLogoutFlow = async (
+  logout: () => Promise<void> | void,
+  navigate: (path: string) => void
+): Promise<void> => {
+  await logout()
   navigate('/login')
 }
 
@@ -86,8 +89,8 @@ export const getRoleDisplayName = (role: string): string => {
       return 'Admin'
     case 'team_lead':
       return 'Team Lead'
-    case 'employee':
-      return 'Employee'
+    case 'examiner':
+      return 'Examiner'
     default:
       return 'Unknown'
   }
@@ -107,7 +110,7 @@ export const getRoleBadgeColor = (role: string): string => {
       return 'bg-purple-100 text-purple-700 border-purple-200'
     case 'team_lead':
       return 'bg-blue-100 text-blue-700 border-blue-200'
-    case 'employee':
+    case 'examiner':
       return 'bg-green-100 text-green-700 border-green-200'
     default:
       return 'bg-gray-100 text-gray-700 border-gray-200'

@@ -37,15 +37,15 @@ def add_team_lead():
             print(f"Password: TeamLeadOdsInd123!")
             print(f"Role: {existing_user.user_role}")
             print(f"Org ID: {existing_user.org_id}")
-            print(f"Employee ID: {existing_user.employee_id}")
+            print(f"Employee ID: {existing_user.examiner_id}")
             return True
         
         # Create team lead user
         user = User(
             user_name="teamlead_ods_ind",
             password_hash=get_password_hash("TeamLeadOdsInd123!"),
-            employee_id="TL001",
-            user_role="TEAM_LEAD",
+            examiner_id="TL001",
+            user_role="team_lead",
             org_id=org_ind.id,
             is_active=True,
             must_change_password=False,

@@ -1,6 +1,6 @@
 """
 User Model
-Represents system users with roles (superadmin, admin, team_lead, employee)
+Represents system users with roles (superadmin, admin, team_lead, examiner)
 """
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
@@ -14,21 +14,21 @@ class UserRole(str, enum.Enum):
     SUPERADMIN = "superadmin"   # Full access to both organizations
     ADMIN = "admin"             # Full access to single organization
     TEAM_LEAD = "team_lead"     # Manages team members and team performance
-    EMPLOYEE = "employee"       # Works on orders
+    EXAMINER = "examiner"       # Works on orders
 
 
 class User(Base):
-    """User model - employees and administrators"""
+    """User model - examiners and administrators"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_name = Column(String(100), unique=True, nullable=False)  # Username (used for display and login)
-    employee_id = Column(String(50), unique=True, nullable=False)  # Employee ID
+    examiner_id = Column(String(50), unique=True, nullable=False)  # Examiner ID (unique identifier)
     password_hash = Column(String(255), nullable=False)  # Hashed password
     password_last_changed = Column(DateTime, nullable=True)  # Security tracking
     must_change_password = Column(Boolean, default=False)  # True when admin resets password with temp password
     token_version = Column(Integer, default=0, nullable=False)  # Increment to invalidate all tokens
-    user_role = Column(String(20), nullable=False)  # superadmin, admin, team_lead, employee
+    user_role = Column(String(20), nullable=False)  # superadmin, admin, team_lead, examiner
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)  # Nullable for superadmin
     last_login = Column(DateTime, nullable=True)  # Activity tracking
     is_active = Column(Boolean, default=True)
@@ -58,13 +58,13 @@ class User(Base):
     order_changes = relationship("OrderHistory", back_populates="changed_by_user")
     
     # Performance metrics
-    performance_metrics = relationship("EmployeePerformanceMetrics", back_populates="user", 
-                                       foreign_keys="EmployeePerformanceMetrics.user_id")
+    performance_metrics = relationship("ExaminerPerformanceMetrics", back_populates="user", 
+                                       foreign_keys="ExaminerPerformanceMetrics.user_id")
     
     # Password reset tokens
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user")
     
-    # Team-specific aliases (fake names assigned to this user in different teams)
+    # Team-specific aliases (FA names assigned to this user in different teams)
     team_aliases = relationship("TeamUserAlias", back_populates="user", cascade="all, delete-orphan")
     
     # Attendance records
@@ -73,7 +73,7 @@ class User(Base):
     # Indexes
     __table_args__ = (
         Index('idx_users_org_role', 'org_id', 'user_role'),
-        Index('idx_users_employee_id', 'employee_id'),
+        Index('idx_users_examiner_id', 'examiner_id'),
         Index('idx_users_username', 'user_name'),
         Index('idx_users_last_login', 'last_login'),
     )

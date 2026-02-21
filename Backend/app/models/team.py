@@ -9,7 +9,7 @@ from app.database import Base
 
 
 class Team(Base):
-    """Team model - groups of employees working on specific states/products"""
+    """Team model - groups of examiners working on specific states/products"""
     __tablename__ = "teams"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -19,7 +19,7 @@ class Team(Base):
     is_active = Column(Boolean, default=True)
     
     # Productivity settings - configurable per team
-    daily_target = Column(Integer, nullable=False, default=10)  # Daily target orders per employee
+    daily_target = Column(Integer, nullable=False, default=10)  # Daily target orders per examiner
     monthly_target = Column(Integer, nullable=True, default=None)  # Monthly target for entire team (set by admin)
     single_seat_score = Column(Numeric(4, 2), nullable=False, default=1.0)  # Score for Single Seat completion
     step1_score = Column(Numeric(4, 2), nullable=False, default=0.5)  # Score for Step 1 only completion
@@ -43,7 +43,7 @@ class Team(Base):
     orders = relationship("Order", back_populates="team")
     
     # Performance metrics
-    employee_metrics = relationship("EmployeePerformanceMetrics", back_populates="team")
+    examiner_metrics = relationship("ExaminerPerformanceMetrics", back_populates="team")
     team_metrics = relationship("TeamPerformanceMetrics", back_populates="team")
     
     # FA names (pool-based) for this team

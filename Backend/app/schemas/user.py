@@ -10,7 +10,7 @@ from datetime import datetime
 # ============ User Schemas ============
 class UserBase(BaseModel):
     user_name: str = Field(..., max_length=100, serialization_alias="userName")
-    employee_id: str = Field(..., max_length=50, serialization_alias="employeeId")
+    examiner_id: str = Field(..., max_length=50, serialization_alias="examinerId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     
@@ -19,7 +19,7 @@ class UserBase(BaseModel):
 
 class UserCreate(BaseModel):
     user_name: str = Field(..., max_length=100, alias="userName")
-    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")  # Auto-generated if not provided
+    examiner_id: Optional[str] = Field(None, max_length=50, alias="examinerId")  # Auto-generated if not provided
     password: str = Field(..., min_length=8)
     user_role: str = Field(..., alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
@@ -29,7 +29,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     user_name: Optional[str] = Field(None, max_length=100, alias="userName")
-    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")
+    examiner_id: Optional[str] = Field(None, max_length=50, alias="examinerId")
     user_role: Optional[str] = Field(None, alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
     is_active: Optional[bool] = Field(None, alias="isActive")
@@ -40,7 +40,7 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     user_name: str = Field(..., serialization_alias="userName")
-    employee_id: str = Field(..., serialization_alias="employeeId")
+    examiner_id: str = Field(..., serialization_alias="examinerId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     password_last_changed: Optional[datetime] = Field(None, serialization_alias="passwordLastChanged")

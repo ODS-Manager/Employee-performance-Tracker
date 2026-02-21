@@ -175,7 +175,7 @@ class TeamMemberResponse(BaseModel):
     id: int
     user_id: int = Field(..., alias="userId")
     user_name: str = Field(..., alias="userName")
-    employee_id: str = Field(..., alias="employeeId")
+    examiner_id: str = Field(..., alias="examinerId")
     user_role: str = Field(..., alias="userRole")
     team_role: str = Field(..., alias="teamRole")
     joined_at: datetime = Field(..., alias="joinedAt")

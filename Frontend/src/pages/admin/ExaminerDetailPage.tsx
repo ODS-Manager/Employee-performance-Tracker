@@ -10,6 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Badge } from '../../components/ui/badge'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
   Dialog,
@@ -60,13 +61,13 @@ const getErrorMessage = (error: any): string => {
   return JSON.stringify(detail)
 }
 
-export const EmployeeDetailPage = () => {
+export const ExaminerDetailPage = () => {
   const { user: currentUser } = useAuthStore()
   const navigate = useNavigate()
   const { userId } = useParams<{ userId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   
-  const [employee, setEmployee] = useState<UserWithTeams | null>(null)
+  const [examiner, setExaminer] = useState<UserWithTeams | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [availableTeams, setAvailableTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
@@ -84,7 +85,7 @@ export const EmployeeDetailPage = () => {
   // Form states for edit
   const [editForm, setEditForm] = useState({
     userName: '',
-    userRole: '' as 'admin' | 'team_lead' | 'employee',
+    userRole: '' as 'admin' | 'team_lead' | 'examiner',
     isActive: true
   })
   
@@ -105,32 +106,32 @@ export const EmployeeDetailPage = () => {
       return
     }
     if (userId) {
-      fetchEmployeeData()
+      fetchExaminerData()
     }
   }, [currentUser, navigate, userId])
 
   // Handle edit query parameter to auto-open edit dialog
   useEffect(() => {
-    if (searchParams.get('edit') === 'true' && employee && !loading) {
+    if (searchParams.get('edit') === 'true' && examiner && !loading) {
       setEditDialogOpen(true)
       // Remove the query parameter from URL
       searchParams.delete('edit')
       setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, employee, loading, setSearchParams])
+  }, [searchParams, examiner, loading, setSearchParams])
 
-  const fetchEmployeeData = async () => {
+  const fetchExaminerData = async () => {
     if (!userId) return
     
     try {
       setLoading(true)
       const userData = await usersApi.get(parseInt(userId))
-      setEmployee(userData)
+      setExaminer(userData)
       
       // Initialize edit form
       setEditForm({
         userName: userData.userName,
-        userRole: userData.userRole as 'admin' | 'team_lead' | 'employee',
+        userRole: userData.userRole as 'admin' | 'team_lead' | 'examiner',
         isActive: userData.isActive
       })
       
@@ -146,9 +147,9 @@ export const EmployeeDetailPage = () => {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch employee:', error)
-      toast.error('Failed to load employee details')
-      navigate('/admin/employees')
+      console.error('Failed to fetch examiner:', error)
+      toast.error('Failed to load examiner details')
+      navigate('/admin/examiners')
     } finally {
       setLoading(false)
     }
@@ -166,21 +167,21 @@ export const EmployeeDetailPage = () => {
     }
   }
 
-  // Filter out teams the employee is already an active member of
+  // Filter out teams the examiner is already an active member of
   // (teams with inactive memberships will show, allowing re-adding)
   const teamsNotJoined = availableTeams.filter(t => {
-    const isActiveMember = employee?.teams?.some(m => m.teamId === t.id && m.isActive)
+    const isActiveMember = examiner?.teams?.some(m => m.teamId === t.id && m.isActive)
     return !isActiveMember
   })
 
-  const handleUpdateEmployee = async () => {
+  const handleUpdateExaminer = async () => {
     if (!userId) return
 
     setError('')
     setIsSubmitting(true)
     
     // Check if user is being deactivated
-    const isBeingDeactivated = employee?.isActive && !editForm.isActive
+    const isBeingDeactivated = examiner?.isActive && !editForm.isActive
     
     try {
       await usersApi.update(parseInt(userId), {
@@ -196,7 +197,7 @@ export const EmployeeDetailPage = () => {
       }
       
       setEditDialogOpen(false)
-      fetchEmployeeData()
+      fetchExaminerData()
     } catch (error: any) {
       const errorMsg = getErrorMessage(error)
       setError(errorMsg)
@@ -256,7 +257,7 @@ export const EmployeeDetailPage = () => {
       setAddToTeamDialogOpen(false)
       setSelectedTeamId(null)
       setSelectedTeamRole('member')
-      fetchEmployeeData()
+      fetchExaminerData()
     } catch (error: any) {
       const errorMsg = getErrorMessage(error)
       setError(errorMsg)
@@ -275,7 +276,7 @@ export const EmployeeDetailPage = () => {
       toast.success('Removed from team successfully!')
       setRemoveFromTeamDialogOpen(false)
       setSelectedTeam(null)
-      fetchEmployeeData()
+      fetchExaminerData()
     } catch (error: any) {
       const errorMsg = getErrorMessage(error)
       toast.error(errorMsg)
@@ -301,7 +302,7 @@ export const EmployeeDetailPage = () => {
         role: team.role
       })
       toast.success(`Reactivated membership in ${team.teamName}`)
-      fetchEmployeeData()
+      fetchExaminerData()
     } catch (error: any) {
       const errorMsg = getErrorMessage(error)
       toast.error(errorMsg)
@@ -318,7 +319,7 @@ export const EmployeeDetailPage = () => {
         return 'bg-purple-100 text-purple-700 border-purple-200'
       case 'team_lead':
         return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'employee':
+      case 'examiner':
         return 'bg-green-100 text-green-700 border-green-200'
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200'
@@ -337,30 +338,16 @@ export const EmployeeDetailPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <header className="bg-white border-b border-slate-200">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center gap-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span>Loading employee...</span>
-            </div>
-          </div>
-        </header>
+        <AdminHeader title="Employee Details" subtitle="Loading employee information..." />
         <AdminNav />
       </div>
     )
   }
 
-  if (!employee) {
+  if (!examiner) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <header className="bg-white border-b border-slate-200">
-          <div className="container mx-auto px-4 py-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Employee not found</AlertDescription>
-            </Alert>
-          </div>
-        </header>
+        <AdminHeader title="Employee Details" subtitle="Employee not found" />
         <AdminNav />
       </div>
     )
@@ -370,43 +357,33 @@ export const EmployeeDetailPage = () => {
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-right" />
       
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/admin/employees')}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">{employee.userName}</h1>
-                <p className="text-sm text-slate-600">Employee Details</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={fetchEmployeeData}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              {employee.userRole !== 'superadmin' && (
-                <Button variant="outline" onClick={() => setResetPasswordDialogOpen(true)}>
-                  <Key className="h-4 w-4 mr-2" />
-                  Reset Password
-                </Button>
-              )}
-              <Button onClick={() => setEditDialogOpen(true)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-      
+      <AdminHeader title={examiner.userName} subtitle="View and manage employee details" />
       <AdminNav />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Inactive Employee Warning */}
-        {!employee.isActive && (
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 mb-6">
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin/examiners')}>
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Back
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchExaminerData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          {examiner.userRole !== 'superadmin' && (
+            <Button variant="outline" onClick={() => setResetPasswordDialogOpen(true)}>
+              <Key className="h-4 w-4 mr-2" />
+              Reset Password
+            </Button>
+          )}
+          <Button onClick={() => setEditDialogOpen(true)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
+        </div>
+        {/* Inactive Examiner Warning */}
+        {!examiner.isActive && (
           <Alert className="mb-6 border-amber-200 bg-amber-50">
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
@@ -416,7 +393,7 @@ export const EmployeeDetailPage = () => {
         )}
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Employee Info Card */}
+          {/* Examiner Info Card */}
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -429,21 +406,21 @@ export const EmployeeDetailPage = () => {
                 <div className="space-y-4">
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Name</Label>
-                    <p className="font-medium text-lg">{employee.userName}</p>
+                    <p className="font-medium text-lg">{examiner.userName}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Username</Label>
-                    <p className="font-medium">@{employee.userName}</p>
+                    <p className="font-medium">@{examiner.userName}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</Label>
-                    <p className="font-medium font-mono">{employee.employeeId}</p>
+                    <p className="font-medium font-mono">{examiner.examinerId}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Organization</Label>
                     <p className="font-medium flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-slate-400" />
-                      {organization?.name || (employee.orgId ? 'Unknown Organization' : 'No Organization')}
+                      {organization?.name || (examiner.orgId ? 'Unknown Organization' : 'No Organization')}
                     </p>
                   </div>
                 </div>
@@ -451,17 +428,17 @@ export const EmployeeDetailPage = () => {
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Role</Label>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded border ${getRoleBadgeColor(employee.userRole)}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded border ${getRoleBadgeColor(examiner.userRole)}`}>
                         <Shield className="h-3 w-3" />
-                        {employee.userRole.replace('_', ' ')}
+                        {examiner.userRole.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Status</Label>
                     <div className="mt-1">
-                      <Badge variant={employee.isActive ? 'default' : 'secondary'}>
-                        {employee.isActive ? 'Active' : 'Inactive'}
+                      <Badge variant={examiner.isActive ? 'default' : 'secondary'}>
+                        {examiner.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                   </div>
@@ -470,14 +447,14 @@ export const EmployeeDetailPage = () => {
                       <Clock className="h-3 w-3" />
                       Last Login
                     </Label>
-                    <p className="font-medium text-sm">{formatDate(employee.lastLogin)}</p>
+                    <p className="font-medium text-sm">{formatDate(examiner.lastLogin)}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide flex items-center gap-1">
                       <Key className="h-3 w-3" />
                       Password Changed
                     </Label>
-                    <p className="font-medium text-sm">{formatDate(employee.passwordLastChanged)}</p>
+                    <p className="font-medium text-sm">{formatDate(examiner.passwordLastChanged)}</p>
                   </div>
                 </div>
               </div>
@@ -488,14 +465,14 @@ export const EmployeeDetailPage = () => {
                     <Calendar className="h-3 w-3" />
                     Created
                   </Label>
-                  <p className="font-medium text-sm">{formatDate(employee.createdAt)}</p>
+                  <p className="font-medium text-sm">{formatDate(examiner.createdAt)}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-slate-500 uppercase tracking-wide flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     Last Modified
                   </Label>
-                  <p className="font-medium text-sm">{formatDate(employee.modifiedAt)}</p>
+                  <p className="font-medium text-sm">{formatDate(examiner.modifiedAt)}</p>
                 </div>
               </div>
             </CardContent>
@@ -515,7 +492,7 @@ export const EmployeeDetailPage = () => {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Details
               </Button>
-              {employee.userRole !== 'superadmin' && (
+              {examiner.userRole !== 'superadmin' && (
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
@@ -529,13 +506,13 @@ export const EmployeeDetailPage = () => {
                 variant="outline" 
                 className="w-full justify-start"
                 onClick={() => setAddToTeamDialogOpen(true)}
-                disabled={!employee.isActive}
-                title={!employee.isActive ? 'Cannot add inactive employee to teams' : undefined}
+                disabled={!examiner.isActive}
+                title={!examiner.isActive ? 'Cannot add inactive employee to teams' : undefined}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add to Team
               </Button>
-              {employee.isActive ? (
+              {examiner.isActive ? (
                 <Button 
                   variant="outline" 
                   className="w-full justify-start text-amber-600 hover:text-amber-700 hover:bg-amber-50"
@@ -572,22 +549,22 @@ export const EmployeeDetailPage = () => {
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
                   Team Memberships
-                  {employee.teams && employee.teams.length > 0 && (
+                  {examiner.teams && examiner.teams.length > 0 && (
                     <span className="text-sm font-normal text-muted-foreground ml-1">
-                      ({employee.teams.filter(t => t.isActive).length} active
-                      {employee.teams.filter(t => !t.isActive).length > 0 && 
-                        `, ${employee.teams.filter(t => !t.isActive).length} inactive`})
+                      ({examiner.teams.filter(t => t.isActive).length} active
+                      {examiner.teams.filter(t => !t.isActive).length > 0 && 
+                        `, ${examiner.teams.filter(t => !t.isActive).length} inactive`})
                     </span>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Teams this employee belongs to (including historical)
+                  Teams this examiner belongs to (including historical)
                 </CardDescription>
               </div>
               <Button 
                 onClick={() => setAddToTeamDialogOpen(true)}
-                disabled={!employee.isActive}
-                title={!employee.isActive ? 'Cannot add inactive employee to teams' : undefined}
+                disabled={!examiner.isActive}
+                title={!examiner.isActive ? 'Cannot add inactive examiner to teams' : undefined}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add to Team
@@ -595,17 +572,17 @@ export const EmployeeDetailPage = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {!employee.teams || employee.teams.length === 0 ? (
+            {!examiner.teams || examiner.teams.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <p className="text-muted-foreground mb-4">Not a member of any team</p>
-                {employee.isActive ? (
+                {examiner.isActive ? (
                   <Button onClick={() => setAddToTeamDialogOpen(true)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Add to First Team
                   </Button>
                 ) : (
-                  <p className="text-sm text-amber-600">Activate this employee to add them to a team</p>
+                  <p className="text-sm text-amber-600">Activate this examiner to add them to a team</p>
                 )}
               </div>
             ) : (
@@ -621,7 +598,7 @@ export const EmployeeDetailPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employee.teams.map((team) => (
+                  {examiner.teams.map((team) => (
                     <TableRow 
                       key={team.teamId}
                       className={!team.isActive ? 'opacity-60 bg-slate-50' : ''}
@@ -653,7 +630,7 @@ export const EmployeeDetailPage = () => {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        ) : employee.isActive ? (
+                        ) : examiner.isActive ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -677,7 +654,7 @@ export const EmployeeDetailPage = () => {
         </Card>
       </main>
 
-      {/* Edit Employee Dialog */}
+      {/* Edit Examiner Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -708,13 +685,13 @@ export const EmployeeDetailPage = () => {
               <Label>Role *</Label>
               <Select 
                 value={editForm.userRole} 
-                onValueChange={(value) => setEditForm({ ...editForm, userRole: value as 'admin' | 'team_lead' | 'employee' })}
+                onValueChange={(value) => setEditForm({ ...editForm, userRole: value as 'admin' | 'team_lead' | 'examiner' })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="examiner">Examiner</SelectItem>
                   <SelectItem value="team_lead">Team Lead</SelectItem>
                   {currentUser?.userRole === 'superadmin' && (
                     <SelectItem value="admin">Admin</SelectItem>
@@ -745,17 +722,17 @@ export const EmployeeDetailPage = () => {
               setEditDialogOpen(false)
               setError('')
               // Reset form to original values
-              if (employee) {
+              if (examiner) {
                 setEditForm({
-                  userName: employee.userName,
-                  userRole: employee.userRole as 'admin' | 'team_lead' | 'employee',
-                  isActive: employee.isActive
+                  userName: examiner.userName,
+                  userRole: examiner.userRole as 'admin' | 'team_lead' | 'examiner',
+                  isActive: examiner.isActive
                 })
               }
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateEmployee} disabled={isSubmitting}>
+            <Button onClick={handleUpdateExaminer} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -778,7 +755,7 @@ export const EmployeeDetailPage = () => {
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
-              Set a new password for {employee.userName}
+              Set a new password for {examiner.userName}
             </DialogDescription>
           </DialogHeader>
           
@@ -847,7 +824,7 @@ export const EmployeeDetailPage = () => {
           <DialogHeader>
             <DialogTitle>Add to Team</DialogTitle>
             <DialogDescription>
-              Add {employee.userName} to a team
+              Add {examiner.userName} to a team
             </DialogDescription>
           </DialogHeader>
           
@@ -938,7 +915,7 @@ export const EmployeeDetailPage = () => {
           <DialogHeader>
             <DialogTitle>Remove from Team</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove {employee.userName} from {selectedTeam?.teamName}?
+              Are you sure you want to remove {examiner.userName} from {selectedTeam?.teamName}?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -965,4 +942,4 @@ export const EmployeeDetailPage = () => {
   )
 }
 
-export default EmployeeDetailPage
+export default ExaminerDetailPage

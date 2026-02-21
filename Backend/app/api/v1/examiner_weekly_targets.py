@@ -1,17 +1,17 @@
 """
-Employee Weekly Targets API Routes
-Manage weekly productivity targets for employees set by team leads.
+Examiner Weekly Targets API Routes
+Manage weekly productivity targets for examiners set by team leads.
 
 Business Logic:
-- Target is per employee PER TEAM (each team lead sets target for their team members)
-- Employee can have different targets in different teams
-- Employee's total target = SUM of targets from all teams they belong to
+- Target is per examiner PER TEAM (each team lead sets target for their team members)
+- Examiner can have different targets in different teams
+- Examiner's total target = SUM of targets from all teams they belong to
 - Productivity = Total Score / Sum of All Team Targets × 100
 
 Example:
-- Employee X in Team A: target = 20 (set by Team A lead)
-- Employee X in Team B: target = 15 (set by Team B lead)
-- Employee X total target = 20 + 15 = 35
+- Examiner X in Team A: target = 20 (set by Team A lead)
+- Examiner X in Team B: target = 15 (set by Team B lead)
+- Examiner X total target = 20 + 15 = 35
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -25,8 +25,8 @@ from app.core.dependencies import (
 from app.models.user import User
 from app.models.team import Team
 from app.models.user_team import UserTeam
-from app.models.employee_weekly_target import EmployeeWeeklyTarget
-from app.schemas.employee_weekly_target import WeeklyTargetBulkCreate
+from app.models.examiner_weekly_target import ExaminerWeeklyTarget
+from app.schemas.examiner_weekly_target import WeeklyTargetBulkCreate
 
 router = APIRouter()
 
@@ -50,7 +50,7 @@ def get_week_boundaries(reference_date: date) -> tuple[date, date]:
     return week_start, week_end
 
 
-def serialize_weekly_target(target: EmployeeWeeklyTarget) -> dict:
+def serialize_weekly_target(target: ExaminerWeeklyTarget) -> dict:
     """Serialize weekly target to camelCase dict"""
     return {
         "id": target.id,
@@ -93,8 +93,8 @@ async def get_team_weekly_targets(
     Get weekly targets for all team members for a specific week.
     If week_start_date is not provided, uses the current week.
     
-    Note: Targets are per employee PER TEAM. This endpoint shows 
-    targets set for employees within this specific team context.
+    Note: Targets are per examiner PER TEAM. This endpoint shows 
+    targets set for examiners within this specific team context.
     """
     # Check team access
     user_teams = get_user_teams(current_user, db)
@@ -136,17 +136,17 @@ async def get_team_weekly_targets(
         UserTeam.team_id == team_id,
         UserTeam.is_active == True,
         User.is_active == True,
-        User.user_role == "employee"
+        User.user_role == "examiner"
     ).all()
     
     # Get user IDs of team members
     member_user_ids = [user.id for user, _ in team_members]
     
     # Get targets for these employees for this week FOR THIS SPECIFIC TEAM
-    targets = db.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.user_id.in_(member_user_ids),
-        EmployeeWeeklyTarget.team_id == team_id,  # Filter by team
-        EmployeeWeeklyTarget.week_start_date == week_start
+    targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id.in_(member_user_ids),
+        ExaminerWeeklyTarget.team_id == team_id,  # Filter by team
+        ExaminerWeeklyTarget.week_start_date == week_start
     ).all()
     
     # Create a map of user_id -> target
@@ -154,10 +154,10 @@ async def get_team_weekly_targets(
     
     # Get previous week's targets for reference (for this team)
     prev_week_start = week_start - timedelta(days=7)
-    prev_targets = db.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.user_id.in_(member_user_ids),
-        EmployeeWeeklyTarget.team_id == team_id,  # Filter by team
-        EmployeeWeeklyTarget.week_start_date == prev_week_start
+    prev_targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id.in_(member_user_ids),
+        ExaminerWeeklyTarget.team_id == team_id,  # Filter by team
+        ExaminerWeeklyTarget.week_start_date == prev_week_start
     ).all()
     prev_target_map = {t.user_id: t.target for t in prev_targets}
     
@@ -168,7 +168,7 @@ async def get_team_weekly_targets(
         members.append({
             "userId": user.id,
             "userName": user.user_name,
-            "employeeId": user.employee_id,
+            "examinerId": user.examiner_id,
             "currentTarget": current_target_obj.target if current_target_obj else None,
             "previousTarget": prev_target_map.get(user.id),
             "targetId": current_target_obj.id if current_target_obj else None
@@ -203,8 +203,8 @@ async def set_team_weekly_targets(
     Only team leads can set targets for their team members.
     Cannot set targets for past weeks.
     
-    Note: Targets are per employee PER TEAM. Setting a target here
-    sets the target for employees within this team's context only.
+    Note: Targets are per examiner PER TEAM. Setting a target here
+    sets the target for examiners within this team's context only.
     Employee's total target = SUM of targets from all their teams.
     """
     # Check if user is team lead or admin
@@ -263,10 +263,10 @@ async def set_team_weekly_targets(
             continue  # Skip invalid users
         
         # Check if target already exists for this employee + team + week
-        existing = db.query(EmployeeWeeklyTarget).filter(
-            EmployeeWeeklyTarget.user_id == entry.user_id,
-            EmployeeWeeklyTarget.team_id == team_id,  # Filter by team
-            EmployeeWeeklyTarget.week_start_date == week_start
+        existing = db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == entry.user_id,
+            ExaminerWeeklyTarget.team_id == team_id,  # Filter by team
+            ExaminerWeeklyTarget.week_start_date == week_start
         ).first()
         
         if existing:
@@ -276,7 +276,7 @@ async def set_team_weekly_targets(
             updated_count += 1
         else:
             # Create new target with team_id
-            new_target = EmployeeWeeklyTarget(
+            new_target = ExaminerWeeklyTarget(
                 user_id=entry.user_id,
                 team_id=team_id,  # Set team context
                 week_start_date=week_start,
@@ -299,8 +299,8 @@ async def set_team_weekly_targets(
     }
 
 
-@router.get("/employee/{user_id}")
-async def get_employee_weekly_targets(
+@router.get("/examiner/{user_id}")
+async def get_examiner_weekly_targets(
     user_id: int,
     start_date: Optional[date] = Query(None, description="Start date for range"),
     end_date: Optional[date] = Query(None, description="End date for range"),
@@ -308,7 +308,7 @@ async def get_employee_weekly_targets(
     db: Session = Depends(get_db)
 ):
     """
-    Get weekly targets for a specific employee.
+    Get weekly targets for a specific examiner.
     Returns targets for all weeks in the specified date range.
     """
     # Check access - user can view their own, team leads/admins can view any
@@ -320,7 +320,7 @@ async def get_employee_weekly_targets(
             )
         
         # Team lead can only view their team members
-        if current_user.user_role == ROLE_TEAM_LEAD:
+        if current_user.user_role.lower() == ROLE_TEAM_LEAD:
             # Check if user is in any of the team lead's teams
             user_teams = get_user_teams(current_user, db)
             user_in_teams = db.query(UserTeam).filter(
@@ -335,16 +335,16 @@ async def get_employee_weekly_targets(
                 )
     
     # Build query
-    query = db.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.user_id == user_id
+    query = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id == user_id
     )
     
     if start_date:
-        query = query.filter(EmployeeWeeklyTarget.week_start_date >= start_date)
+        query = query.filter(ExaminerWeeklyTarget.week_start_date >= start_date)
     if end_date:
-        query = query.filter(EmployeeWeeklyTarget.week_end_date <= end_date)
+        query = query.filter(ExaminerWeeklyTarget.week_end_date <= end_date)
     
-    targets = query.order_by(EmployeeWeeklyTarget.week_start_date.desc()).all()
+    targets = query.order_by(ExaminerWeeklyTarget.week_start_date.desc()).all()
     
     return {
         "userId": user_id,
@@ -378,9 +378,9 @@ async def get_my_current_target(
         week_start, week_end = get_week_boundaries(today)
     
     # Get all targets for this user for this week (one per team)
-    targets = db.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.user_id == current_user.id,
-        EmployeeWeeklyTarget.week_start_date == week_start
+    targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id == current_user.id,
+        ExaminerWeeklyTarget.week_start_date == week_start
     ).all()
     
     # Calculate total target (sum from all teams)
@@ -400,10 +400,10 @@ async def get_my_current_target(
     # If no targets for this week, check for most recent targets (carryforward)
     is_carry_forward = False
     if not targets:
-        prev_targets = db.query(EmployeeWeeklyTarget).filter(
-            EmployeeWeeklyTarget.user_id == current_user.id,
-            EmployeeWeeklyTarget.week_start_date < week_start
-        ).order_by(EmployeeWeeklyTarget.week_start_date.desc()).all()
+        prev_targets = db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == current_user.id,
+            ExaminerWeeklyTarget.week_start_date < week_start
+        ).order_by(ExaminerWeeklyTarget.week_start_date.desc()).all()
         
         # Group by team and get the most recent target for each team
         team_latest_targets = {}
@@ -485,10 +485,10 @@ async def copy_targets_from_previous_week(
     
     # Get previous week's targets for these team members FOR THIS TEAM
     prev_week_start = week_start_date - timedelta(days=7)
-    prev_targets = db.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.user_id.in_(team_member_ids),
-        EmployeeWeeklyTarget.team_id == team_id,  # Filter by team
-        EmployeeWeeklyTarget.week_start_date == prev_week_start
+    prev_targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id.in_(team_member_ids),
+        ExaminerWeeklyTarget.team_id == team_id,  # Filter by team
+        ExaminerWeeklyTarget.week_start_date == prev_week_start
     ).all()
     
     if not prev_targets:
@@ -499,17 +499,17 @@ async def copy_targets_from_previous_week(
     
     # Get existing targets for target week FOR THIS TEAM
     existing_user_ids = set(
-        row[0] for row in db.query(EmployeeWeeklyTarget.user_id).filter(
-            EmployeeWeeklyTarget.user_id.in_(team_member_ids),
-            EmployeeWeeklyTarget.team_id == team_id,  # Filter by team
-            EmployeeWeeklyTarget.week_start_date == week_start_date
+        row[0] for row in db.query(ExaminerWeeklyTarget.user_id).filter(
+            ExaminerWeeklyTarget.user_id.in_(team_member_ids),
+            ExaminerWeeklyTarget.team_id == team_id,  # Filter by team
+            ExaminerWeeklyTarget.week_start_date == week_start_date
         ).all()
     )
     
     created_count = 0
     for prev_target in prev_targets:
         if prev_target.user_id not in existing_user_ids:
-            new_target = EmployeeWeeklyTarget(
+            new_target = ExaminerWeeklyTarget(
                 user_id=prev_target.user_id,
                 team_id=team_id,  # Set team context
                 week_start_date=week_start_date,

@@ -4,15 +4,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
-import { teamsApi, usersApi } from '../../services/api'
-import { getInitials, handleLogoutFlow, parseApiError } from '../../utils/helpers'
-import type { TeamMember, TeamWithMembers, User } from '../../types'
+import { teamsApi } from '../../services/api'
+import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import type { TeamMember, TeamWithMembers } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Label } from '../../components/ui/label'
 import {
   Select,
@@ -59,11 +60,11 @@ import {
   Package,
   Filter,
   Eye,
-  UserPlus,
   MoreHorizontal,
   UserCog,
   Trash2,
 } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 
 export const TeamMembersPage = () => {
   const { user, logout } = useAuthStore()
@@ -105,8 +106,8 @@ export const TeamMembersPage = () => {
 
   const currentTeam = myTeams.find(t => t.id === teamId)
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
 
@@ -117,11 +118,14 @@ export const TeamMembersPage = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">My Team</h1>
-              <p className="text-sm text-slate-600">
-                View and manage team members
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">My Team</h1>
+                <p className="text-sm text-slate-600">
+                  View and manage team members
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -146,6 +150,8 @@ export const TeamMembersPage = () => {
                   </Select>
                 </div>
               )}
+
+              <HeaderRefreshButton />
 
 
               
@@ -252,11 +258,6 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   
-  // Dialog states
-  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string>('')
-  const [selectedRole, setSelectedRole] = useState<string>('member')
-  
   // Change role dialog state
   const [changeRoleDialogOpen, setChangeRoleDialogOpen] = useState(false)
   const [memberToChangeRole, setMemberToChangeRole] = useState<TeamMember | null>(null)
@@ -271,34 +272,6 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
     queryKey: ['teams', teamId, 'details'],
     queryFn: () => teamsApi.get(teamId!),
     enabled: !!teamId,
-  })
-
-  // Fetch all users for adding members
-  const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: ['users', 'all'],
-    queryFn: () => usersApi.list({ isActive: true, pageSize: 500 }),
-    enabled: addMemberDialogOpen,
-  })
-
-  // Get users not already in the team
-  const availableUsers = usersData?.items.filter(
-    (user: User) => !teamData?.members.some(m => m.userId === user.id)
-  ) || []
-
-  // Mutation to add member
-  const addMemberMutation = useMutation({
-    mutationFn: (data: { teamId: number; userId: number; role: string }) =>
-      teamsApi.addMember(data.teamId, data.userId, data.role),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'details'] })
-      toast.success('Member added successfully')
-      setAddMemberDialogOpen(false)
-      setSelectedUserId('')
-      setSelectedRole('member')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to add member')
-    },
   })
 
   // Mutation to update member role
@@ -331,19 +304,6 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
       toast.error(error.message || 'Failed to remove member')
     },
   })
-
-  // Handlers
-  const handleAddMember = () => {
-    if (!selectedUserId) {
-      toast.error('Please select a user')
-      return
-    }
-    addMemberMutation.mutate({
-      teamId,
-      userId: parseInt(selectedUserId),
-      role: selectedRole,
-    })
-  }
 
   const handleOpenChangeRoleDialog = (member: TeamMember) => {
     setMemberToChangeRole(member)
@@ -508,10 +468,6 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                     <CardTitle>Team Members</CardTitle>
                     <CardDescription>All members in your team</CardDescription>
                   </div>
-                  <Button onClick={() => setAddMemberDialogOpen(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Member
-                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -549,7 +505,7 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-sm">{member.employeeId}</span>
+                            <span className="font-mono text-sm">{member.examinerId}</span>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{member.userRole}</Badge>
@@ -635,74 +591,6 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                 </CardContent>
               </Card>
             )}
-
-            {/* Add Member Dialog */}
-            <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Team Member</DialogTitle>
-                  <DialogDescription>
-                    Select a user to add to your team
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="user">Select User</Label>
-                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a user" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {loadingUsers ? (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          </div>
-                        ) : availableUsers.length === 0 ? (
-                          <div className="text-sm text-muted-foreground py-4 text-center">
-                            No available users
-                          </div>
-                        ) : (
-                          availableUsers.map((user: User) => (
-                            <SelectItem key={user.id} value={user.id.toString()}>
-                              {user.userName} (@{user.userName})
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Team Role</Label>
-                    <Select value={selectedRole} onValueChange={setSelectedRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="lead">Team Lead</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setAddMemberDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleAddMember}
-                    disabled={addMemberMutation.isPending || !selectedUserId}
-                  >
-                    {addMemberMutation.isPending && (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    )}
-                    Add Member
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
 
             {/* Change Role Dialog */}
             <Dialog open={changeRoleDialogOpen} onOpenChange={setChangeRoleDialogOpen}>

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../../components/ui/badge'
 import { MultiSelect } from '../../components/ui/multi-select'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
   Dialog,
@@ -26,7 +27,6 @@ import {
   Users, 
   Loader2, 
   AlertCircle,
-  RefreshCw,
   UserCog,
   Search,
   X,
@@ -241,10 +241,7 @@ export const TeamLeadTeamManagementPage = () => {
               <h1 className="text-2xl font-bold">My Teams Management</h1>
               <p className="text-sm text-slate-600">Manage your teams' settings and members</p>
             </div>
-            <Button variant="outline" size="sm" onClick={fetchData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <HeaderRefreshButton />
           </div>
         </div>
       </header>
@@ -513,7 +510,7 @@ export const TeamLeadTeamManagementPage = () => {
                       value={formData.dailyTarget ?? 10}
                       onChange={(e) => setFormData({...formData, dailyTarget: parseInt(e.target.value) || 10})}
                     />
-                    <p className="text-xs text-muted-foreground">Orders per day per employee</p>
+                    <p className="text-xs text-muted-foreground">Orders per day per examiner</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-singleSeatScore">Single Seat Score *</Label>

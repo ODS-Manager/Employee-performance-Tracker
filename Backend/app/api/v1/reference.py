@@ -17,6 +17,47 @@ from app.services.cache_service import cache
 router = APIRouter()
 
 
+def ensure_reference_defaults(db: Session, reference_type: str) -> None:
+    """Seed default reference data when a reference table is empty."""
+    items_to_add = []
+
+    if reference_type == "transaction_types":
+        if db.query(TransactionType.id).first() is None:
+            defaults = [
+                "Sale/Cash",
+                "Sale w/Mortgage",
+                "Refinance",
+                "HELOC",
+                "Commercial",
+            ]
+            items_to_add = [TransactionType(name=name, is_active=True) for name in defaults]
+
+    elif reference_type == "process_types":
+        if db.query(ProcessType.id).first() is None:
+            defaults = ["Step1", "Step2", "Single Seat"]
+            items_to_add = [ProcessType(name=name, is_active=True) for name in defaults]
+
+    elif reference_type == "order_statuses":
+        if db.query(OrderStatusType.id).first() is None:
+            defaults = ["Completed", "On-hold", "BP & RTI", "In Progress"]
+            items_to_add = [OrderStatusType(name=name, is_active=True) for name in defaults]
+
+    elif reference_type == "divisions":
+        if db.query(Division.id).first() is None:
+            defaults = [
+                ("Direct", "Direct business"),
+                ("Agency", "Agency business"),
+            ]
+            items_to_add = [Division(name=name, description=description) for name, description in defaults]
+
+    if not items_to_add:
+        return
+
+    db.add_all(items_to_add)
+    db.commit()
+    cache.invalidate_reference_cache(reference_type)
+
+
 def serialize_transaction_type(item):
     return {
         "id": item.id,
@@ -65,6 +106,8 @@ async def list_transaction_types(
     db: Session = Depends(get_db)
 ):
     """List all transaction types"""
+    ensure_reference_defaults(db, "transaction_types")
+
     # Check cache first
     cached_data = cache.get_reference("transaction_types", is_active)
     if cached_data is not None:
@@ -175,6 +218,8 @@ async def list_process_types(
     db: Session = Depends(get_db)
 ):
     """List all process types"""
+    ensure_reference_defaults(db, "process_types")
+
     # Check cache first
     cached_data = cache.get_reference("process_types", is_active)
     if cached_data is not None:
@@ -285,6 +330,8 @@ async def list_order_statuses(
     db: Session = Depends(get_db)
 ):
     """List all order status types"""
+    ensure_reference_defaults(db, "order_statuses")
+
     # Check cache first
     cached_data = cache.get_reference("order_statuses", is_active)
     if cached_data is not None:
@@ -394,6 +441,8 @@ async def list_divisions(
     db: Session = Depends(get_db)
 ):
     """List all divisions"""
+    ensure_reference_defaults(db, "divisions")
+
     # Check cache first
     cached_data = cache.get_reference("divisions", None)
     if cached_data is not None:

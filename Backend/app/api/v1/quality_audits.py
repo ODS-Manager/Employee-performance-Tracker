@@ -27,14 +27,24 @@ router = APIRouter(prefix="/quality-audits", tags=["quality-audits"])
 
 def require_admin_or_team_lead(current_user: User = Depends(get_current_user)):
     """Dependency to ensure user is admin, superadmin, or team_lead"""
-    if current_user.user_role not in ["superadmin", "admin", "team_lead"]:
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    logger.info(f"Quality Audit Auth Check - User: {current_user.user_name}, Role (raw): '{current_user.user_role}', Role (lower): '{user_role_lower}'")
+    
+    if user_role_lower not in ["superadmin", "admin", "team_lead"]:
+        logger.warning(f"Access denied for user {current_user.user_name} with role '{current_user.user_role}'")
         raise HTTPException(status_code=403, detail="Admin or team lead access required")
+    
+    logger.info(f"Access granted for user {current_user.user_name}")
     return current_user
 
 
 def check_team_lead_team_access(current_user: User, team_id: int, db: Session):
     """Check if team lead has access to the specified team"""
-    if current_user.user_role == "team_lead":
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    if user_role_lower == "team_lead":
         team_ids = get_user_teams(current_user, db)
         if team_id not in team_ids:
             raise HTTPException(status_code=403, detail="You can only manage audits for teams you lead")
@@ -64,7 +74,8 @@ def create_quality_audit(
     check_team_lead_team_access(current_user, audit_data.team_id, db)
     
     # For non-superadmin, verify they belong to the same org
-    if current_user.user_role != "superadmin" and examiner.org_id != current_user.org_id:
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    if user_role_lower != "superadmin" and examiner.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Cannot create audit for examiner from different organization")
     
     try:
@@ -105,13 +116,14 @@ def list_quality_audits(
     - Employees can only view their own audits
     """
     team_ids = None
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
     
-    # For employees, restrict to their own audits only
-    if current_user.user_role == "employee":
+    # For examiners, restrict to their own audits only
+    if user_role_lower == "examiner":
         examiner_id = current_user.id
         org_id = current_user.org_id
     # For team leads, restrict to teams they lead
-    elif current_user.user_role == "team_lead":
+    elif user_role_lower == "team_lead":
         team_ids = get_user_teams(current_user, db)
         # If a specific team_id is requested, verify access
         if team_id is not None:
@@ -120,7 +132,7 @@ def list_quality_audits(
             team_ids = None  # Use the single team_id filter instead
         org_id = current_user.org_id
     # For admin users, restrict to their org
-    elif current_user.user_role == "admin":
+    elif user_role_lower == "admin":
         org_id = current_user.org_id
     # Superadmins can filter as needed
     
@@ -174,6 +186,17 @@ def list_quality_audits(
     )
 
 
+@router.get("/process-types/list")
+def get_process_types(current_user: User = Depends(require_admin_or_team_lead)):
+    """Get list of available process types with their OFE values"""
+    return {
+        "process_types": [
+            {"name": process_type, "ofe": ofe_value}
+            for process_type, ofe_value in PROCESS_TYPE_OFE.items()
+        ]
+    }
+
+
 @router.get("/{audit_id}", response_model=QualityAuditResponse)
 def get_quality_audit(
     audit_id: int,
@@ -187,7 +210,8 @@ def get_quality_audit(
         raise HTTPException(status_code=404, detail="Quality audit not found")
     
     # For admin users, verify same org
-    if current_user.user_role == "admin" and audit.org_id != current_user.org_id:
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    if user_role_lower == "admin" and audit.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # For team leads, verify they lead this team
@@ -220,7 +244,8 @@ def update_quality_audit(
         raise HTTPException(status_code=404, detail="Quality audit not found")
     
     # For admin users, verify same org
-    if current_user.user_role == "admin" and existing_audit.org_id != current_user.org_id:
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    if user_role_lower == "admin" and existing_audit.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # For team leads, verify they lead this team
@@ -259,7 +284,8 @@ def delete_quality_audit(
         raise HTTPException(status_code=404, detail="Quality audit not found")
     
     # For admin users, verify same org
-    if current_user.user_role == "admin" and existing_audit.org_id != current_user.org_id:
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+    if user_role_lower == "admin" and existing_audit.org_id != current_user.org_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # For team leads, verify they lead this team
@@ -275,14 +301,3 @@ def delete_quality_audit(
         raise HTTPException(status_code=404, detail="Quality audit not found")
     
     return None
-
-
-@router.get("/process-types/list")
-def get_process_types(current_user: User = Depends(require_admin_or_team_lead)):
-    """Get list of available process types with their OFE values"""
-    return {
-        "process_types": [
-            {"name": process_type, "ofe": ofe_value}
-            for process_type, ofe_value in PROCESS_TYPE_OFE.items()
-        ]
-    }

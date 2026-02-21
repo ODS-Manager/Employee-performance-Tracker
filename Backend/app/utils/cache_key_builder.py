@@ -73,7 +73,7 @@ class CacheKeyBuilder:
         Build cache key for dashboard data.
         
         Args:
-            dashboard_type: Type of dashboard (e.g., "admin", "teamlead", "employee")
+            dashboard_type: Type of dashboard (e.g., "admin", "teamlead", "examiner")
             role: User role for cache context
             org_id: Optional org filter
             user_id: Optional user filter
@@ -114,7 +114,7 @@ class CacheKeyBuilder:
         Build cache key for metrics data.
         
         Args:
-            metrics_type: Type of metrics (e.g., "dashboard", "employee", "team")
+            metrics_type: Type of metrics (e.g., "dashboard", "examiner", "team")
             org_id: Optional org filter
             team_id: Optional team filter
             user_id: Optional user filter

@@ -1,6 +1,6 @@
 """
 Metrics API Routes
-Performance metrics for employees and teams, dashboard stats
+Performance metrics for examiners and teams, dashboard stats
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
@@ -12,13 +12,13 @@ from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, require_admin, require_team_lead,
     check_org_access, check_team_access, get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
 from app.models.team import Team
 from app.models.order import Order
 from app.models.user_team import UserTeam
-from app.models.metrics import EmployeePerformanceMetrics, TeamPerformanceMetrics
+from app.models.metrics import ExaminerPerformanceMetrics, TeamPerformanceMetrics
 from app.models.reference import OrderStatusType
 from app.models.quality_audit import QualityAudit
 from app.services.cache_service import cache
@@ -35,8 +35,8 @@ def serialize_dashboard_stats(
     orders_on_hold: int,
     orders_bp_rti: int,
     orders_pending_billing: int,
-    total_employees: int,
-    active_employees: int,
+    total_examiners: int,
+    active_examiners: int,
     total_teams: int,
     avg_completion_time_minutes: Optional[int] = None
 ) -> dict:
@@ -47,15 +47,15 @@ def serialize_dashboard_stats(
         "ordersOnHold": orders_on_hold,
         "ordersBpRti": orders_bp_rti,
         "ordersPendingBilling": orders_pending_billing,
-        "totalEmployees": total_employees,
-        "activeEmployees": active_employees,
+        "totalExaminers": total_examiners,
+        "activeExaminers": active_examiners,
         "totalTeams": total_teams,
         "avgCompletionTimeMinutes": avg_completion_time_minutes
     }
 
 
-def serialize_employee_metrics(m, user: Optional[User] = None, team: Optional[Team] = None) -> dict:
-    """Serialize employee metrics to camelCase dict"""
+def serialize_examiner_metrics(m, user: Optional[User] = None, team: Optional[Team] = None) -> dict:
+    """Serialize examiner metrics to camelCase dict"""
     return {
         "id": m.id,
         "userId": m.user_id,
@@ -101,9 +101,9 @@ def serialize_team_metrics(m, team: Optional[Team] = None) -> dict:
         "totalOrdersBpRti": m.total_orders_bp_rti,
         "totalTeamWorkingMinutes": m.total_team_working_minutes,
         "avgOrderCompletionMinutes": m.avg_order_completion_minutes,
-        "activeEmployeesCount": m.active_employees_count,
+        "activeExaminersCount": m.active_examiners_count,
         "teamEfficiencyScore": float(m.team_efficiency_score) if m.team_efficiency_score else None,
-        "ordersPerEmployee": float(m.orders_per_employee) if m.orders_per_employee else None,
+        "ordersPerExaminer": float(m.orders_per_examiner) if m.orders_per_examiner else None,
         "completionRate": float(m.completion_rate) if m.completion_rate else None,
         "transactionBreakdown": json.loads(m.transaction_breakdown) if m.transaction_breakdown else None,
         "productBreakdown": json.loads(m.product_breakdown) if m.product_breakdown else None,
@@ -126,8 +126,10 @@ async def get_dashboard_stats(
     db: Session = Depends(get_db)
 ):
     """Get dashboard statistics based on user role"""
+    user_role_lower = current_user.user_role.lower() if current_user.user_role else ""
+
     # Build cache key based on user role and filters
-    cache_key_extra = f"role:{current_user.user_role}:org:{org_id}:team:{team_id}:month:{month}:year:{year}:user:{current_user.id}"
+    cache_key_extra = f"v2:role:{current_user.user_role}:org:{org_id}:team:{team_id}:month:{month}:year:{year}:user:{current_user.id}"
     cached_data = cache.get_metrics("dashboard", org_id=org_id, extra_key=cache_key_extra)
     if cached_data is not None:
         return cached_data
@@ -136,13 +138,20 @@ async def get_dashboard_stats(
     order_query = db.query(Order).filter(Order.deleted_at == None)
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    accessible_teams: List[int] = []
+
+    if user_role_lower == ROLE_SUPERADMIN:
         if org_id:
             order_query = order_query.filter(Order.org_id == org_id)
-    elif current_user.user_role == ROLE_ADMIN:
+    elif user_role_lower == ROLE_ADMIN:
         order_query = order_query.filter(Order.org_id == current_user.org_id)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif user_role_lower == ROLE_TEAM_LEAD:
         accessible_teams = get_user_teams(current_user, db)
+        if team_id and team_id not in accessible_teams:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this team"
+            )
         if accessible_teams:
             order_query = order_query.filter(Order.team_id.in_(accessible_teams))
         else:
@@ -170,7 +179,7 @@ async def get_dashboard_stats(
     # Status counts - need to join with order_status table
     completed_status = db.query(OrderStatusType).filter(OrderStatusType.name == "Completed").first()
     on_hold_status = db.query(OrderStatusType).filter(OrderStatusType.name == "On-hold").first()
-    bp_rti_status = db.query(OrderStatusType).filter(OrderStatusType.name == "BP and RTI").first()
+    bp_rti_status = db.query(OrderStatusType).filter(OrderStatusType.name == "BP & RTI").first()
     
     orders_completed = order_query.filter(Order.order_status_id == completed_status.id).count() if completed_status else 0
     orders_on_hold = order_query.filter(Order.order_status_id == on_hold_status.id).count() if on_hold_status else 0
@@ -181,18 +190,53 @@ async def get_dashboard_stats(
     user_query = db.query(User)
     team_query = db.query(Team)
     
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if user_role_lower == ROLE_SUPERADMIN:
         if org_id:
             user_query = user_query.filter(User.org_id == org_id)
             team_query = team_query.filter(Team.org_id == org_id)
-    elif current_user.user_role in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE]:
+    elif user_role_lower in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER]:
         user_query = user_query.filter(User.org_id == current_user.org_id)
         team_query = team_query.filter(Team.org_id == current_user.org_id)
-    
-    # Count all staff (excluding superadmin) - matches Employee Management page
-    total_employees = user_query.filter(User.user_role != ROLE_SUPERADMIN).count()
-    active_employees = user_query.filter(User.user_role != ROLE_SUPERADMIN, User.is_active == True).count()
-    total_teams = team_query.filter(Team.is_active == True).count()
+
+    if team_id:
+        # Team-specific counts
+        active_member_user_ids = db.query(UserTeam.user_id).filter(
+            UserTeam.team_id == team_id,
+            UserTeam.is_active == True,
+        ).distinct()
+
+        total_examiners = user_query.filter(
+            User.id.in_(active_member_user_ids),
+            User.user_role != ROLE_SUPERADMIN,
+        ).count()
+        active_examiners = user_query.filter(
+            User.id.in_(active_member_user_ids),
+            User.user_role != ROLE_SUPERADMIN,
+            User.is_active == True,
+        ).count()
+        total_teams = team_query.filter(Team.id == team_id, Team.is_active == True).count()
+    elif user_role_lower == ROLE_TEAM_LEAD and accessible_teams:
+        # Team lead totals across teams they can access
+        active_member_user_ids = db.query(UserTeam.user_id).filter(
+            UserTeam.team_id.in_(accessible_teams),
+            UserTeam.is_active == True,
+        ).distinct()
+
+        total_examiners = user_query.filter(
+            User.id.in_(active_member_user_ids),
+            User.user_role != ROLE_SUPERADMIN,
+        ).count()
+        active_examiners = user_query.filter(
+            User.id.in_(active_member_user_ids),
+            User.user_role != ROLE_SUPERADMIN,
+            User.is_active == True,
+        ).count()
+        total_teams = team_query.filter(Team.id.in_(accessible_teams), Team.is_active == True).count()
+    else:
+        # Org-level counts
+        total_examiners = user_query.filter(User.user_role != ROLE_SUPERADMIN).count()
+        active_examiners = user_query.filter(User.user_role != ROLE_SUPERADMIN, User.is_active == True).count()
+        total_teams = team_query.filter(Team.is_active == True).count()
     
     result = serialize_dashboard_stats(
         total_orders=total_orders,
@@ -200,8 +244,8 @@ async def get_dashboard_stats(
         orders_on_hold=orders_on_hold,
         orders_bp_rti=orders_bp_rti,
         orders_pending_billing=orders_pending_billing,
-        total_employees=total_employees,
-        active_employees=active_employees,
+        total_examiners=total_examiners,
+        active_examiners=active_examiners,
         total_teams=total_teams,
         avg_completion_time_minutes=None  # Would need calculation from actual time data
     )
@@ -211,9 +255,9 @@ async def get_dashboard_stats(
     return result
 
 
-# ============ Employee Metrics ============
-@router.get("/employees")
-async def list_employee_metrics(
+# ============ Examiner Metrics ============
+@router.get("/examiners")
+async def list_examiner_metrics(
     org_id: Optional[int] = Query(None, description="Filter by organization"),
     team_id: Optional[int] = Query(None, description="Filter by team"),
     user_id: Optional[int] = Query(None, description="Filter by user"),
@@ -225,43 +269,43 @@ async def list_employee_metrics(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """List employee performance metrics"""
-    query = db.query(EmployeePerformanceMetrics).filter(
-        EmployeePerformanceMetrics.deleted_at == None
+    """List examiner performance metrics"""
+    query = db.query(ExaminerPerformanceMetrics).filter(
+        ExaminerPerformanceMetrics.deleted_at == None
     )
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         if org_id:
-            query = query.filter(EmployeePerformanceMetrics.org_id == org_id)
-    elif current_user.user_role == ROLE_ADMIN:
-        query = query.filter(EmployeePerformanceMetrics.org_id == current_user.org_id)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+            query = query.filter(ExaminerPerformanceMetrics.org_id == org_id)
+    elif current_user.user_role.lower() == ROLE_ADMIN:
+        query = query.filter(ExaminerPerformanceMetrics.org_id == current_user.org_id)
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         accessible_teams = get_user_teams(current_user, db)
         if accessible_teams:
-            query = query.filter(EmployeePerformanceMetrics.team_id.in_(accessible_teams))
+            query = query.filter(ExaminerPerformanceMetrics.team_id.in_(accessible_teams))
         else:
             return {"items": [], "total": 0}
     else:  # Employee - only their own metrics
-        query = query.filter(EmployeePerformanceMetrics.user_id == current_user.id)
+        query = query.filter(ExaminerPerformanceMetrics.user_id == current_user.id)
     
     # Apply filters
     if team_id:
-        query = query.filter(EmployeePerformanceMetrics.team_id == team_id)
+        query = query.filter(ExaminerPerformanceMetrics.team_id == team_id)
     if user_id:
-        query = query.filter(EmployeePerformanceMetrics.user_id == user_id)
+        query = query.filter(ExaminerPerformanceMetrics.user_id == user_id)
     if period_type:
-        query = query.filter(EmployeePerformanceMetrics.period_type == period_type)
+        query = query.filter(ExaminerPerformanceMetrics.period_type == period_type)
     if start_date:
-        query = query.filter(EmployeePerformanceMetrics.metric_date >= start_date)
+        query = query.filter(ExaminerPerformanceMetrics.metric_date >= start_date)
     if end_date:
-        query = query.filter(EmployeePerformanceMetrics.metric_date <= end_date)
+        query = query.filter(ExaminerPerformanceMetrics.metric_date <= end_date)
     
     total = query.count()
     offset = (page - 1) * page_size
     
     metrics = query.order_by(
-        EmployeePerformanceMetrics.metric_date.desc()
+        ExaminerPerformanceMetrics.metric_date.desc()
     ).offset(offset).limit(page_size).all()
     
     # Enrich with user and team names, and add productivity and quality data
@@ -273,12 +317,12 @@ async def list_employee_metrics(
         team = db.query(Team).filter(Team.id == m.team_id).first() if m.team_id else None
         
         # Serialize base metrics
-        item = serialize_employee_metrics(m, user, team)
+        item = serialize_examiner_metrics(m, user, team)
         
-        # Add productivity data if user is an employee
-        if user and user.user_role == 'employee':
+        # Add productivity data if user is an examiner
+        if user and user.user_role == 'examiner':
             try:
-                productivity_data = productivity_service.calculate_employee_score(
+                productivity_data = productivity_service.calculate_examiner_score(
                     user_id=m.user_id,
                     start_date=m.metric_date,
                     end_date=m.metric_date
@@ -321,8 +365,8 @@ async def list_employee_metrics(
     return {"items": result_items, "total": total}
 
 
-@router.get("/employees/{user_id}/summary")
-async def get_employee_metrics_summary(
+@router.get("/examiners/{user_id}/summary")
+async def get_examiner_metrics_summary(
     user_id: int,
     period_type: str = Query("monthly", description="Period type (daily, weekly, monthly)"),
     start_date: Optional[date] = Query(None),
@@ -330,19 +374,19 @@ async def get_employee_metrics_summary(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get summarized metrics for a specific employee"""
+    """Get summarized metrics for a specific examiner"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     # Check access
-    if current_user.user_role == ROLE_EMPLOYEE:
+    if current_user.user_role.lower() == ROLE_EXAMINER:
         if current_user.id != user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Check if user is in team lead's teams
         accessible_teams = get_user_teams(current_user, db)
         user_teams = db.query(UserTeam.team_id).filter(
@@ -353,18 +397,18 @@ async def get_employee_metrics_summary(
         if not any(t in accessible_teams for t in user_team_ids):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     
-    query = db.query(EmployeePerformanceMetrics).filter(
-        EmployeePerformanceMetrics.user_id == user_id,
-        EmployeePerformanceMetrics.period_type == period_type,
-        EmployeePerformanceMetrics.deleted_at == None
+    query = db.query(ExaminerPerformanceMetrics).filter(
+        ExaminerPerformanceMetrics.user_id == user_id,
+        ExaminerPerformanceMetrics.period_type == period_type,
+        ExaminerPerformanceMetrics.deleted_at == None
     )
     
     if start_date:
-        query = query.filter(EmployeePerformanceMetrics.metric_date >= start_date)
+        query = query.filter(ExaminerPerformanceMetrics.metric_date >= start_date)
     if end_date:
-        query = query.filter(EmployeePerformanceMetrics.metric_date <= end_date)
+        query = query.filter(ExaminerPerformanceMetrics.metric_date <= end_date)
     
-    metrics = query.order_by(EmployeePerformanceMetrics.metric_date.desc()).limit(12).all()
+    metrics = query.order_by(ExaminerPerformanceMetrics.metric_date.desc()).limit(12).all()
     
     # Initialize services
     productivity_service = ProductivityService(db)
@@ -382,9 +426,9 @@ async def get_employee_metrics_summary(
         }
         
         # Add productivity data
-        if user.user_role == 'employee':
+        if user.user_role == 'examiner':
             try:
-                productivity_data = productivity_service.calculate_employee_score(
+                productivity_data = productivity_service.calculate_examiner_score(
                     user_id=user_id,
                     start_date=m.metric_date,
                     end_date=m.metric_date
@@ -449,12 +493,12 @@ async def list_team_metrics(
     )
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         if org_id:
             query = query.filter(TeamPerformanceMetrics.org_id == org_id)
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         query = query.filter(TeamPerformanceMetrics.org_id == current_user.org_id)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         accessible_teams = get_user_teams(current_user, db)
         if accessible_teams:
             query = query.filter(TeamPerformanceMetrics.team_id.in_(accessible_teams))
@@ -565,10 +609,10 @@ async def get_team_metrics_summary(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
     
     # Check access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role in [ROLE_TEAM_LEAD, ROLE_EMPLOYEE]:
+    elif current_user.user_role in [ROLE_TEAM_LEAD, ROLE_EXAMINER]:
         if not check_team_access(current_user, team_id, db):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     
@@ -595,7 +639,7 @@ async def get_team_metrics_summary(
             "metricDate": m.metric_date.isoformat() if m.metric_date else None,
             "totalOrdersCompleted": m.total_orders_completed,
             "totalOrdersAssigned": m.total_orders_assigned,
-            "activeEmployeesCount": m.active_employees_count,
+            "activeExaminersCount": m.active_examiners_count,
             "completionRate": float(m.completion_rate) if m.completion_rate else None,
             "teamEfficiencyScore": float(m.team_efficiency_score) if m.team_efficiency_score else None
         }

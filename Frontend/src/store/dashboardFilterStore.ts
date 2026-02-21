@@ -66,7 +66,7 @@ interface DashboardFilterStore {
   filterMonth: string
   filterYear: string
   filterPeriod: 'current' | 'previous' | 'custom'
-  filterOrgId: string | null  // null means "All Organizations" for superadmin
+  filterOrgId: string | null  // null means "All Centers" for superadmin
   
   // Actions
   setFilterMonth: (month: string) => void

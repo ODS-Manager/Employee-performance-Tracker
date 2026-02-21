@@ -30,7 +30,7 @@ async def list_organizations(
     - Superadmin: Can see all organizations (optionally filtered by is_active)
     - Others: Can only see their own organization
     """
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         query = db.query(Organization)
         # Filter by is_active if provided
         if is_active is not None:
@@ -63,7 +63,7 @@ async def get_organization(
 ):
     """Get organization by ID"""
     # Non-superadmins can only access their own organization
-    if current_user.user_role != ROLE_SUPERADMIN:
+    if current_user.user_role.lower() != ROLE_SUPERADMIN:
         if current_user.org_id != organization_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

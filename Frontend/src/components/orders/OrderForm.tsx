@@ -50,13 +50,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Step assignment state - only used by admins
   const [step1UserId, setStep1UserId] = useState<number | null>(null)
-  const [step1FakeName, setStep1FakeName] = useState<string>('')
-  const [step1StartTime, setStep1StartTime] = useState('')
-  const [step1EndTime, setStep1EndTime] = useState('')
+  const [step1FaName, setStep1FaName] = useState<string>('')
   const [step2UserId, setStep2UserId] = useState<number | null>(null)
-  const [step2FakeName, setStep2FakeName] = useState<string>('')
-  const [step2StartTime, setStep2StartTime] = useState('')
-  const [step2EndTime, setStep2EndTime] = useState('')
+  const [step2FaName, setStep2FaName] = useState<string>('')
   
   const [submitting, setSubmitting] = useState(false)
   
@@ -71,7 +67,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   // Check user role - determines form behavior
   const isAdminOrSuperadmin = user?.userRole === 'admin' || user?.userRole === 'superadmin'
   const isTeamLead = user?.userRole === 'team_lead'
-  // const isEmployee = user?.userRole === 'employee'
+  // const isEmployee = user?.userRole === 'examiner'
   
   // Can this user assign work to others? (admin, superadmin, team_lead)
   const canAssignToOthers = isAdminOrSuperadmin || isTeamLead
@@ -169,10 +165,10 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     enabled: !!selectedTeamId && canAssignToOthers,
   })
 
-  // Fetch fake names pool for the selected team - for order masking
-  const { data: faNamesData, isLoading: loadingFakeNames } = useQuery({
-    queryKey: ['teamFakeNames', selectedTeamId],
-    queryFn: () => teamsApi.getFakeNames(selectedTeamId!),
+  // Fetch FA names pool for the selected team - for order masking
+  const { data: faNamesData, isLoading: loadingFaNames } = useQuery({
+    queryKey: ['teamFaNames', selectedTeamId],
+    queryFn: () => teamsApi.getFaNames(selectedTeamId!),
     enabled: !!selectedTeamId,
   })
   const faNames = faNamesData?.items || []
@@ -360,15 +356,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       // Set step info
       if (order.step1) {
         if (order.step1.userId) setStep1UserId(order.step1.userId)
-        if (order.step1.faName) setStep1FakeName(order.step1.faName)
-        if (order.step1.startTime) setStep1StartTime(order.step1.startTime.split('T')[0])
-        if (order.step1.endTime) setStep1EndTime(order.step1.endTime.split('T')[0])
+        if (order.step1.faName) setStep1FaName(order.step1.faName)
       }
       if (order.step2) {
         if (order.step2.userId) setStep2UserId(order.step2.userId)
-        if (order.step2.faName) setStep2FakeName(order.step2.faName)
-        if (order.step2.startTime) setStep2StartTime(order.step2.startTime.split('T')[0])
-        if (order.step2.endTime) setStep2EndTime(order.step2.endTime.split('T')[0])
+        if (order.step2.faName) setStep2FaName(order.step2.faName)
       }
     }
   }, [isEditMode, order])
@@ -395,7 +387,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     }
   }, [divisions, selectedDivisionId, isEditMode])
 
-  // Auto-set process type for employees (only in create mode)
+  // Auto-set process type for examiners (only in create mode)
   useEffect(() => {
     if (!isEditMode && processTypes?.length && !selectedProcessTypeId) {
       // Default to first active process type
@@ -418,7 +410,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     // Superadmin must select an organization
     if (user?.userRole === 'superadmin' && !selectedOrgId) {
-      newErrors.push('Organization is required')
+      newErrors.push('Center is required')
     }
     
     if (!fileNumber.trim()) newErrors.push('File number is required')
@@ -446,76 +438,37 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       }
     }
     
-    // Validate fake names and dates are required
+    // Validate FA names and dates are required
     const currentProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
     if (currentProcessType) {
-      // Validate fake names first
+      // Validate FA names first
       if (isEditMode && !canAssignToOthers) {
-        // Employee editing - validate fake names for steps they can edit
+        // Employee editing - validate FA names for steps they can edit
         if (canEditStep1 && (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat')) {
-          if (!step1FakeName || !step1FakeName.trim()) {
-            newErrors.push('Step 1 fake name is required')
+          if (!step1FaName || !step1FaName.trim()) {
+            newErrors.push('Step 1 FA name is required')
           }
         }
         if (canEditStep2 && currentProcessType.name === 'Step2') {
-          if (!step2FakeName || !step2FakeName.trim()) {
-            newErrors.push('Step 2 fake name is required')
+          if (!step2FaName || !step2FaName.trim()) {
+            newErrors.push('Step 2 FA name is required')
           }
         }
       } else {
-        // Create mode or admin - validate fake names based on process type
+        // Create mode or admin - validate FA names based on process type
         if (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat') {
-          if (!step1FakeName || !step1FakeName.trim()) {
-            newErrors.push('Step 1 fake name is required')
+          if (!step1FaName || !step1FaName.trim()) {
+            newErrors.push('Step 1 FA name is required')
           }
         }
         if (currentProcessType.name === 'Step2') {
-          if (!step2FakeName || !step2FakeName.trim()) {
-            newErrors.push('Step 2 fake name is required')
+          if (!step2FaName || !step2FaName.trim()) {
+            newErrors.push('Step 2 FA name is required')
           }
         }
       }
       
-      // Then validate dates
-      // In edit mode for employees, only validate steps they can actually edit
-      if (isEditMode && !canAssignToOthers) {
-        // Employee editing - validate based on edit permissions
-        if (canEditStep1 && (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat')) {
-          if (!step1StartTime) {
-            newErrors.push('Step 1 Start Date is required')
-          }
-          if (!step1EndTime) {
-            newErrors.push('Step 1 End Date is required')
-          }
-        }
-        if (canEditStep2) {
-          // If they can edit step 2, require step 2 dates
-          if (!step2StartTime) {
-            newErrors.push('Step 2 Start Date is required')
-          }
-          if (!step2EndTime) {
-            newErrors.push('Step 2 End Date is required')
-          }
-        }
-      } else {
-        // Create mode or admin - validate based on process type
-        if (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat') {
-          if (!step1StartTime) {
-            newErrors.push('Step 1 Start Date is required')
-          }
-          if (!step1EndTime) {
-            newErrors.push('Step 1 End Date is required')
-          }
-        }
-        if (currentProcessType.name === 'Step2') {
-          if (!step2StartTime) {
-            newErrors.push('Step 2 Start Date is required')
-          }
-          if (!step2EndTime) {
-            newErrors.push('Step 2 End Date is required')
-          }
-        }
-      }
+      // Date validation removed - dates are optional and validated by backend if needed
     }
     
     // Show validation errors as toast notifications
@@ -536,7 +489,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     try {
       const selectedProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
       
-      // For employees editing existing orders, only send step-related fields
+      // For examiners editing existing orders, only send step-related fields
       // This prevents sending order details that they can't modify
       const isEmployeeEditingExisting = isEditMode && order && !canAssignToOthers
       
@@ -547,19 +500,15 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         orderData = {} as OrderUpdate
         
         // Send Step 1 data if employee can edit it and has entered data
-        if (canEditStep1 && step1StartTime && step1EndTime) {
+        if (canEditStep1) {
           orderData.step1UserId = user!.id
-          if (step1FakeName) orderData.step1FakeName = step1FakeName
-          orderData.step1StartTime = step1StartTime
-          orderData.step1EndTime = step1EndTime
+          if (step1FaName) orderData.step1FaName = step1FaName
         }
         
         // Send Step 2 data if employee can edit it and has entered data
-        if (canEditStep2 && step2StartTime && step2EndTime) {
+        if (canEditStep2) {
           orderData.step2UserId = user!.id
-          if (step2FakeName) orderData.step2FakeName = step2FakeName
-          orderData.step2StartTime = step2StartTime
-          orderData.step2EndTime = step2EndTime
+          if (step2FaName) orderData.step2FaName = step2FaName
         }
       } else {
         // Admin/Team Lead OR new order creation - send all fields
@@ -582,66 +531,42 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           // Admin/Team Lead - auto-assign to themselves since Assign User dropdown was removed
           if (selectedProcessType?.name === 'Step1') {
             orderData.step1UserId = user!.id
-            if (step1FakeName) orderData.step1FakeName = step1FakeName
-            if (step1StartTime) orderData.step1StartTime = step1StartTime
-            if (step1EndTime) orderData.step1EndTime = step1EndTime
+            if (step1FaName) orderData.step1FaName = step1FaName
           }
           
           if (selectedProcessType?.name === 'Step2') {
             orderData.step2UserId = user!.id
-            if (step2FakeName) orderData.step2FakeName = step2FakeName
-            if (step2StartTime) orderData.step2StartTime = step2StartTime
-            if (step2EndTime) orderData.step2EndTime = step2EndTime
+            if (step2FaName) orderData.step2FaName = step2FaName
           }
           
           if (selectedProcessType?.name === 'Single Seat') {
-            // For single seat, both step1 and step2 use same user (current user), fake name, and same dates
+            // For single seat, both step1 and step2 use same user (current user), FA name, and same dates
             orderData.step1UserId = user!.id
             orderData.step2UserId = user!.id
-            if (step1FakeName) {
-              orderData.step1FakeName = step1FakeName
-              orderData.step2FakeName = step1FakeName
-            }
-            if (step1StartTime) {
-              orderData.step1StartTime = step1StartTime
-              orderData.step2StartTime = step1StartTime
-            }
-            if (step1EndTime) {
-              orderData.step1EndTime = step1EndTime
-              orderData.step2EndTime = step1EndTime
+            if (step1FaName) {
+              orderData.step1FaName = step1FaName
+              orderData.step2FaName = step1FaName
             }
           }
         } else {
           // Employee entering their own work (new order) - auto-assign to themselves
           if (selectedProcessType?.name === 'Step1') {
             orderData.step1UserId = user!.id
-            if (step1FakeName) orderData.step1FakeName = step1FakeName
-            if (step1StartTime) orderData.step1StartTime = step1StartTime
-            if (step1EndTime) orderData.step1EndTime = step1EndTime
+            if (step1FaName) orderData.step1FaName = step1FaName
           }
           
           if (selectedProcessType?.name === 'Step2') {
             orderData.step2UserId = user!.id
-            if (step2FakeName) orderData.step2FakeName = step2FakeName
-            if (step2StartTime) orderData.step2StartTime = step2StartTime
-            if (step2EndTime) orderData.step2EndTime = step2EndTime
+            if (step2FaName) orderData.step2FaName = step2FaName
           }
           
           if (selectedProcessType?.name === 'Single Seat') {
             // Single seat - assign both steps to themselves
             orderData.step1UserId = user!.id
             orderData.step2UserId = user!.id
-            if (step1FakeName) {
-              orderData.step1FakeName = step1FakeName
-              orderData.step2FakeName = step1FakeName
-            }
-            if (step1StartTime) {
-              orderData.step1StartTime = step1StartTime
-              orderData.step2StartTime = step1StartTime
-            }
-            if (step1EndTime) {
-              orderData.step1EndTime = step1EndTime
-              orderData.step2EndTime = step1EndTime
+            if (step1FaName) {
+              orderData.step1FaName = step1FaName
+              orderData.step2FaName = step1FaName
             }
           }
         }
@@ -673,11 +598,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         setSelectedProductType('')
         setSelectedTransactionTypeId(null)
         setStep1UserId(null)
-        setStep1StartTime('')
-        setStep1EndTime('')
         setStep2UserId(null)
-        setStep2StartTime('')
-        setStep2EndTime('')
         setFileNumberExists(false)
         setCanAddStep2(false)
         setCanAddStep1(false)
@@ -733,13 +654,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         'team_id': 'Team',
         'teamId': 'Team',
         'step1_start_time': 'Step 1 Start Time',
-        'step1StartTime': 'Step 1 Start Time',
         'step1_end_time': 'Step 1 End Time',
-        'step1EndTime': 'Step 1 End Time',
         'step2_start_time': 'Step 2 Start Time',
-        'step2StartTime': 'Step 2 Start Time',
         'step2_end_time': 'Step 2 End Time',
-        'step2EndTime': 'Step 2 End Time',
       }
       
       // Try to extract error message from various response formats
@@ -805,7 +722,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const availableProcessTypes = useMemo(() => {
     if (!processTypes) return []
     
-    const activeTypes = processTypes.filter(p => p.isActive)
+    const activeTypes = processTypes.filter(p => p.isActive !== false)
     
     // In edit mode, show all active types
     if (isEditMode) {
@@ -851,36 +768,31 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     // Step validation based on process type and user role
     if (isEditMode && !canAssignToOthers) {
-      // Employee editing - validate based on edit permissions
+      // Examiner editing - validate based on edit permissions
       if (canEditStep1 && (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat')) {
-        if (!step1StartTime || !step1EndTime) return false
-        if (!step1FakeName || !step1FakeName.trim()) return false
+        if (!step1FaName || !step1FaName.trim()) return false
       }
       if (canEditStep2) {
-        if (!step2StartTime || !step2EndTime) return false
-        if (!step2FakeName || !step2FakeName.trim()) return false
+        if (!step2FaName || !step2FaName.trim()) return false
       }
     } else {
       // Create mode or admin - validate based on process type
       if (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat') {
-        if (!step1StartTime || !step1EndTime) return false
-        if (!step1FakeName || !step1FakeName.trim()) return false
+        if (!step1FaName || !step1FaName.trim()) return false
       }
       
       if (currentProcessType?.name === 'Step2') {
-        if (!step2StartTime || !step2EndTime) return false
-        if (!step2FakeName || !step2FakeName.trim()) return false
+        if (!step2FaName || !step2FaName.trim()) return false
       }
     }
     
     return true
   }, [
     selectedTeamId, fileNumber, selectedState, county, selectedProductType,
-    selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId,
-    selectedDivisionId, selectedOrgId, step1StartTime, step1EndTime,
-    step2StartTime, step2EndTime, step1FakeName, step2FakeName, canAssignToOthers,
+    selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
-    fileNumberExists, canAddStep2, canAddStep1
+    fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
+    step1FaName, step2FaName
   ])
 
   return (
@@ -914,17 +826,17 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                   </div>
                 )}
 
-                {/* Organization - superadmin only */}
+                {/* Center - superadmin only */}
                 {user?.userRole === 'superadmin' && (
                   <div className="space-y-1.5">
                     <Label htmlFor="organization" className="text-xs font-semibold text-gray-700">Organization *</Label>
                     <Select
-                      value={selectedOrgId ? selectedOrgId.toString() : undefined}
+                      value={selectedOrgId ? selectedOrgId.toString() : ''}
                       onValueChange={(value) => setSelectedOrgId(parseInt(value))}
                       disabled={loadingOrganizations}
                     >
                       <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder={loadingOrganizations ? "Loading..." : "Select organization"} />
+                        <SelectValue placeholder={loadingOrganizations ? "Loading..." : "Select center"} />
                       </SelectTrigger>
                       <SelectContent>
                         {Array.isArray(organizationsData?.items) && organizationsData.items.map((org) => (
@@ -940,7 +852,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                   <div className="space-y-1.5">
                     <Label htmlFor="team" className="text-xs font-semibold text-gray-700">Team *</Label>
                     <Select
-                      value={selectedTeamId ? selectedTeamId.toString() : undefined}
+                      value={selectedTeamId ? selectedTeamId.toString() : ''}
                       onValueChange={(value) => setSelectedTeamId(parseInt(value))}
                       disabled={loadingTeams || !canEditOrderDetails}
                     >
@@ -960,7 +872,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                 {!loadingTeams && availableTeams.length === 0 && (user?.userRole !== 'superadmin' || selectedOrgId) && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                     <p className="text-xs text-yellow-800 font-medium">
-                      {isAdminOrSuperadmin ? "No teams found in this organization" : "You are not assigned to any active teams"}
+                      {isAdminOrSuperadmin ? "No teams found in this center" : "You are not assigned to any active teams"}
                     </p>
                   </div>
                 )}
@@ -995,7 +907,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                   <div className="space-y-1.5">
                     <Label htmlFor="division" className="text-xs font-semibold text-gray-700">Division *</Label>
                     <Select
-                      value={selectedDivisionId ? selectedDivisionId.toString() : undefined}
+                      value={selectedDivisionId ? selectedDivisionId.toString() : ''}
                       onValueChange={(value) => setSelectedDivisionId(parseInt(value))}
                       disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
                     >
@@ -1003,7 +915,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select division"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.isArray(divisions) && divisions.map((division) => (
+                        {Array.isArray(divisions) && divisions.filter(d => d.isActive !== false).map((division) => (
                           <SelectItem key={division.id} value={division.id.toString()}>{division.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1067,7 +979,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                 <div className="space-y-1.5">
                   <Label htmlFor="transactionType" className="text-xs font-semibold text-gray-700">Transaction Type *</Label>
                   <Select
-                    value={selectedTransactionTypeId ? selectedTransactionTypeId.toString() : undefined}
+                    value={selectedTransactionTypeId ? selectedTransactionTypeId.toString() : ''}
                     onValueChange={(value) => setSelectedTransactionTypeId(parseInt(value))}
                     disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
                   >
@@ -1075,7 +987,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select transaction type"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.isArray(transactionTypes) && transactionTypes.filter(t => t.isActive).map((type) => (
+                      {Array.isArray(transactionTypes) && transactionTypes.filter(t => t.isActive !== false).map((type) => (
                         <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1097,7 +1009,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                     <div className="space-y-1.5">
                       <Label htmlFor="processType" className="text-xs font-semibold text-gray-700">Process Type *</Label>
                       <Select
-                        value={selectedProcessTypeId ? selectedProcessTypeId.toString() : undefined}
+                        value={selectedProcessTypeId ? selectedProcessTypeId.toString() : ''}
                         onValueChange={(value) => setSelectedProcessTypeId(parseInt(value))}
                         disabled={!canEditOrderDetails || teamNotSelected || availableProcessTypes.length === 0 || canAddStep2 || canAddStep1}
                       >
@@ -1116,7 +1028,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                     <div className="space-y-1.5">
                       <Label htmlFor="orderStatus" className="text-xs font-semibold text-gray-700">Order Status *</Label>
                       <Select
-                        value={selectedOrderStatusId ? selectedOrderStatusId.toString() : undefined}
+                        value={selectedOrderStatusId ? selectedOrderStatusId.toString() : ''}
                         onValueChange={(value) => setSelectedOrderStatusId(parseInt(value))}
                         disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
                       >
@@ -1124,7 +1036,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select status"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {Array.isArray(orderStatuses) && orderStatuses.filter(s => s.isActive).map((status) => (
+                          {Array.isArray(orderStatuses) && orderStatuses.filter(s => s.isActive !== false).map((status) => (
                             <SelectItem key={status.id} value={status.id.toString()}>{status.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1143,16 +1055,16 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           {selectedProcessType?.name === 'Single Seat' ? 'Single Seat' : 'Step 1'}
                         </div>
 
-                        {/* Fake Name Selection - everyone needs this */}
+                        {/* FA Name Selection - everyone needs this */}
                         {(canAssignToOthers || canEditStep1) && (
                           <div className="mb-3">
-                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Fake Name *</Label>
+                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">FA Name *</Label>
                             <Select
-                              value={step1FakeName || undefined}
-                              onValueChange={(value) => setStep1FakeName(value)}
+                              value={step1FaName || undefined}
+                              onValueChange={(value) => setStep1FaName(value)}
                             >
                               <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
-                                <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
+                                <SelectValue placeholder={loadingFaNames ? "Loading..." : "Select FA name"} />
                               </SelectTrigger>
                               <SelectContent>
                                 {Array.isArray(faNames) && faNames.map((fn) => {
@@ -1169,36 +1081,14 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           </div>
                         )}
 
-                        {/* Read-only Step 1 info for employees */}
+                        {/* Read-only Step 1 info for examiners */}
                         {!canAssignToOthers && isEditMode && order?.step1 && !canEditStep1 && (
                           <div className="text-xs text-gray-600 mb-3">
                             <span className="font-medium">{order.step1.userName || order.step1.userName}</span>
                           </div>
                         )}
 
-                        {/* Date Inputs */}
-                        {(canAssignToOthers || (canEditStep1 && !isEditMode) || (canEditStep1 && isEditMode)) && (
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Start Date *</Label>
-                              <Input
-                                type="date"
-                                value={step1StartTime}
-                                onChange={(e) => setStep1StartTime(e.target.value)}
-                                className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs font-medium text-gray-700 mb-1.5 block">End Date *</Label>
-                              <Input
-                                type="date"
-                                value={step1EndTime}
-                                onChange={(e) => setStep1EndTime(e.target.value)}
-                                className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                        )}
+                        {/* Date Inputs - Removed (no longer needed) */}
                       </div>
                     )}
 
@@ -1207,16 +1097,16 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       <div className="border border-gray-200 rounded-md p-3.5 bg-gray-50">
                         <div className="text-xs font-semibold text-gray-800 mb-3">Step 2</div>
 
-                        {/* Fake Name Selection - everyone needs this */}
+                        {/* FA Name Selection - everyone needs this */}
                         {(canAssignToOthers || canEditStep2) && (
                           <div className="mb-3">
-                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Fake Name *</Label>
+                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">FA Name *</Label>
                             <Select
-                              value={step2FakeName || undefined}
-                              onValueChange={(value) => setStep2FakeName(value)}
+                              value={step2FaName || undefined}
+                              onValueChange={(value) => setStep2FaName(value)}
                             >
                               <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
-                                <SelectValue placeholder={loadingFakeNames ? "Loading..." : "Select fake name"} />
+                                <SelectValue placeholder={loadingFaNames ? "Loading..." : "Select FA name"} />
                               </SelectTrigger>
                               <SelectContent>
                                 {Array.isArray(faNames) && faNames.map((fn) => {
@@ -1233,36 +1123,14 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           </div>
                         )}
 
-                        {/* Read-only Step 2 info for employees */}
+                        {/* Read-only Step 2 info for examiners */}
                         {!canAssignToOthers && isEditMode && order?.step2 && !canEditStep2 && (
                           <div className="text-xs text-gray-600 mb-3">
                             <span className="font-medium">{order.step2.userName || order.step2.userName}</span>
                           </div>
                         )}
 
-                        {/* Date Inputs */}
-                        {(canAssignToOthers || (canEditStep2 && !isEditMode) || (canEditStep2 && isEditMode)) && (
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Start Date *</Label>
-                              <Input
-                                type="date"
-                                value={step2StartTime}
-                                onChange={(e) => setStep2StartTime(e.target.value)}
-                                className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs font-medium text-gray-700 mb-1.5 block">End Date *</Label>
-                              <Input
-                                type="date"
-                                value={step2EndTime}
-                                onChange={(e) => setStep2EndTime(e.target.value)}
-                                className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                        )}
+                        {/* Date Inputs - Removed (no longer needed) */}
                       </div>
                     )}
                   </div>

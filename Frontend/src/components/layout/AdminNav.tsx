@@ -1,16 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
-import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
-import { organizationsApi } from '../../services/api'
 import { Button } from '../ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select'
 import { 
   ChevronRight, 
   ArrowLeft,
@@ -20,7 +10,6 @@ import {
   BarChart3,
   Plus,
   Building2,
-  Filter,
   TrendingUp,
   ClipboardCheck,
   Receipt,
@@ -30,8 +19,8 @@ import {
 // Navigation items for quick access
 const navItems = [
   { path: '/admin/teams', label: 'Teams', icon: Users, description: 'View all teams' },
-  { path: '/admin/employees', label: 'Employees', icon: FileText, description: 'Employee reports' },
-  { path: '/admin/employee-targets', label: 'Targets', icon: Target, description: 'Weekly targets' },
+  { path: '/admin/examiners', label: 'Employees', icon: FileText, description: 'Employee reports' },
+  { path: '/admin/examiner-targets', label: 'Targets', icon: Target, description: 'Weekly targets' },
   { path: '/admin/orders', label: 'Orders', icon: BarChart3, description: 'Order analysis' },
   { path: '/admin/productivity', label: 'Productivity', icon: TrendingUp, description: 'Productivity reports' },
   { path: '/admin/quality-audit', label: 'Quality Audit', icon: ClipboardCheck, description: 'Quality audit reports' },
@@ -40,7 +29,7 @@ const navItems = [
 
 // Superadmin only nav items
 const superadminNavItems = [
-  { path: '/admin/organizations', label: 'Organizations', icon: Building2, description: 'Manage organizations' },
+  { path: '/admin/organizations', label: 'Centers', icon: Building2, description: 'Manage centers' },
 ]
 
 // Route configuration for breadcrumbs
@@ -48,9 +37,9 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/admin': { label: 'Admin' },
   '/admin/dashboard': { label: 'Dashboard', parent: '/admin' },
   '/admin/teams': { label: 'Teams', parent: '/admin/dashboard' },
-  '/admin/employees': { label: 'Employee Reports', parent: '/admin/dashboard' },
-  '/admin/employee-management': { label: 'Employee Management', parent: '/admin/employees' },
-  '/admin/employee-targets': { label: 'Employee Targets', parent: '/admin/dashboard' },
+  '/admin/examiners': { label: 'Employee Reports', parent: '/admin/dashboard' },
+  '/admin/examiner-management': { label: 'Employee Management', parent: '/admin/examiners' },
+  '/admin/examiner-targets': { label: 'Employee Targets', parent: '/admin/dashboard' },
   '/admin/orders': { label: 'Order Analysis', parent: '/admin/dashboard' },
   '/admin/onboarding': { label: 'Onboarding', parent: '/admin/dashboard' },
   '/admin/team-management': { label: 'Team Management', parent: '/admin/teams' },
@@ -58,7 +47,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/admin/quality-audit': { label: 'Quality Audit', parent: '/admin/dashboard' },
   '/admin/billing': { label: 'Billing Reports', parent: '/admin/dashboard' },
   '/admin/team-report': { label: 'Team Report', parent: '/admin/teams' },
-  '/admin/organizations': { label: 'Organizations', parent: '/admin/dashboard' },
+  '/admin/organizations': { label: 'Centers', parent: '/admin/dashboard' },
   '/admin/productivity': { label: 'Productivity', parent: '/admin/dashboard' },
 }
 
@@ -74,21 +63,21 @@ const getBreadcrumbs = (pathname: string): { path: string; label: string }[] => 
     currentPath = '/admin/team-report'
   }
   
-  // Check for dynamic employee performance route
-  if (pathname.match(/^\/admin\/employees\/\d+\/performance$/)) {
-    currentPath = '/admin/employees/:userId/performance'
+  // Check for dynamic examiner performance route
+  if (pathname.match(/^\/admin\/examiners\/\d+\/performance$/)) {
+    currentPath = '/admin/examiners/:userId/performance'
     // Add to routeConfig dynamically if not present
     if (!routeConfig[currentPath]) {
-      routeConfig[currentPath] = { label: 'Performance Report', parent: '/admin/employee-management' }
+      routeConfig[currentPath] = { label: 'Performance Report', parent: '/admin/examiner-management' }
     }
   }
   
-  // Check for dynamic employee detail route
-  if (pathname.match(/^\/admin\/employees\/\d+$/) && !pathname.includes('/performance')) {
-    currentPath = '/admin/employees/:userId'
+  // Check for dynamic examiner detail route
+  if (pathname.match(/^\/admin\/examiners\/\d+$/) && !pathname.includes('/performance')) {
+    currentPath = '/admin/examiners/:userId'
     // Add to routeConfig dynamically if not present
     if (!routeConfig[currentPath]) {
-      routeConfig[currentPath] = { label: 'Employee Details', parent: '/admin/employee-management' }
+      routeConfig[currentPath] = { label: 'Employee Details', parent: '/admin/examiner-management' }
     }
   }
   
@@ -111,14 +100,6 @@ export const AdminNav = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const {
-    filterMonth,
-    filterYear,
-    filterOrgId,
-    setFilterMonth,
-    setFilterYear,
-    setFilterOrgId,
-  } = useDashboardFilterStore()
   
   const breadcrumbs = getBreadcrumbs(location.pathname)
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin'
@@ -126,17 +107,13 @@ export const AdminNav = () => {
   // Superadmin should not see Add Order button
   const showAddOrderButton = user?.userRole !== 'superadmin'
   const isSuperadmin = user?.userRole === 'superadmin'
-  
-  // Fetch organizations for superadmin filter
-  const { data: orgsData } = useQuery({
-    queryKey: ['organizations', 'list', 'active'],
-    queryFn: () => organizationsApi.list({ isActive: true }),
-    enabled: isSuperadmin,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  })
+
+  const mainNavItems = isSuperadmin
+    ? navItems.filter((item) => item.path !== '/admin/examiner-targets')
+    : navItems
   
   // Combine nav items based on role
-  const allNavItems = isSuperadmin ? [...navItems, ...superadminNavItems] : navItems
+  const allNavItems = isSuperadmin ? [...mainNavItems, ...superadminNavItems] : mainNavItems
   
   // Determine the back path
   const getBackPath = () => {
@@ -181,7 +158,7 @@ export const AdminNav = () => {
             
             {/* Primary CTA - Only show for non-superadmin */}
             {showAddOrderButton && (
-              <Link to="/employee/new-order">
+              <Link to="/examiner/new-order">
                 <Button size="sm" className="bg-green-600 hover:bg-green-700 whitespace-nowrap h-8">
                   <Plus className="w-4 h-4 mr-2" />
                   New Order
@@ -247,7 +224,7 @@ export const AdminNav = () => {
             
             {/* Quick navigation links on inner pages */}
             <div className="hidden md:flex items-center gap-1">
-              {navItems.slice(0, 3).map(({ path, label, icon: Icon }) => (
+              {mainNavItems.slice(0, 3).map(({ path, label, icon: Icon }) => (
                 <Link key={path} to={path}>
                   <Button 
                     variant={isActive(path) ? "secondary" : "ghost"}

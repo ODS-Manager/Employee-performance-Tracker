@@ -108,10 +108,11 @@ class RoleChecker:
     """Dependency class to check if user has required role(s)"""
     
     def __init__(self, allowed_roles: List[str]):
-        self.allowed_roles = allowed_roles
+        self.allowed_roles = [role.lower() for role in allowed_roles]
     
     def __call__(self, user: User = Depends(get_current_active_user)) -> User:
-        if user.user_role not in self.allowed_roles:
+        user_role_lower = user.user_role.lower() if user.user_role else ""
+        if user_role_lower not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User with role '{user.user_role}' is not authorized to access this resource"
@@ -123,13 +124,14 @@ class RoleChecker:
 ROLE_SUPERADMIN = "superadmin"
 ROLE_ADMIN = "admin"
 ROLE_TEAM_LEAD = "team_lead"
-ROLE_EMPLOYEE = "employee"
+ROLE_EXAMINER = "examiner"
 
 
 # Convenience dependencies for specific roles
 def require_superadmin(user: User = Depends(get_current_active_user)) -> User:
     """Require user to be a superadmin"""
-    if user.user_role != ROLE_SUPERADMIN:
+    user_role_lower = user.user_role.lower() if user.user_role else ""
+    if user_role_lower != ROLE_SUPERADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Superadmin access required"
@@ -139,7 +141,8 @@ def require_superadmin(user: User = Depends(get_current_active_user)) -> User:
 
 def require_admin(user: User = Depends(get_current_active_user)) -> User:
     """Require user to be an admin or superadmin"""
-    if user.user_role not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
+    user_role_lower = user.user_role.lower() if user.user_role else ""
+    if user_role_lower not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -149,8 +152,9 @@ def require_admin(user: User = Depends(get_current_active_user)) -> User:
 
 def require_team_lead(user: User = Depends(get_current_active_user)) -> User:
     """Require user to be at least a team lead"""
+    user_role_lower = user.user_role.lower() if user.user_role else ""
     allowed = [ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD]
-    if user.user_role not in allowed:
+    if user_role_lower not in allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Team lead or higher access required"
@@ -160,8 +164,9 @@ def require_team_lead(user: User = Depends(get_current_active_user)) -> User:
 
 def require_team_lead_or_admin(user: User = Depends(get_current_active_user)) -> User:
     """Require user to be team lead or admin"""
+    user_role_lower = user.user_role.lower() if user.user_role else ""
     allowed = [ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD]
-    if user.user_role not in allowed:
+    if user_role_lower not in allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Team lead or admin access required"
@@ -172,7 +177,8 @@ def require_team_lead_or_admin(user: User = Depends(get_current_active_user)) ->
 def check_org_access(user: User, org_id: int) -> bool:
     """Check if user has access to a specific organization"""
     # Superadmin has access to all organizations
-    if user.user_role == ROLE_SUPERADMIN:
+    user_role_lower = user.user_role.lower() if user.user_role else ""
+    if user_role_lower == ROLE_SUPERADMIN:
         return True
     # Others only have access to their own organization
     return user.org_id == org_id
@@ -193,19 +199,21 @@ def check_team_access(user: User, team_id: int, db: Session) -> bool:
     from app.models.team import Team
     from app.models.user_team import UserTeam
     
+    user_role_lower = user.user_role.lower() if user.user_role else ""
+    
     # Superadmin has access to all teams
-    if user.user_role == ROLE_SUPERADMIN:
+    if user_role_lower == ROLE_SUPERADMIN:
         return True
     
     # Admin has access to all teams in their organization
-    if user.user_role == ROLE_ADMIN:
+    if user_role_lower == ROLE_ADMIN:
         team = db.query(Team).filter(Team.id == team_id).first()
         if team and team.org_id == user.org_id:
             return True
         return False
     
     # Team lead has access to teams they lead
-    if user.user_role == ROLE_TEAM_LEAD:
+    if user_role_lower == ROLE_TEAM_LEAD:
         team = db.query(Team).filter(Team.id == team_id).first()
         if team and team.team_lead_id == user.id:
             return True
@@ -225,25 +233,27 @@ def get_user_teams(user: User, db: Session) -> List[int]:
     from app.models.team import Team
     from app.models.user_team import UserTeam
     
+    user_role_lower = user.user_role.lower() if user.user_role else ""
+    
     # Superadmin has access to all teams
-    if user.user_role == ROLE_SUPERADMIN:
+    if user_role_lower == ROLE_SUPERADMIN:
         teams = db.query(Team.id).all()
         return [t.id for t in teams]
     
     # Admin has access to all teams in their organization
-    if user.user_role == ROLE_ADMIN:
+    if user_role_lower == ROLE_ADMIN:
         teams = db.query(Team.id).filter(Team.org_id == user.org_id).all()
         return [t.id for t in teams]
     
     # Team lead has access to teams they lead (where team_lead_id = user.id)
-    if user.user_role == ROLE_TEAM_LEAD:
+    if user_role_lower == ROLE_TEAM_LEAD:
         teams = db.query(Team.id).filter(
             Team.team_lead_id == user.id,
             Team.is_active == True
         ).all()
         return [t.id for t in teams]
     
-    # Employees have access to teams they're members of
+    # Examiners have access to teams they're members of
     memberships = db.query(UserTeam.team_id).filter(
         UserTeam.user_id == user.id,
         UserTeam.is_active == True

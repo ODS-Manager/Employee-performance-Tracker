@@ -11,17 +11,47 @@ from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, require_admin, require_team_lead,
     check_org_access, check_team_access, get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
 from app.models.order import Order
 from app.models.order_history import OrderHistory
 from app.models.team import Team
 from app.models.user_team import UserTeam
+from app.models.reference import OrderStatusType
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services.cache_service import cache
 
 router = APIRouter()
+
+ALLOW_DUPLICATE_PRODUCT_TYPES = {
+    "update",
+    "date down",
+    "gi clearing",
+    "schedule b",
+    "product delivery",
+}
+
+
+def normalize_product_type(product_type: Optional[str]) -> str:
+    """Normalize product type values for reliable comparisons."""
+    if not product_type:
+        return ""
+    return " ".join(product_type.strip().lower().split())
+
+
+def is_duplicate_allowed_product(product_type: Optional[str]) -> bool:
+    """Return True when duplicates are allowed for the given product type."""
+    return normalize_product_type(product_type) in ALLOW_DUPLICATE_PRODUCT_TYPES
+
+
+def can_create_duplicate_for_product(user: User, product_type: Optional[str]) -> bool:
+    """Allow duplicate orders only for elevated roles on configured product types."""
+    if not is_duplicate_allowed_product(product_type):
+        return False
+
+    role = user.user_role.lower() if user.user_role else ""
+    return role in {ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD}
 
 
 # ============ Serializer Functions ============
@@ -33,15 +63,11 @@ def serialize_step_info(order, step_num: int) -> Optional[dict]:
         user = order.step1_user if hasattr(order, 'step1_user') else None
         fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
         fa_name = fa_name_obj.name if fa_name_obj else None
-        start_time = order.step1_start_time
-        end_time = order.step1_end_time
     else:
         user_id = order.step2_user_id
         user = order.step2_user if hasattr(order, 'step2_user') else None
         fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
         fa_name = fa_name_obj.name if fa_name_obj else None
-        start_time = order.step2_start_time
-        end_time = order.step2_end_time
     
     if not user_id:
         return None
@@ -49,9 +75,7 @@ def serialize_step_info(order, step_num: int) -> Optional[dict]:
     return {
         "userId": user_id,
         "userName": user.user_name if user else None,
-        "faName": fa_name,
-        "startTime": start_time.isoformat() if start_time else None,
-        "endTime": end_time.isoformat() if end_time else None
+        "faName": fa_name
     }
 
 
@@ -95,7 +119,7 @@ def serialize_order(order: Order, include_steps: bool = True) -> dict:
         "productType": order.product_type,
         "teamId": order.team_id,
         "orgId": order.org_id,
-        "billingStatus": order.billing_status,
+        "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
         "createdBy": order.created_by,
         "modifiedBy": order.modified_by,
         "createdAt": order.created_at.isoformat() if order.created_at else None,
@@ -128,7 +152,7 @@ def serialize_simple_order(order: Order) -> dict:
         "orderStatusName": order.order_status.name if order.order_status else None,
         "divisionName": order.division.name if order.division else None,
         "teamId": order.team_id,
-        "billingStatus": order.billing_status,
+        "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
         "createdAt": order.created_at.isoformat() if order.created_at else None,
         "modifiedAt": order.modified_at.isoformat() if order.modified_at else None,
         # Step user IDs for productivity calculation
@@ -177,7 +201,8 @@ def validate_user_for_step_assignment(
     db: Session,
     user_id: int,
     team_id: int,
-    step_name: str
+    step_name: str,
+    allow_non_team_member: bool = False,
 ) -> None:
     """
     Validate that a user can be assigned to an order step.
@@ -205,6 +230,10 @@ def validate_user_for_step_assignment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot assign user '{user.user_name}' to {step_name}. User has resigned or been deactivated from the system."
         )
+
+    # Admin/superadmin override: allow assignment even if user is not in this team
+    if allow_non_team_member:
+        return
     
     # Check if user is an active member of this specific team
     # A user can be removed from one team but still active in others
@@ -242,7 +271,8 @@ async def list_orders(
     division_id: Optional[int] = Query(None, alias="divisionId", description="Filter by division"),
     billing_status: Optional[str] = Query(None, alias="billingStatus", description="Filter by billing status"),
     state: Optional[str] = Query(None, description="Filter by state"),
-    fake_name: Optional[str] = Query(None, alias="faName", description="Filter by FA name (step1 or step2)"),
+    search: Optional[str] = Query(None, alias="search", description="Search by file number, state, county, status, or product"),
+    fa_name: Optional[str] = Query(None, alias="faName", description="Filter by FA name (step1 or step2)"),
     start_date: Optional[date] = Query(None, alias="startDate", description="Filter by entry date start"),
     end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
     include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
@@ -266,12 +296,12 @@ async def list_orders(
         query = query.filter(Order.deleted_at == None)
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         if org_id:
             query = query.filter(Order.org_id == org_id)
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         query = query.filter(Order.org_id == current_user.org_id)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team leads see orders from teams they lead or are members of
         accessible_teams = get_user_teams(current_user, db)
         if not accessible_teams:
@@ -314,12 +344,23 @@ async def list_orders(
         query = query.filter(Order.division_id == division_id)
     if state:
         query = query.filter(Order.state == state.upper())
-    if fake_name:
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Order.file_number.ilike(search_term),
+                Order.state.ilike(search_term),
+                Order.county.ilike(search_term),
+                Order.product_type.ilike(search_term),
+                Order.order_status.has(OrderStatusType.name.ilike(search_term))
+            )
+        )
+    if fa_name:
         # Filter by FA name (either step1 or step2)
         query = query.filter(
             or_(
-                Order.step1_fa_name == fake_name,
-                Order.step2_fa_name == fake_name
+                Order.step1_fa_name == fa_name,
+                Order.step2_fa_name == fa_name
             )
         )
     if start_date:
@@ -338,6 +379,76 @@ async def list_orders(
         "items": [serialize_simple_order(o) for o in orders],
         "total": total
     }
+
+
+@router.get("/filter-options/states")
+async def get_available_states(
+    org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
+    team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all unique states from orders based on user role and filters"""
+    query = db.query(Order.state).distinct()
+    
+    # Exclude soft-deleted orders
+    query = query.filter(Order.deleted_at == None)
+    
+    # Apply role-based filtering
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
+        if org_id:
+            query = query.filter(Order.org_id == org_id)
+    elif current_user.user_role.lower() == ROLE_ADMIN:
+        query = query.filter(Order.org_id == current_user.org_id)
+    elif current_user.user_role in [ROLE_TEAM_LEAD, ROLE_EXAMINER]:
+        user_teams = get_user_teams(current_user.id, db)
+        team_ids = [ut.team_id for ut in user_teams if not ut.left_at]
+        if team_ids:
+            query = query.filter(Order.team_id.in_(team_ids))
+        else:
+            return []
+    
+    # Apply team filter if specified
+    if team_id:
+        query = query.filter(Order.team_id == team_id)
+    
+    states = [row[0] for row in query.order_by(Order.state).all() if row[0]]
+    return states
+
+
+@router.get("/filter-options/products")
+async def get_available_products(
+    org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
+    team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all unique product types from orders based on user role and filters"""
+    query = db.query(Order.product_type).distinct()
+    
+    # Exclude soft-deleted orders
+    query = query.filter(Order.deleted_at == None)
+    
+    # Apply role-based filtering
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
+        if org_id:
+            query = query.filter(Order.org_id == org_id)
+    elif current_user.user_role.lower() == ROLE_ADMIN:
+        query = query.filter(Order.org_id == current_user.org_id)
+    elif current_user.user_role in [ROLE_TEAM_LEAD, ROLE_EXAMINER]:
+        user_teams = get_user_teams(current_user.id, db)
+        team_ids = [ut.team_id for ut in user_teams if not ut.left_at]
+        if team_ids:
+            query = query.filter(Order.team_id.in_(team_ids))
+        else:
+            return []
+    
+    # Apply team filter if specified
+    if team_id:
+        query = query.filter(Order.team_id == team_id)
+    
+    products = [row[0] for row in query.order_by(Order.product_type).all() if row[0]]
+    return products
 
 
 @router.get("/check-file/{file_number}")
@@ -360,6 +471,20 @@ async def check_file_number(
             detail="Cannot access this team"
         )
     
+    # For specific product types, duplicates are explicitly allowed only for
+    # superadmin/admin/team lead users.
+    if can_create_duplicate_for_product(current_user, product_type):
+        return {
+            "exists": False,
+            "fileNumber": file_number,
+            "productType": product_type,
+            "step1Completed": False,
+            "step2Completed": False,
+            "orderId": None,
+            "sameTeam": True,
+            "duplicatesAllowed": True,
+        }
+
     # Check if file_number + product_type + team_id combination exists
     existing = db.query(Order).options(
         joinedload(Order.step1_user),
@@ -480,20 +605,25 @@ async def create_order(
             detail="Process type not found"
         )
     
-    # Check if file_number + product_type + team_id combination already exists
-    # The database has a unique constraint on (file_number, product_type, team_id)
-    # Different teams CAN have the same file_number + product_type
-    existing = db.query(Order).filter(
-        Order.file_number == order_data.file_number,
-        Order.product_type == order_data.product_type,
-        Order.team_id == order_data.team_id,
-        Order.deleted_at == None
-    ).first()
+    # For selected product types duplicates are allowed per team only for
+    # elevated roles.
+    product_allows_duplicates = can_create_duplicate_for_product(current_user, order_data.product_type)
+
+    existing = None
+    if not product_allows_duplicates:
+        # For all other product types: file_number + product_type + team_id must be unique.
+        existing = db.query(Order).filter(
+            Order.file_number == order_data.file_number,
+            Order.product_type == order_data.product_type,
+            Order.team_id == order_data.team_id,
+            Order.deleted_at == None
+        ).first()
     
     if existing:
         # File number + product_type + team_id combination exists in THIS team
         # Determine if we should merge or reject
         is_admin_or_higher = current_user.user_role in [ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD]
+        allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
         
         # Determine what step the user is trying to add
         adding_step1 = order_data.step1_user_id is not None
@@ -531,11 +661,19 @@ async def create_order(
         # Validate the user being assigned
         if adding_step1 and order_data.step1_user_id:
             validate_user_for_step_assignment(
-                db, order_data.step1_user_id, order_data.team_id, "Step 1"
+                db,
+                order_data.step1_user_id,
+                order_data.team_id,
+                "Step 1",
+                allow_non_team_member=allow_non_team_member,
             )
         if adding_step2 and order_data.step2_user_id:
             validate_user_for_step_assignment(
-                db, order_data.step2_user_id, order_data.team_id, "Step 2"
+                db,
+                order_data.step2_user_id,
+                order_data.team_id,
+                "Step 2",
+                allow_non_team_member=allow_non_team_member,
             )
         
         # Merge the step data into existing order
@@ -550,16 +688,6 @@ async def create_order(
                 if order_data.step1_fa_name_id:
                     existing.step1_fa_name_id = order_data.step1_fa_name_id
                 
-                if order_data.step1_start_time:
-                    log_order_change(db, existing.id, current_user.id, "step1_start_time",
-                                   str(existing.step1_start_time) if existing.step1_start_time else None,
-                                   str(order_data.step1_start_time), "update")
-                    existing.step1_start_time = order_data.step1_start_time
-                if order_data.step1_end_time:
-                    log_order_change(db, existing.id, current_user.id, "step1_end_time",
-                                   str(existing.step1_end_time) if existing.step1_end_time else None,
-                                   str(order_data.step1_end_time), "update")
-                    existing.step1_end_time = order_data.step1_end_time
         
         if adding_step2:
             if existing.step2_user_id is None or existing.step2_user_id == current_user.id or is_admin_or_higher:
@@ -572,16 +700,6 @@ async def create_order(
                 if order_data.step2_fa_name_id:
                     existing.step2_fa_name_id = order_data.step2_fa_name_id
                 
-                if order_data.step2_start_time:
-                    log_order_change(db, existing.id, current_user.id, "step2_start_time",
-                                   str(existing.step2_start_time) if existing.step2_start_time else None,
-                                   str(order_data.step2_start_time), "update")
-                    existing.step2_start_time = order_data.step2_start_time
-                if order_data.step2_end_time:
-                    log_order_change(db, existing.id, current_user.id, "step2_end_time",
-                                   str(existing.step2_end_time) if existing.step2_end_time else None,
-                                   str(order_data.step2_end_time), "update")
-                    existing.step2_end_time = order_data.step2_end_time
         
         existing.modified_by = current_user.id
         db.commit()
@@ -604,16 +722,26 @@ async def create_order(
         return serialize_order(order)
     
     # File number doesn't exist - create new order
+    allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
+
     # Validate step1 user assignment (if provided)
     if order_data.step1_user_id:
         validate_user_for_step_assignment(
-            db, order_data.step1_user_id, order_data.team_id, "Step 1"
+            db,
+            order_data.step1_user_id,
+            order_data.team_id,
+            "Step 1",
+            allow_non_team_member=allow_non_team_member,
         )
     
     # Validate step2 user assignment (if provided)
     if order_data.step2_user_id:
         validate_user_for_step_assignment(
-            db, order_data.step2_user_id, order_data.team_id, "Step 2"
+            db,
+            order_data.step2_user_id,
+            order_data.team_id,
+            "Step 2",
+            allow_non_team_member=allow_non_team_member,
         )
     
     # Create order
@@ -631,12 +759,8 @@ async def create_order(
         org_id=order_data.org_id,
         step1_user_id=order_data.step1_user_id,
         step1_fa_name_id=order_data.step1_fa_name_id,
-        step1_start_time=order_data.step1_start_time,
-        step1_end_time=order_data.step1_end_time,
         step2_user_id=order_data.step2_user_id,
         step2_fa_name_id=order_data.step2_fa_name_id,
-        step2_start_time=order_data.step2_start_time,
-        step2_end_time=order_data.step2_end_time,
         created_by=current_user.id
     )
     
@@ -689,12 +813,12 @@ async def get_order(
         )
     
     # Check access - team members can view all orders in their team
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         pass  # Full access
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if order.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not check_team_access(current_user, order.team_id, db):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     else:  # Employee
@@ -756,7 +880,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
                 "canEditStep1": False,
                 "canEditStep2": False,
                 "canEditOrderDetails": False,
-                "reason": "Single Seat order completed by another employee"
+                "reason": "Single Seat order completed by another examiner"
             }
     
     # Step1/Step2 process types - STEPS ARE INDEPENDENT
@@ -779,7 +903,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
             reasons.append("Step 2 is available")
     
     if not can_edit:
-        reason = "Both steps completed by other employees"
+        reason = "Both steps completed by other examiners"
     else:
         reason = "; ".join(reasons) if reasons else "No edit access"
     
@@ -830,15 +954,15 @@ async def update_order(
     update_data = order_data.model_dump(exclude_unset=True)
     
     # Define field categories
-    step1_fields = ['step1_user_id', 'step1_fa_name_id', 'step1_start_time', 'step1_end_time']
-    step2_fields = ['step2_user_id', 'step2_fa_name_id', 'step2_start_time', 'step2_end_time']
     order_detail_fields = ['entry_date', 'transaction_type_id', 'process_type_id', 
                           'order_status_id', 'division_id', 'state', 'county', 
                           'product_type', 'team_id', 'billing_status']
+    step1_fields = ['step1_user_id', 'step1_fa_name_id']
+    step2_fields = ['step2_user_id', 'step2_fa_name_id']
     
-    # Validate field access for employees
+    # Validate field access for examiners
     # We need to check if values are actually changing, not just if they're present
-    if current_user.user_role == ROLE_EMPLOYEE:
+    if current_user.user_role.lower() == ROLE_EXAMINER:
         fields_to_remove = []  # Track fields that aren't actually changing
         
         for field, new_value in update_data.items():
@@ -861,7 +985,7 @@ async def update_order(
                 if value_is_changing:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Cannot modify Step 1 - it was completed by another employee"
+                        detail=f"Cannot modify Step 1 - it was completed by another examiner"
                     )
                 else:
                     fields_to_remove.append(field)
@@ -871,28 +995,60 @@ async def update_order(
                 if value_is_changing:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Cannot modify Step 2 - it was completed by another employee"
+                        detail=f"Cannot modify Step 2 - it was completed by another examiner"
                     )
                 else:
                     fields_to_remove.append(field)
         
-        # Remove unchanged fields that employee shouldn't modify
+        # Remove unchanged fields that examiner shouldn't modify
         for field in fields_to_remove:
             del update_data[field]
     
     # Determine the team_id to use for validation (could be updated or existing)
     team_id_for_validation = update_data.get('team_id', order.team_id)
+    allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
+
+    # Enforce uniqueness for non-duplicate-allowed product types only.
+    prospective_file_number = update_data.get('file_number', order.file_number)
+    prospective_product_type = update_data.get('product_type', order.product_type)
+    prospective_team_id = update_data.get('team_id', order.team_id)
+
+    if not can_create_duplicate_for_product(current_user, prospective_product_type):
+        duplicate_order = db.query(Order).filter(
+            Order.id != order.id,
+            Order.file_number == prospective_file_number,
+            Order.product_type == prospective_product_type,
+            Order.team_id == prospective_team_id,
+            Order.deleted_at == None,
+        ).first()
+
+        if duplicate_order:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"File number '{prospective_file_number}' with product type "
+                    f"'{prospective_product_type}' already exists in this team"
+                ),
+            )
     
     # Validate step1 user assignment (if being updated)
     if 'step1_user_id' in update_data and update_data['step1_user_id'] is not None:
         validate_user_for_step_assignment(
-            db, update_data['step1_user_id'], team_id_for_validation, "Step 1"
+            db,
+            update_data['step1_user_id'],
+            team_id_for_validation,
+            "Step 1",
+            allow_non_team_member=allow_non_team_member,
         )
     
     # Validate step2 user assignment (if being updated)
     if 'step2_user_id' in update_data and update_data['step2_user_id'] is not None:
         validate_user_for_step_assignment(
-            db, update_data['step2_user_id'], team_id_for_validation, "Step 2"
+            db,
+            update_data['step2_user_id'],
+            team_id_for_validation,
+            "Step 2",
+            allow_non_team_member=allow_non_team_member,
         )
     
     # Log changes and update
@@ -947,7 +1103,7 @@ async def bulk_update_billing_status(
     query = db.query(Order).filter(Order.id.in_(order_ids), Order.deleted_at == None)
     
     # Admin can only update orders in their organization
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         query = query.filter(Order.org_id == current_user.org_id)
     
     orders = query.all()
@@ -994,7 +1150,7 @@ async def delete_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Order is already deleted")
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if order.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     
@@ -1027,7 +1183,7 @@ async def restore_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Order is not deleted")
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if order.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     
@@ -1070,13 +1226,13 @@ async def get_order_history(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     
     # Check access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if order.org_id != current_user.org_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not check_team_access(current_user, order.team_id, db):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role == ROLE_EMPLOYEE:
+    elif current_user.user_role.lower() == ROLE_EXAMINER:
         if order.step1_user_id != current_user.id and order.step2_user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     

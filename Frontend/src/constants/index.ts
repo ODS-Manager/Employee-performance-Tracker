@@ -99,5 +99,5 @@ export const PRODUCT_TYPES = [
 export const USER_ROLES = {
   ADMIN: 'admin',
   TEAMLEAD: 'teamlead',
-  EMPLOYEE: 'employee',
+  EMPLOYEE: 'examiner',
 } as const

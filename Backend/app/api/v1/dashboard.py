@@ -8,7 +8,7 @@ from sqlalchemy import func, or_
 from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
 from app.models.team import Team
@@ -32,13 +32,13 @@ async def admin_dashboard(
         raise HTTPException(status_code=403, detail="Access forbidden")
     
     # Check cache first
-    org_id = current_user.org_id if current_user.user_role == ROLE_ADMIN else None
+    org_id = current_user.org_id if current_user.user_role.lower() == ROLE_ADMIN else None
     cached_data = cache.get_dashboard("admin", org_id=org_id)
     if cached_data is not None:
         return cached_data
     
     # Base queries filtered by organization for ADMIN
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         user_query = db.query(User).filter(User.org_id == current_user.org_id)
         team_query = db.query(Team).filter(Team.org_id == current_user.org_id)
         order_query = db.query(Order).filter(Order.org_id == current_user.org_id, Order.deleted_at == None)
@@ -48,7 +48,7 @@ async def admin_dashboard(
         order_query = db.query(Order).filter(Order.deleted_at == None)
     
     # Get statistics
-    total_employees = user_query.filter(User.user_role == ROLE_EMPLOYEE).count()
+    total_examiners = user_query.filter(User.user_role == ROLE_EXAMINER).count()
     active_teams = team_query.filter(Team.is_active == True).count()
     
     # Get completed status ID
@@ -69,7 +69,7 @@ async def admin_dashboard(
     ).count()
     
     result = {
-        "totalEmployees": total_employees,
+        "totalExaminers": total_examiners,
         "activeTeams": active_teams,
         "completedOrders": completed_orders,
         "monthlyOrders": monthly_orders
@@ -143,15 +143,15 @@ async def teamlead_dashboard(
     return result
 
 
-@router.get("/employee")
-async def employee_dashboard(
+@router.get("/examiner")
+async def examiner_dashboard(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Employee dashboard statistics"""
+    """Examiner dashboard statistics"""
     
     # Check cache first
-    cached_data = cache.get_dashboard("employee", user_id=current_user.id)
+    cached_data = cache.get_dashboard("examiner", user_id=current_user.id)
     if cached_data is not None:
         return cached_data
     
@@ -159,7 +159,7 @@ async def employee_dashboard(
     completed_status = db.query(OrderStatusType).filter(OrderStatusType.name == "Completed").first()
     completed_status_id = completed_status.id if completed_status else None
     
-    # Get employee's orders (where they did step1 or step2)
+    # Get examiner's orders (where they did step1 or step2)
     my_orders_query = db.query(Order).filter(
         or_(
             Order.step1_user_id == current_user.id,
@@ -190,7 +190,7 @@ async def employee_dashboard(
     }
     
     # Cache the result
-    cache.set_dashboard("employee", result, user_id=current_user.id)
+    cache.set_dashboard("examiner", result, user_id=current_user.id)
     return result
 
 
@@ -202,7 +202,7 @@ async def get_dashboard_stats(
     """Get general dashboard stats based on user role - redirects to role-specific endpoint"""
     if current_user.user_role in [ROLE_ADMIN, ROLE_SUPERADMIN]:
         return await admin_dashboard(current_user, db)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         return await teamlead_dashboard(current_user, db)
     else:
-        return await employee_dashboard(current_user, db)
+        return await examiner_dashboard(current_user, db)

@@ -23,7 +23,7 @@ class Organization(Base):
     users = relationship("User", back_populates="organization")
     teams = relationship("Team", back_populates="organization")
     orders = relationship("Order", back_populates="organization")
-    employee_metrics = relationship("EmployeePerformanceMetrics", back_populates="organization")
+    examiner_metrics = relationship("ExaminerPerformanceMetrics", back_populates="organization")
     team_metrics = relationship("TeamPerformanceMetrics", back_populates="organization")
     attendance_records = relationship("AttendanceRecord", back_populates="organization")
     

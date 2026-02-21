@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { teamsApi, usersApi, organizationsApi, faNamesApi } from '../../services/api'
 import { getInitials, handleLogoutFlow, parseApiError } from '../../utils/helpers'
 import type { Team, TeamWithMembers, User, Organization, TeamCreate, TeamUpdate, FAName } from '../../types'
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../../components/ui/badge'
 import { MultiSelect } from '../../components/ui/multi-select'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
   Dialog,
@@ -56,10 +58,36 @@ const AVAILABLE_PRODUCTS = [
   'Commercial', 'Construction', 'Foreclosure', 'REO', 'Short Sale'
 ]
 
+const SCORE_INPUT_REGEX = /^\d*(\.\d{0,2})?$/
+
+const DEFAULT_PRODUCTIVITY_SCORES = {
+  singleSeatScore: 1.0,
+  step1Score: 0.5,
+  step2Score: 0.5,
+} as const
+
+type ProductivityScoreField = keyof typeof DEFAULT_PRODUCTIVITY_SCORES
+
+const getDefaultCreateScoreInputs = () => ({
+  singleSeatScore: DEFAULT_PRODUCTIVITY_SCORES.singleSeatScore.toFixed(2),
+  step1Score: DEFAULT_PRODUCTIVITY_SCORES.step1Score.toFixed(2),
+  step2Score: DEFAULT_PRODUCTIVITY_SCORES.step2Score.toFixed(2),
+})
+
+const normalizeScoreValue = (value: string, fallback: number) => {
+  const parsedValue = parseFloat(value)
+  if (Number.isNaN(parsedValue)) {
+    return fallback
+  }
+
+  return Math.round(parsedValue * 100) / 100
+}
+
 
 
 export const TeamManagementPage = () => {
   const { user } = useAuthStore()
+  const { filterOrgId } = useDashboardFilterStore()
   const navigate = useNavigate()
   
   const [teams, setTeams] = useState<Team[]>([])
@@ -69,10 +97,11 @@ export const TeamManagementPage = () => {
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<TeamWithMembers | null>(null)
   
-  // For superadmin: selected org for filtering (default to 'all' / null)
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(
-    user?.userRole === 'superadmin' ? null : (user?.orgId || null)
-  )
+  // Use global filter for organization
+  const selectedOrgId = user?.userRole === 'superadmin' 
+    ? (filterOrgId ? parseInt(filterOrgId) : null)
+    : (user?.orgId || null)
+  
   const [loadingUsers, setLoadingUsers] = useState(false)
   
   // Dialog states
@@ -91,10 +120,11 @@ export const TeamManagementPage = () => {
     faNames: [],
     isActive: true,
     dailyTarget: 10,
-    singleSeatScore: 1.0,
-    step1Score: 0.5,
-    step2Score: 0.5,
+    singleSeatScore: DEFAULT_PRODUCTIVITY_SCORES.singleSeatScore,
+    step1Score: DEFAULT_PRODUCTIVITY_SCORES.step1Score,
+    step2Score: DEFAULT_PRODUCTIVITY_SCORES.step2Score,
   })
+  const [createScoreInputs, setCreateScoreInputs] = useState(getDefaultCreateScoreInputs())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   
@@ -117,7 +147,7 @@ export const TeamManagementPage = () => {
     if (user?.userRole === 'superadmin') {
       fetchData()
     }
-  }, [selectedOrgId])
+  }, [selectedOrgId, filterOrgId]) // Add filterOrgId dependency
 
   const fetchData = async () => {
     try {
@@ -174,6 +204,53 @@ export const TeamManagementPage = () => {
     fetchUsersForOrg(orgId)
   }
 
+  const setFormScoreValue = (field: ProductivityScoreField, value: number) => {
+    const roundedValue = Math.round(value * 100) / 100
+
+    setFormData(prev => {
+      if (field === 'singleSeatScore') {
+        return { ...prev, singleSeatScore: roundedValue }
+      }
+      if (field === 'step1Score') {
+        return { ...prev, step1Score: roundedValue }
+      }
+
+      return { ...prev, step2Score: roundedValue }
+    })
+  }
+
+  const handleCreateScoreChange = (field: ProductivityScoreField, value: string) => {
+    if (!SCORE_INPUT_REGEX.test(value)) {
+      return
+    }
+
+    setCreateScoreInputs(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+
+    if (!value || value === '.') {
+      return
+    }
+
+    const parsedValue = parseFloat(value)
+    if (!Number.isNaN(parsedValue)) {
+      setFormScoreValue(field, parsedValue)
+    }
+  }
+
+  const handleCreateScoreBlur = (field: ProductivityScoreField) => {
+    const fallbackValue = DEFAULT_PRODUCTIVITY_SCORES[field]
+    const normalizedValue = normalizeScoreValue(createScoreInputs[field], fallbackValue)
+
+    setCreateScoreInputs(prev => ({
+      ...prev,
+      [field]: normalizedValue.toFixed(2),
+    }))
+
+    setFormScoreValue(field, normalizedValue)
+  }
+
   const handleCreateTeam = async () => {
     setError('')
     
@@ -183,13 +260,22 @@ export const TeamManagementPage = () => {
     }
 
     if (!formData.orgId) {
-      setError('Organization is required')
+      setError('Center is required')
       return
     }
 
     setIsSubmitting(true)
     try {
-      await teamsApi.create(formData)
+      const normalizedScores = {
+        singleSeatScore: normalizeScoreValue(createScoreInputs.singleSeatScore, DEFAULT_PRODUCTIVITY_SCORES.singleSeatScore),
+        step1Score: normalizeScoreValue(createScoreInputs.step1Score, DEFAULT_PRODUCTIVITY_SCORES.step1Score),
+        step2Score: normalizeScoreValue(createScoreInputs.step2Score, DEFAULT_PRODUCTIVITY_SCORES.step2Score),
+      }
+
+      await teamsApi.create({
+        ...formData,
+        ...normalizedScores,
+      })
       toast.success('Team created successfully!')
       setCreateDialogOpen(false)
       resetForm()
@@ -329,10 +415,11 @@ export const TeamManagementPage = () => {
       faNames: [],
       isActive: true,
       dailyTarget: 10,
-      singleSeatScore: 1.0,
-      step1Score: 0.5,
-      step2Score: 0.5,
+      singleSeatScore: DEFAULT_PRODUCTIVITY_SCORES.singleSeatScore,
+      step1Score: DEFAULT_PRODUCTIVITY_SCORES.step1Score,
+      step2Score: DEFAULT_PRODUCTIVITY_SCORES.step2Score,
     })
+    setCreateScoreInputs(getDefaultCreateScoreInputs())
     setSelectedTeam(null)
     setError('')
     
@@ -400,65 +487,64 @@ export const TeamManagementPage = () => {
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-right" />
       
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">Team Management</h1>
-              <p className="text-sm text-slate-600">Create and manage teams</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline"
-                onClick={() => navigate('/admin/score-management')}
-              >
-                <Target className="h-4 w-4 mr-2" />
-                Score Management
+      <AdminHeader title="Team Management" subtitle="Create and manage teams" />
+      
+      <AdminNav />
+      
+      <main className="container mx-auto px-4 py-8">
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-3 mb-6">
+          <Button 
+            variant="outline"
+            onClick={() => navigate('/admin/score-management')}
+          >
+            <Target className="h-4 w-4 mr-2" />
+            Score Management
+          </Button>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => { resetForm(); setCreateDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Team
               </Button>
-              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => { resetForm(); setCreateDialogOpen(true); }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Team
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create New Team</DialogTitle>
-                  <DialogDescription>Set up a new team with states and products</DialogDescription>
-                </DialogHeader>
-                
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create New Team</DialogTitle>
+              <DialogDescription>Set up a new team with states and products</DialogDescription>
+            </DialogHeader>
+            
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Team Name *</Label>
-                    <Input
-                      id="name"
-                      placeholder="e.g., Alpha Team"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    />
-                  </div>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Team Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Alpha Team"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
 
-                  {user?.userRole === 'superadmin' && (
-                    <div className="space-y-2">
-                      <Label>Organization *</Label>
-                      <Select
-                        value={formData.orgId ? formData.orgId.toString() : undefined}
-                        onValueChange={(value) => handleFormOrgChange(parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select organization" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {organizations.map((org) => (
-                            <SelectItem key={org.id} value={org.id.toString()}>
+              {user?.userRole === 'superadmin' && (
+                <div className="space-y-2">
+                  <Label>Organization *</Label>
+                  <Select
+                    value={formData.orgId ? formData.orgId.toString() : undefined}
+                    onValueChange={(value) => handleFormOrgChange(parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select center" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
                               {org.name}
                             </SelectItem>
                           ))}
@@ -487,7 +573,7 @@ export const TeamManagementPage = () => {
                       </SelectContent>
                     </Select>
                     {user?.userRole === 'superadmin' && !formData.orgId && (
-                      <p className="text-xs text-orange-600">Select an organization first</p>
+                      <p className="text-xs text-orange-600">Select a center first</p>
                     )}
                   </div>
 
@@ -549,27 +635,14 @@ export const TeamManagementPage = () => {
                     <h4 className="text-sm font-medium text-slate-700 mb-3">Productivity Settings</h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="dailyTarget">Daily Target *</Label>
-                        <Input
-                          id="dailyTarget"
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={formData.dailyTarget ?? 10}
-                          onChange={(e) => setFormData({...formData, dailyTarget: parseInt(e.target.value) || 10})}
-                        />
-                        <p className="text-xs text-muted-foreground">Orders per day per employee</p>
-                      </div>
-                      <div className="space-y-2">
                         <Label htmlFor="singleSeatScore">Single Seat Score *</Label>
                         <Input
                           id="singleSeatScore"
-                          type="number"
-                          min={0.1}
-                          max={10}
-                          step={0.1}
-                          value={formData.singleSeatScore ?? 1.0}
-                          onChange={(e) => setFormData({...formData, singleSeatScore: parseFloat(e.target.value) || 1.0})}
+                          type="text"
+                          inputMode="decimal"
+                          value={createScoreInputs.singleSeatScore}
+                          onChange={(e) => handleCreateScoreChange('singleSeatScore', e.target.value)}
+                          onBlur={() => handleCreateScoreBlur('singleSeatScore')}
                         />
                         <p className="text-xs text-muted-foreground">Score for both steps by same user</p>
                       </div>
@@ -577,12 +650,11 @@ export const TeamManagementPage = () => {
                         <Label htmlFor="step1Score">Step 1 Score *</Label>
                         <Input
                           id="step1Score"
-                          type="number"
-                          min={0.1}
-                          max={10}
-                          step={0.1}
-                          value={formData.step1Score ?? 0.5}
-                          onChange={(e) => setFormData({...formData, step1Score: parseFloat(e.target.value) || 0.5})}
+                          type="text"
+                          inputMode="decimal"
+                          value={createScoreInputs.step1Score}
+                          onChange={(e) => handleCreateScoreChange('step1Score', e.target.value)}
+                          onBlur={() => handleCreateScoreBlur('step1Score')}
                         />
                         <p className="text-xs text-muted-foreground">Score for Step 1 only</p>
                       </div>
@@ -590,12 +662,11 @@ export const TeamManagementPage = () => {
                         <Label htmlFor="step2Score">Step 2 Score *</Label>
                         <Input
                           id="step2Score"
-                          type="number"
-                          min={0.1}
-                          max={10}
-                          step={0.1}
-                          value={formData.step2Score ?? 0.5}
-                          onChange={(e) => setFormData({...formData, step2Score: parseFloat(e.target.value) || 0.5})}
+                          type="text"
+                          inputMode="decimal"
+                          value={createScoreInputs.step2Score}
+                          onChange={(e) => handleCreateScoreChange('step2Score', e.target.value)}
+                          onBlur={() => handleCreateScoreBlur('step2Score')}
                         />
                         <p className="text-xs text-muted-foreground">Score for Step 2 only</p>
                       </div>
@@ -620,15 +691,9 @@ export const TeamManagementPage = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            </div>
-          </div>
         </div>
-      </header>
-      
-      <AdminNav />
-      
-      <main className="container mx-auto px-4 py-8">
-        {/* Organization Filter for Superadmin */}
+
+        {/* Center Filter for Superadmin */}
         {user?.userRole === 'superadmin' && (
           <Card className="mb-6">
             <CardContent className="py-4">
@@ -642,10 +707,10 @@ export const TeamManagementPage = () => {
                   }}
                 >
                   <SelectTrigger className="w-64">
-                    <SelectValue placeholder="All Organizations" />
+                    <SelectValue placeholder="All Centers" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Organizations</SelectItem>
+                    <SelectItem value="all">All Centers</SelectItem>
                     {organizations.map((org) => (
                       <SelectItem key={org.id} value={org.id.toString()}>
                         {org.name}
@@ -955,12 +1020,7 @@ export const TeamManagementPage = () => {
                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
                       Productivity Settings
                     </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-slate-50 rounded-md p-3">
-                        <p className="text-xs text-slate-500">Daily Target</p>
-                        <p className="text-lg font-semibold">{selectedTeam.dailyTarget ?? 10}</p>
-                        <p className="text-xs text-slate-400">orders/day</p>
-                      </div>
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="bg-slate-50 rounded-md p-3">
                         <p className="text-xs text-slate-500">Single Seat Score</p>
                         <p className="text-lg font-semibold">{selectedTeam.singleSeatScore ?? 1.0}</p>
@@ -1143,18 +1203,6 @@ export const TeamManagementPage = () => {
               <div className="pt-4 border-t">
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Productivity Settings</h4>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-dailyTarget">Daily Target *</Label>
-                    <Input
-                      id="edit-dailyTarget"
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={formData.dailyTarget ?? 10}
-                      onChange={(e) => setFormData({...formData, dailyTarget: parseInt(e.target.value) || 10})}
-                    />
-                    <p className="text-xs text-muted-foreground">Orders per day per employee</p>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-singleSeatScore">Single Seat Score *</Label>
                     <Input

@@ -12,6 +12,7 @@ import { Badge } from '../../components/ui/badge'
 import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import * as XLSX from 'xlsx'
@@ -48,6 +49,7 @@ import {
   RotateCcw,
   Download
 } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 
 export const TeamOrdersPage = () => {
   const { user, logout } = useAuthStore()
@@ -119,10 +121,10 @@ export const TeamOrdersPage = () => {
   // Get unique states from current team
   const availableStates = currentTeam?.states || []
 
-  // Fetch fake names for the team
+  // Fetch FA names for the team
   const { data: faNamesData, isLoading: faNamesLoading } = useQuery({
     queryKey: ['faNames', teamId],
-    queryFn: () => teamsApi.getFakeNames(teamId!),
+    queryFn: () => teamsApi.getFaNames(teamId!),
     enabled: !!teamId,
     staleTime: 10 * 60 * 1000, // 10 minutes
   })
@@ -161,10 +163,12 @@ export const TeamOrdersPage = () => {
   // Stats
   const completedOrders = orders.filter(o => o.step1UserId && o.step2UserId).length
   const inProgressOrders = orders.filter(o => (o.step1UserId && !o.step2UserId) || (!o.step1UserId && o.step2UserId)).length
-  const pendingBilling = orders.filter(o => o.billingStatus === 'pending').length
+  const pendingBilling = orders.filter(
+    o => o.billingStatus === 'pending' && o.orderStatusName?.toLowerCase() === 'completed'
+  ).length
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const getOrderStatusBadge = (order: OrderSimple) => {
@@ -242,13 +246,9 @@ export const TeamOrdersPage = () => {
           'Work Status': order.step1?.userId && order.step2?.userId ? 'Completed' : 
                          (order.step1?.userId || order.step2?.userId) ? 'In Progress' : 'Pending',
           'Step 1 User': order.step1?.userName || '-',
-          'Step 1 Fake Name': order.step1?.faName || '-',
-          'Step 1 Start Time': formatDateTime(order.step1?.startTime || null),
-          'Step 1 End Time': formatDateTime(order.step1?.endTime || null),
+          'Step 1 FA Name': order.step1?.faName || '-',
           'Step 2 User': order.step2?.userName || '-',
-          'Step 2 Fake Name': order.step2?.faName || '-',
-          'Step 2 Start Time': formatDateTime(order.step2?.startTime || null),
-          'Step 2 End Time': formatDateTime(order.step2?.endTime || null),
+          'Step 2 FA Name': order.step2?.faName || '-',
           'Created At': formatDateTime(order.createdAt),
           'Modified At': formatDateTime(order.modifiedAt),
         }
@@ -272,11 +272,11 @@ export const TeamOrdersPage = () => {
         { wch: 15 }, // Billing Status
         { wch: 15 }, // Work Status
         { wch: 15 }, // Step 1 User
-        { wch: 15 }, // Step 1 Fake Name
+        { wch: 15 }, // Step 1 FA Name
         { wch: 20 }, // Step 1 Start Time
         { wch: 20 }, // Step 1 End Time
         { wch: 15 }, // Step 2 User
-        { wch: 15 }, // Step 2 Fake Name
+        { wch: 15 }, // Step 2 FA Name
         { wch: 20 }, // Step 2 Start Time
         { wch: 20 }, // Step 2 End Time
         { wch: 20 }, // Created At
@@ -328,11 +328,14 @@ export const TeamOrdersPage = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Orders</h1>
-              <p className="text-sm text-slate-600">
-                {formatDateRange()}
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Team Orders</h1>
+                <p className="text-sm text-slate-600">
+                  {formatDateRange()}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -369,7 +372,9 @@ export const TeamOrdersPage = () => {
                 <Plus className="mr-2 h-4 w-4" />
                 New Order
               </Button>
-              
+
+              <HeaderRefreshButton />
+               
               <Badge variant="outline" className="px-3 py-1">
                 <Shield className="w-3 h-3 mr-1" />
                 Team Lead
@@ -581,10 +586,10 @@ export const TeamOrdersPage = () => {
                         <Label className="text-xs font-medium text-slate-600">Billing Status</Label>
                         <Select value={billingFilter} onValueChange={setBillingFilter}>
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Billing" />
+                            <SelectValue placeholder="All Billing Statuses" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All Billing</SelectItem>
+                            <SelectItem value="all">All Billing Statuses</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="done">Done</SelectItem>
                           </SelectContent>
@@ -618,7 +623,7 @@ export const TeamOrdersPage = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Process Types</SelectItem>
-                            {processTypes.filter(pt => pt.isActive).map((pt) => (
+                            {processTypes.filter(pt => pt.isActive !== false).map((pt) => (
                               <SelectItem key={pt.id} value={pt.id.toString()}>
                                 {pt.name}
                               </SelectItem>
@@ -650,11 +655,11 @@ export const TeamOrdersPage = () => {
                         <Label className="text-xs font-medium text-slate-600">Order Status</Label>
                         <Select value={orderStatusFilter} onValueChange={setOrderStatusFilter}>
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Order Status" />
+                            <SelectValue placeholder="All Order Statuses" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All Order Status</SelectItem>
-                            {orderStatuses.filter(os => os.isActive).map((os) => (
+                            <SelectItem value="all">All Order Statuses</SelectItem>
+                            {orderStatuses.filter(os => os.isActive !== false).map((os) => (
                               <SelectItem key={os.id} value={os.id.toString()}>
                                 {os.name}
                               </SelectItem>
@@ -741,7 +746,7 @@ export const TeamOrdersPage = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => navigate(`/employee/edit-order/${order.id}`)}
+                                onClick={() => navigate(`/examiner/edit-order/${order.id}`)}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>

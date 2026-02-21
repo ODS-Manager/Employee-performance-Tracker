@@ -5,22 +5,11 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
 import { metricsApi, authApi, organizationsApi } from '../../services/api'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { PasswordResetRequestItem } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { Badge } from '../../components/ui/badge'
-import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from '../../components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -37,23 +26,17 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog'
 import { AdminNav } from '../../components/layout/AdminNav'
-import { ChangePasswordDialog } from '../../components/common/ChangePasswordDialog'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { 
   Users, 
   Target, 
   TrendingUp, 
   Calendar,
-  Settings,
-  LogOut,
-  Activity,
   ClipboardList,
-  Clock,
-  FileText,
   Key,
   Loader2,
   X,
   Check,
-  Lock,
   Filter
 } from 'lucide-react'
 
@@ -113,7 +96,6 @@ export const AdminDashboard = () => {
   const [rejectionReason, setRejectionReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [dialogError, setDialogError] = useState('')
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   const handleApproveRequest = async () => {
     if (!selectedRequest) return
@@ -179,121 +161,10 @@ export const AdminDashboard = () => {
     }
   }, [user, navigate])
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
-  }
-
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-              <p className="text-sm text-slate-600 mt-1">Welcome back, {user?.userName}!</p>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              {/* Filter Controls */}
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-slate-500" />
-                
-                {/* Organization Filter - Only for Superadmin */}
-                {isSuperadmin && orgsData?.items && (
-                  <Select 
-                    value={filterOrgId || 'all'} 
-                    onValueChange={(value) => setFilterOrgId(value === 'all' ? null : value)}
-                  >
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
-                      <SelectValue placeholder="Organization" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Organizations</SelectItem>
-                      {orgsData.items.map((org) => (
-                        <SelectItem key={org.id} value={String(org.id)}>
-                          {org.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                
-                <Select 
-                  value={filterMonth} 
-                  onValueChange={setFilterMonth}
-                >
-                  <SelectTrigger className="w-[110px] h-8 text-xs">
-                    <SelectValue placeholder="Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getMonthOptions(filterYear).map((month) => (
-                      <SelectItem key={month.value} value={month.value}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                <Select 
-                  value={filterYear} 
-                  onValueChange={setFilterYear}
-                >
-                  <SelectTrigger className="w-[85px] h-8 text-xs">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getYearOptions().map((year) => (
-                      <SelectItem key={year.value} value={year.value}>
-                        {year.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Badge variant="outline" className="px-3 py-1">
-                <Activity className="w-3 h-3 mr-1" />
-                {user?.userRole}
-              </Badge>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {getInitials(user?.userName || '')}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user?.userName}</p>
-                      <p className="text-xs text-muted-foreground">@{user?.userName}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
-                    <Lock className="mr-2 h-4 w-4" />
-                    Change Password
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Admin Dashboard" />
 
       {/* Navigation Bar */}
       <AdminNav />
@@ -327,9 +198,9 @@ export const AdminDashboard = () => {
                 <Users className="h-5 w-5 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-slate-900">{stats?.activeEmployees || 0}</div>
+                <div className="text-3xl font-bold text-slate-900">{stats?.activeExaminers || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {stats?.totalEmployees || 0} total
+                  {stats?.totalExaminers || 0} total
                 </p>
               </CardContent>
             </Card>
@@ -385,47 +256,6 @@ export const AdminDashboard = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   All time
                 </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Additional Stats Row */}
-        {!loading && stats && (
-          <div className="grid gap-6 md:grid-cols-3 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">
-                  Orders On Hold
-                </CardTitle>
-                <Clock className="h-5 w-5 text-amber-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-amber-600">{stats.ordersOnHold || 0}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">
-                  BP/RTI Orders
-                </CardTitle>
-                <FileText className="h-5 w-5 text-cyan-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-cyan-600">{stats.ordersBpRti || 0}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">
-                  Pending Billing
-                </CardTitle>
-                <ClipboardList className="h-5 w-5 text-rose-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-rose-600">{stats.ordersPendingBilling || 0}</div>
               </CardContent>
             </Card>
           </div>
@@ -492,7 +322,7 @@ export const AdminDashboard = () => {
                   >
                     <div className="flex items-center gap-4">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback>{getInitials('')}</AvatarFallback>
+                        <AvatarFallback>{getInitials(request.userName || '')}</AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center gap-2">
@@ -671,12 +501,6 @@ export const AdminDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Change Password Dialog */}
-      <ChangePasswordDialog
-        open={changePasswordOpen}
-        onOpenChange={setChangePasswordOpen}
-      />
     </div>
   )
 }

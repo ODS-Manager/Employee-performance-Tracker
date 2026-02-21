@@ -11,6 +11,7 @@ import { ChangePasswordDialog } from '../../components/common/ChangePasswordDial
 import { AlertCircle, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { extractErrorMessage } from '../../utils/errorUtils'
+import odsLogo from '../../assets/ods-logo.png'
 
 export const LoginPage: React.FC = () => {
   const [userName, setUserName] = useState('')
@@ -102,9 +103,11 @@ export const LoginPage: React.FC = () => {
           <Card className="shadow-xl border-slate-200">
             <CardHeader className="space-y-3 pb-6">
               <div className="flex justify-center mb-2">
-                <div className="bg-primary rounded-xl p-3 shadow-lg">
-                  <ShieldCheck className="h-8 w-8 text-primary-foreground" />
-                </div>
+                <img
+                  src={odsLogo}
+                  alt="ODS company logo"
+                  className="h-16 w-auto rounded-2xl"
+                />
               </div>
               <CardTitle className="text-3xl font-bold text-center text-slate-900">
                 Welcome Back

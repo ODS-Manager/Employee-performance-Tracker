@@ -146,7 +146,7 @@ class AuditService:
             Human-readable string identifying the entity
         """
         # Try common name fields
-        for field in ['user_name', 'username', 'name', 'email', 'title', 'org_name', 'team_name', 'employee_name']:
+        for field in ['user_name', 'username', 'name', 'email', 'title', 'org_name', 'team_name', 'examiner_name']:
             if hasattr(entity, field):
                 value = getattr(entity, field, None)
                 if value:

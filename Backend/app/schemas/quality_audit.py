@@ -55,6 +55,7 @@ class QualityAuditCreate(QualityAuditBase):
 class QualityAuditUpdate(BaseModel):
     """Schema for updating a quality audit record"""
     process_type: Optional[str] = None
+    total_files_reviewed: Optional[int] = Field(None, ge=0)
     files_with_error: Optional[int] = Field(None, ge=0)
     total_errors: Optional[int] = Field(None, ge=0)
     files_with_cce_error: Optional[int] = Field(None, ge=0)

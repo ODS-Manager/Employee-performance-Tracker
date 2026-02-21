@@ -9,6 +9,8 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Badge } from '../../components/ui/badge'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
   Dialog,
@@ -161,31 +163,24 @@ export const OrganizationsPage = () => {
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-right" />
       
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Organizations</h1>
-              <p className="text-sm text-slate-600">Manage all organizations in the system</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={fetchOrganizations}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Centers" subtitle="Manage all centers in the system" />
 
       <AdminNav />
 
       <main className="container mx-auto px-4 py-8">
+        {/* Action Buttons */}
+        <div className="flex justify-end mb-6">
+          <Button variant="outline" size="sm" onClick={fetchOrganizations}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Centers</CardTitle>
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -212,11 +207,11 @@ export const OrganizationsPage = () => {
           </Card>
         </div>
 
-        {/* Organizations Table */}
+        {/* Centers Table */}
         <Card>
           <CardHeader>
-            <CardTitle>All Organizations</CardTitle>
-            <CardDescription>View and manage organizations</CardDescription>
+            <CardTitle>All Centers</CardTitle>
+            <CardDescription>View and manage centers</CardDescription>
           </CardHeader>
           <CardContent className="pt-0 pb-4">
             <div className="relative">
@@ -304,11 +299,11 @@ export const OrganizationsPage = () => {
         </Card>
       </main>
 
-      {/* Edit Organization Dialog */}
+      {/* Edit Center Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Organization</DialogTitle>
+            <DialogTitle>Edit Center</DialogTitle>
             <DialogDescription>
               Update organization details
             </DialogDescription>
@@ -323,7 +318,7 @@ export const OrganizationsPage = () => {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Organization Name *</Label>
+              <Label>Center Name *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -377,11 +372,11 @@ export const OrganizationsPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Organization Dialog */}
+      {/* Delete Center Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Organization</DialogTitle>
+            <DialogTitle>Delete Center</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{selectedOrg?.name}"? This action cannot be undone.
             </DialogDescription>

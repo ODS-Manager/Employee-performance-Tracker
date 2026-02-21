@@ -1,6 +1,6 @@
-# Google Cloud Setup Guide for Employee Performance Tracker
+# Google Cloud Setup Guide for Examiner Performance Tracker
 
-This guide will help you set up Google Cloud services for deploying the Employee Performance Tracker application.
+This guide will help you set up Google Cloud services for deploying the Examiner Performance Tracker application.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ gcloud services enable redis.googleapis.com
 
 ```bash
 # Create Cloud SQL instance
-gcloud sql instances create employee-performance-db \
+gcloud sql instances create examiner-performance-db \
     --database-version=POSTGRES_14 \
     --tier=db-f1-micro \
     --region=$GCP_REGION \
@@ -46,13 +46,13 @@ gcloud sql instances create employee-performance-db \
     --backup-start-time=02:00
 
 # Create database
-gcloud sql databases create ods_db --instance=employee-performance-db
+gcloud sql databases create ods_db --instance=examiner-performance-db
 
 # Create database user
-gcloud sql users create ods_user --instance=employee-performance-db --password=your-secure-password
+gcloud sql users create ods_user --instance=examiner-performance-db --password=your-secure-password
 
 # Get database connection string
-DB_CONNECTION_NAME=$(gcloud sql instances describe employee-performance-db --format='value(connectionName)')
+DB_CONNECTION_NAME=$(gcloud sql instances describe examiner-performance-db --format='value(connectionName)')
 
 # Set the DATABASE_URL format
 # postgresql://ods_user:your-secure-password@/ods_db?cloudSqlInstance=$DB_CONNECTION_NAME
@@ -62,14 +62,14 @@ DB_CONNECTION_NAME=$(gcloud sql instances describe employee-performance-db --for
 
 ```bash
 # Create Redis instance
-gcloud redis instances create employee-performance-redis \
+gcloud redis instances create examiner-performance-redis \
     --region=$GCP_REGION \
     --zone=$GCP_REGION-a \
     --size=1 \
     --tier=standard
 
 # Get Redis host
-REDIS_HOST=$(gcloud redis instances describe employee-performance-redis --region=$GCP_REGION --format='value(host)')
+REDIS_HOST=$(gcloud redis instances describe examiner-performance-redis --region=$GCP_REGION --format='value(host)')
 REDIS_PORT=6379
 
 # Set the REDIS_URL format
@@ -80,10 +80,10 @@ REDIS_PORT=6379
 
 ```bash
 # Create Docker repository
-gcloud artifacts repositories create employee-performance-tracker \
+gcloud artifacts repositories create examiner-performance-tracker \
     --repository-format=docker \
     --location=$GCP_REGION \
-    --description="Docker repository for Employee Performance Tracker"
+    --description="Docker repository for Examiner Performance Tracker"
 ```
 
 ## 6. Set up Service Account for GitHub Actions
@@ -92,7 +92,7 @@ gcloud artifacts repositories create employee-performance-tracker \
 # Create service account
 gcloud iam service-accounts create github-actions-deploy \
     --display-name="GitHub Actions Deploy" \
-    --description="Service account for deploying Employee Performance Tracker"
+    --description="Service account for deploying Examiner Performance Tracker"
 
 # Grant necessary permissions
 gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \

@@ -33,7 +33,7 @@ class AttendanceBulkCreate(BaseModel):
     team_id: int = Field(alias="teamId")
     date: date
     status: AttendanceStatus
-    employee_ids: List[int] = Field(alias="employeeIds")
+    examiner_ids: List[int] = Field(alias="examinerIds")
     notes: Optional[str] = None
     
     class Config:
@@ -55,7 +55,7 @@ class AttendanceRecordResponse(BaseModel):
     id: int
     user_id: int = Field(alias="userId")
     user_name: str = Field(alias="userName")
-    employee_id: str = Field(alias="employeeId")
+    examiner_id: str = Field(alias="examinerId")
     team_id: int = Field(alias="teamId")
     date: date
     status: str
@@ -72,11 +72,11 @@ class AttendanceRecordResponse(BaseModel):
         from_attributes = True
 
 
-class DailyRosterEmployee(BaseModel):
-    """Employee info for daily roster"""
+class DailyRosterExaminer(BaseModel):
+    """Examiner info for daily roster"""
     user_id: int = Field(alias="userId")
     user_name: str = Field(alias="userName")
-    employee_id: str = Field(alias="employeeId")
+    examiner_id: str = Field(alias="examinerId")
     status: Optional[str] = None  # None means not marked (default absent)
     attendance_id: Optional[int] = Field(alias="attendanceId", default=None)
     notes: Optional[str] = None
@@ -92,7 +92,7 @@ class DailyRosterResponse(BaseModel):
     team_id: int = Field(alias="teamId")
     team_name: str = Field(alias="teamName")
     date: date
-    employees: List[DailyRosterEmployee]
+    examiners: List[DailyRosterExaminer]
     summary: Dict[str, int]  # {"present": X, "absent": Y, "leave": Z, "not_marked": W}
     
     class Config:
@@ -100,10 +100,10 @@ class DailyRosterResponse(BaseModel):
 
 
 class AttendanceSummary(BaseModel):
-    """Attendance summary for an employee or team"""
+    """Attendance summary for an examiner or team"""
     user_id: Optional[int] = Field(alias="userId", default=None)
     user_name: Optional[str] = Field(alias="userName", default=None)
-    employee_id: Optional[str] = Field(alias="employeeId", default=None)
+    examiner_id: Optional[str] = Field(alias="examinerId", default=None)
     start_date: date = Field(alias="startDate")
     end_date: date = Field(alias="endDate")
     working_days: int = Field(alias="workingDays")
@@ -116,11 +116,11 @@ class AttendanceSummary(BaseModel):
         populate_by_name = True
 
 
-class EmployeeAttendanceDetail(BaseModel):
-    """Detailed attendance for single employee"""
+class ExaminerAttendanceDetail(BaseModel):
+    """Detailed attendance for single examiner"""
     user_id: int = Field(alias="userId")
     user_name: str = Field(alias="userName")
-    employee_id: str = Field(alias="employeeId")
+    examiner_id: str = Field(alias="examinerId")
     summary: AttendanceSummary
     daily_records: List[AttendanceRecordResponse] = Field(alias="dailyRecords")
     
@@ -135,7 +135,7 @@ class TeamAttendanceReport(BaseModel):
     start_date: date = Field(alias="startDate")
     end_date: date = Field(alias="endDate")
     working_days: int = Field(alias="workingDays")
-    employees: List[AttendanceSummary]
+    examiners: List[AttendanceSummary]
     team_summary: Dict[str, int] = Field(alias="teamSummary")  # Aggregate counts
     
     class Config:

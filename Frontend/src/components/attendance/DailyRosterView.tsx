@@ -6,7 +6,7 @@ import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
 import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as CalendarIcon, CheckCircle2, XCircle, Clock, Coffee } from 'lucide-react'
 import { attendanceApi } from '../../services/api'
-import { AttendanceStatus, DailyRosterEmployee, DailyRosterResponse } from '../../types'
+import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
 import { format, startOfMonth, endOfMonth, addDays, subDays, isSameMonth } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -48,11 +48,12 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd')
       const data = await attendanceApi.getDailyRoster(teamId, dateStr)
-      setRoster(data)
+      const examiners = data.examiners || []
+      setRoster({ ...data, examiners })
 
       // Initialize attendance states from roster
       const states: Record<number, EmployeeAttendanceState> = {}
-      data.employees.forEach((emp) => {
+      examiners.forEach((emp) => {
         states[emp.userId] = {
           userId: emp.userId,
           status: emp.status || 'not_marked',
@@ -326,7 +327,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {roster.employees.map((employee, index) => (
+                  {roster.examiners.map((employee, index) => (
                     <tr
                       key={employee.userId}
                       className={`border-b last:border-b-0 hover:bg-slate-50 transition-colors ${
@@ -342,7 +343,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                           <div>
                             <div className="font-medium text-sm text-slate-900">{employee.userName}</div>
                             <div className="text-xs text-slate-500">
-                              ID: {employee.employeeId}
+                              ID: {employee.examinerId}
                             </div>
                             {employee.markedByName && (
                               <div className="text-xs text-slate-500 mt-1">
@@ -440,7 +441,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
             {/* Save Button Footer */}
             <div className="border-t bg-slate-50 p-4 flex justify-between items-center">
               <p className="text-sm text-slate-600">
-                {roster.employees.length} employee{roster.employees.length !== 1 ? 's' : ''} in roster
+                {roster.examiners.length} employee{roster.examiners.length !== 1 ? 's' : ''} in roster
               </p>
               <Button
                 onClick={handleSave}

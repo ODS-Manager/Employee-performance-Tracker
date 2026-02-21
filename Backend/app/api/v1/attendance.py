@@ -23,7 +23,7 @@ from app.core.dependencies import (
     get_current_active_user,
     require_team_lead_or_admin,
     require_admin,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -36,7 +36,7 @@ def mark_attendance(
     current_user: User = Depends(require_team_lead_or_admin)
 ):
     """
-    Mark attendance for single employee
+    Mark attendance for single examiner
     Team leads can only mark for their team, admins for any team
     """
     service = AttendanceService(db)
@@ -69,7 +69,7 @@ def mark_attendance_bulk(
     current_user: User = Depends(require_team_lead_or_admin)
 ):
     """
-    Bulk mark attendance for multiple employees
+    Bulk mark attendance for multiple examiners
     Useful for "Mark All as Present" functionality
     """
     service = AttendanceService(db)
@@ -88,7 +88,7 @@ def mark_attendance_bulk(
         team_id=data.team_id,
         check_date=data.date,
         status=data.status,
-        employee_ids=data.employee_ids,
+        examiner_ids=data.examiner_ids,
         marked_by=current_user.id
     )
 
@@ -118,8 +118,8 @@ def get_daily_roster(
     return service.get_daily_roster(team_id=team_id, check_date=date)
 
 
-@router.get("/employee/{user_id}", response_model=AttendanceSummary)
-def get_employee_attendance(
+@router.get("/examiner/{user_id}", response_model=AttendanceSummary)
+def get_examiner_attendance(
     user_id: int,
     start_date: date,
     end_date: date,
@@ -127,13 +127,13 @@ def get_employee_attendance(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get attendance summary for an employee
-    Employees can view their own, team leads can view their team, admins can view all
+    Get attendance summary for an examiner
+    Examiners can view their own, team leads can view their team, admins can view all
     """
     service = AttendanceService(db)
     
     # Authorization check
-    if current_user.user_role == "employee" and current_user.id != user_id:
+    if current_user.user_role == "examiner" and current_user.id != user_id:
         raise HTTPException(
             status_code=403,
             detail="You can only view your own attendance"
@@ -160,7 +160,7 @@ def get_employee_attendance(
                 detail="You can only view attendance for your team members"
             )
     
-    return service.get_employee_attendance_summary(user_id, start_date, end_date)
+    return service.get_examiner_attendance_summary(user_id, start_date, end_date)
 
 
 @router.get("/reports/team/{team_id}", response_model=TeamAttendanceReport)

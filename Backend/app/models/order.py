@@ -20,7 +20,7 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    file_number = Column(String(100), nullable=False)  # Unique with product_type
+    file_number = Column(String(100), nullable=False)  # Used with product_type + team for matching rules
     entry_date = Column(Date, nullable=False)  # Order entry date
     
     # Reference table foreign keys
@@ -41,14 +41,10 @@ class Order(Base):
     # Step 1 User (First Half)
     step1_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     step1_fa_name_id = Column(Integer, ForeignKey("fa_names.id", ondelete="SET NULL"), nullable=True)
-    step1_start_time = Column(DateTime, nullable=True)
-    step1_end_time = Column(DateTime, nullable=True)
     
     # Step 2 User (Second Half) - For Single Seat: same as step1_user_id
     step2_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     step2_fa_name_id = Column(Integer, ForeignKey("fa_names.id", ondelete="SET NULL"), nullable=True)
-    step2_start_time = Column(DateTime, nullable=True)
-    step2_end_time = Column(DateTime, nullable=True)
     
     # Billing
     billing_status = Column(String(20), default='pending')  # pending or done
@@ -87,7 +83,7 @@ class Order(Base):
     
     # Indexes
     __table_args__ = (
-        Index('idx_orders_file_product_team', 'file_number', 'product_type', 'team_id', unique=True),
+        Index('idx_orders_file_product_team', 'file_number', 'product_type', 'team_id'),
         Index('idx_orders_file_number', 'file_number'),  # Non-unique index for file_number lookups
         Index('idx_orders_org_team', 'org_id', 'team_id'),
         Index('idx_orders_status', 'order_status_id'),
@@ -102,7 +98,5 @@ class Order(Base):
         Index('idx_orders_team_status_date', 'team_id', 'order_status_id', 'entry_date'),
         Index('idx_orders_deleted', 'deleted_at'),
         # Constraints
-        CheckConstraint('step1_end_time IS NULL OR step1_end_time >= step1_start_time', name='chk_step1_end_after_start'),
-        CheckConstraint('step2_end_time IS NULL OR step2_end_time >= step2_start_time', name='chk_step2_end_after_start'),
         CheckConstraint("billing_status IN ('pending', 'done')", name='chk_billing_status_values'),
     )

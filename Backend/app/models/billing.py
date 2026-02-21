@@ -21,9 +21,9 @@ class BillingReport(Base):
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
     
-    # Billing period
-    billing_month = Column(Integer, nullable=False)  # 1-12
-    billing_year = Column(Integer, nullable=False)  # e.g., 2024
+    # Billing period - date range
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
     
     # Status
     status = Column(String(20), default='draft')  # draft, finalized
@@ -44,9 +44,9 @@ class BillingReport(Base):
     
     # Indexes
     __table_args__ = (
-        Index('idx_billing_org_team_period', 'org_id', 'team_id', 'billing_year', 'billing_month', unique=True),
+        Index('idx_billing_org_team_period', 'org_id', 'team_id', 'start_date', 'end_date', unique=True),
         Index('idx_billing_status', 'status'),
-        Index('idx_billing_period', 'billing_year', 'billing_month'),
+        Index('idx_billing_period', 'start_date', 'end_date'),
     )
 
 

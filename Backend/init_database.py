@@ -72,13 +72,13 @@ try:
         ("admin", "admin123", "ADMIN", org_ods_ind.id, "EMP001"),
         ("superadmin", "superadmin123", "SUPERADMIN", org_ods_ind.id, "EMP000"),
         ("teamlead", "admin123", "TEAM_LEAD", org_ods_ind.id, "EMP002"),
-        ("employee", "admin123", "EMPLOYEE", org_ods_ind.id, "EMP003"),
+        ("examiner", "admin123", "EMPLOYEE", org_ods_ind.id, "EMP003"),
     ]
     
     for username, password, role, org_id, emp_id in users_data:
         user = User(
             user_name=username,
-            employee_id=emp_id,
+            examiner_id=emp_id,
             password_hash=get_password_hash(password),
             user_role=role,
             org_id=org_id,

@@ -5,7 +5,7 @@ export type { UserRole } from '../types'
 
 // Permission definitions
 export const Permissions = {
-  // Organization management
+  // Center management
   CREATE_ORG: 'create:org',
   UPDATE_ORG: 'update:org',
   DELETE_ORG: 'delete:org',
@@ -101,8 +101,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     Permissions.VIEW_TEAM_REPORTS,
     Permissions.VIEW_TEAM_BILLING,
   ],
-  employee: [
-    // Employees can only manage their own work
+  examiner: [
+    // Examiners can only manage their own work
     Permissions.CREATE_ORDER,
     Permissions.UPDATE_OWN_ORDER,
     Permissions.VIEW_OWN_ORDERS,
@@ -173,10 +173,10 @@ export const isTeamLead = (user: User | null): boolean => {
 }
 
 /**
- * Check if user is an employee
+ * Check if user is an examiner
  */
-export const isEmployee = (user: User | null): boolean => {
-  return user?.userRole?.toLowerCase() === 'employee'
+export const isExaminer = (user: User | null): boolean => {
+  return user?.userRole?.toLowerCase() === 'examiner'
 }
 
 /**
@@ -211,7 +211,7 @@ export const getRoleDisplayName = (role: UserRole): string => {
     superadmin: 'Super Administrator',
     admin: 'Administrator',
     team_lead: 'Team Lead',
-    employee: 'Employee',
+    examiner: 'Examiner',
   }
   return roleNames[role]
 }
@@ -221,9 +221,9 @@ export const getRoleDisplayName = (role: UserRole): string => {
  */
 export const getAssignableRoles = (user: User | null): UserRole[] => {
   if (!user) return []
-  if (isSuperAdmin(user)) return ['superadmin', 'admin', 'team_lead', 'employee']
-  if (isAdmin(user)) return ['admin', 'team_lead', 'employee']
-  if (isTeamLead(user)) return ['employee']
+  if (isSuperAdmin(user)) return ['superadmin', 'admin', 'team_lead', 'examiner']
+  if (isAdmin(user)) return ['admin', 'team_lead', 'examiner']
+  if (isTeamLead(user)) return ['examiner']
   return []
 }
 
@@ -231,5 +231,5 @@ export const getAssignableRoles = (user: User | null): UserRole[] => {
  * Get all available roles
  */
 export const getAllRoles = (): UserRole[] => {
-  return ['superadmin', 'admin', 'team_lead', 'employee']
+  return ['superadmin', 'admin', 'team_lead', 'examiner']
 }

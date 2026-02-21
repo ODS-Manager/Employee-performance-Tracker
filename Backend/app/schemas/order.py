@@ -26,14 +26,10 @@ class OrderCreate(OrderBase):
     # Step 1 (optional on create)
     step1_user_id: Optional[int] = Field(None, alias="step1UserId")
     step1_fa_name_id: Optional[int] = Field(None, alias="step1FaNameId")
-    step1_start_time: Optional[datetime] = Field(None, alias="step1StartTime")
-    step1_end_time: Optional[datetime] = Field(None, alias="step1EndTime")
     
     # Step 2 (optional on create)
     step2_user_id: Optional[int] = Field(None, alias="step2UserId")
     step2_fa_name_id: Optional[int] = Field(None, alias="step2FaNameId")
-    step2_start_time: Optional[datetime] = Field(None, alias="step2StartTime")
-    step2_end_time: Optional[datetime] = Field(None, alias="step2EndTime")
 
 
 class OrderUpdate(BaseModel):
@@ -50,31 +46,12 @@ class OrderUpdate(BaseModel):
     # Step 1 updates
     step1_user_id: Optional[int] = Field(None, alias="step1UserId")
     step1_fa_name_id: Optional[int] = Field(None, alias="step1FaNameId")
-    step1_start_time: Optional[datetime] = Field(None, alias="step1StartTime")
-    step1_end_time: Optional[datetime] = Field(None, alias="step1EndTime")
     
     # Step 2 updates
     step2_user_id: Optional[int] = Field(None, alias="step2UserId")
     step2_fa_name_id: Optional[int] = Field(None, alias="step2FaNameId")
-    step2_start_time: Optional[datetime] = Field(None, alias="step2StartTime")
-    step2_end_time: Optional[datetime] = Field(None, alias="step2EndTime")
     
     billing_status: Optional[str] = Field(None, alias="billingStatus")
-
-    @model_validator(mode='after')
-    def validate_step_times(self):
-        """Validate that end times are after start times for both steps"""
-        # Validate Step 1 times
-        if self.step1_start_time and self.step1_end_time:
-            if self.step1_end_time <= self.step1_start_time:
-                raise ValueError("Step 1 end time must be after start time")
-        
-        # Validate Step 2 times
-        if self.step2_start_time and self.step2_end_time:
-            if self.step2_end_time <= self.step2_start_time:
-                raise ValueError("Step 2 end time must be after start time")
-        
-        return self
 
     class Config:
         populate_by_name = True
@@ -85,8 +62,6 @@ class StepInfo(BaseModel):
     user_id: Optional[int] = Field(None, alias="userId")
     user_name: Optional[str] = Field(None, alias="userName")
     fa_name: Optional[str] = Field(None, alias="faName")
-    start_time: Optional[datetime] = Field(None, alias="startTime")
-    end_time: Optional[datetime] = Field(None, alias="endTime")
 
     class Config:
         populate_by_name = True

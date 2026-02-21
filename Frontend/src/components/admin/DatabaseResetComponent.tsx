@@ -35,7 +35,7 @@ export const DatabaseResetComponent: React.FC = () => {
       const response = await resetDatabase()
       setMessage({ 
         type: 'success', 
-        text: `Database reset successfully! ${response.details.organizations} organizations, ${response.details.admin_users} admin users, and ${response.details.teams} teams created.` 
+        text: `Database reset successfully! ${response.details.organizations} centers, ${response.details.admin_users} admin users, and ${response.details.teams} teams created.` 
       })
       
       // Clear local storage and redirect to login after successful reset
@@ -83,7 +83,7 @@ export const DatabaseResetComponent: React.FC = () => {
               <li>All performance metrics</li>
               <li>All audit trails</li>
             </ul>
-            The database will be recreated with initial organizations and admin users.
+            The database will be recreated with initial centers and admin users.
           </AlertDescription>
         </Alert>
 

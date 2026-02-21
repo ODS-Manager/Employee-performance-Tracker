@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { billingApi, organizationsApi } from '../../services/api'
 import type { BillingReport, BillingPreviewResponse, Organization } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
+import { Input } from '../../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import {
   FileText,
   Plus,
@@ -27,6 +31,7 @@ import toast from 'react-hot-toast'
 
 export const BillingPage = () => {
   const { user } = useAuthStore()
+  const { filterOrgId, setFilterOrgId } = useDashboardFilterStore()
   const navigate = useNavigate()
 
   const [reports, setReports] = useState<BillingReport[]>([])
@@ -35,38 +40,31 @@ export const BillingPage = () => {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [preview, setPreview] = useState<BillingPreviewResponse | null>(null)
-  const [selectedReport, setSelectedReport] = useState<BillingReport | null>(null)
+  const [showFinalizeDialog, setShowFinalizeDialog] = useState(false)
+  const [reportToFinalize, setReportToFinalize] = useState<BillingReport | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<BillingReport | null>(null)
 
-  // Organizations state (for superadmin)
+  // Centers state (for superadmin)
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [selectedOrgId, setSelectedOrgId] = useState<number | undefined>(undefined)
+  
+  // Use global filter for organization
+  const selectedOrgId = user?.userRole === 'superadmin' 
+    ? (filterOrgId ? parseInt(filterOrgId) : undefined)
+    : undefined
 
-  // Filter state
-  const [filterMonth, setFilterMonth] = useState<number | null>(null)
-  const [filterYear, setFilterYear] = useState<number | null>(null)
+  // Local filters for the reports list view - now using dates
+  const [listFilterStartDate, setListFilterStartDate] = useState<string>('')
+  const [listFilterEndDate, setListFilterEndDate] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
 
-  // Form state
-  const [formMonth, setFormMonth] = useState<number>(new Date().getMonth() + 1)
-  const [formYear, setFormYear] = useState<number>(new Date().getFullYear())
-
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' },
-  ]
-
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  // Form state for creating new billing reports - now using dates
+  const [formStartDate, setFormStartDate] = useState<string>(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  )
+  const [formEndDate, setFormEndDate] = useState<string>(
+    new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+  )
 
   useEffect(() => {
     if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
@@ -80,7 +78,7 @@ export const BillingPage = () => {
     if (user) {
       fetchReports()
     }
-  }, [filterMonth, filterYear, filterStatus])
+  }, [listFilterStartDate, listFilterEndDate, filterStatus, selectedOrgId])
 
   const fetchInitialData = async () => {
     try {
@@ -89,10 +87,7 @@ export const BillingPage = () => {
       if (user?.userRole === 'superadmin') {
         const orgsRes = await organizationsApi.list({ isActive: true })
         setOrganizations(orgsRes.items || [])
-        // Set first org as default
-        if (orgsRes.items && orgsRes.items.length > 0) {
-          setSelectedOrgId(orgsRes.items[0].id)
-        }
+        // Note: We no longer set a default org - it's controlled by global filter
       }
       const reportsRes = await billingApi.list()
       setReports(reportsRes.items || [])
@@ -107,8 +102,8 @@ export const BillingPage = () => {
   const fetchReports = async () => {
     try {
       const params: any = {}
-      if (filterMonth) params.billingMonth = filterMonth
-      if (filterYear) params.billingYear = filterYear
+      if (listFilterStartDate) params.startDate = listFilterStartDate
+      if (listFilterEndDate) params.endDate = listFilterEndDate
       if (filterStatus) params.status = filterStatus
 
       const response = await billingApi.list(params)
@@ -119,22 +114,27 @@ export const BillingPage = () => {
   }
 
   const handlePreview = async () => {
-    if (!formMonth || !formYear) {
-      toast.error('Please select month and year')
+    if (!formStartDate || !formEndDate) {
+      toast.error('Please select start and end dates')
+      return
+    }
+
+    if (new Date(formStartDate) > new Date(formEndDate)) {
+      toast.error('Start date must be before end date')
       return
     }
 
     // Check if superadmin and no org selected
     if (user?.userRole === 'superadmin' && !selectedOrgId) {
-      toast.error('Please select an organization')
+      toast.error('Please select a center')
       return
     }
 
     try {
       setProcessing(true)
       const previewData = await billingApi.preview({
-        billingMonth: formMonth,
-        billingYear: formYear,
+        startDate: formStartDate,
+        endDate: formEndDate,
         orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
       })
 
@@ -154,22 +154,27 @@ export const BillingPage = () => {
   }
 
   const handleCreate = async () => {
-    if (!formMonth || !formYear) {
-      toast.error('Please select month and year')
+    if (!formStartDate || !formEndDate) {
+      toast.error('Please select start and end dates')
+      return
+    }
+
+    if (new Date(formStartDate) > new Date(formEndDate)) {
+      toast.error('Start date must be before end date')
       return
     }
 
     // Check if superadmin and no org selected
     if (user?.userRole === 'superadmin' && !selectedOrgId) {
-      toast.error('Please select an organization')
+      toast.error('Please select a center')
       return
     }
 
     try {
       setProcessing(true)
       await billingApi.create({
-        billingMonth: formMonth,
-        billingYear: formYear,
+        startDate: formStartDate,
+        endDate: formEndDate,
         orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
       })
 
@@ -187,19 +192,20 @@ export const BillingPage = () => {
     }
   }
 
-  const handleFinalize = async (report: BillingReport) => {
-    if (
-      !confirm(
-        `Are you sure you want to finalize billing for ${months[report.billingMonth - 1].label} ${report.billingYear}?\n\nThis will mark all ${report.totalFiles} orders as "done" and cannot be undone.`
-      )
-    ) {
-      return
-    }
+  const handleFinalize = (report: BillingReport) => {
+    setReportToFinalize(report)
+    setShowFinalizeDialog(true)
+  }
+
+  const confirmFinalize = async () => {
+    if (!reportToFinalize) return
 
     try {
       setProcessing(true)
-      await billingApi.finalize(report.id)
+      await billingApi.finalize(reportToFinalize.id)
       toast.success('Billing report finalized successfully')
+      setShowFinalizeDialog(false)
+      setReportToFinalize(null)
       fetchReports()
     } catch (error: any) {
       console.error('Failed to finalize billing report:', error)
@@ -209,19 +215,23 @@ export const BillingPage = () => {
     }
   }
 
-  const handleDelete = async (report: BillingReport) => {
+  const handleDelete = (report: BillingReport) => {
     if (report.status === 'finalized') {
       toast.error('Cannot delete finalized billing reports')
       return
     }
+    setReportToDelete(report)
+    setShowDeleteDialog(true)
+  }
 
-    if (!confirm('Are you sure you want to delete this billing report?')) {
-      return
-    }
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
 
     try {
-      await billingApi.delete(report.id)
+      await billingApi.delete(reportToDelete.id)
       toast.success('Billing report deleted successfully')
+      setShowDeleteDialog(false)
+      setReportToDelete(null)
       fetchReports()
     } catch (error: any) {
       console.error('Failed to delete billing report:', error)
@@ -230,7 +240,7 @@ export const BillingPage = () => {
   }
 
   const handleViewDetails = (report: BillingReport) => {
-    setSelectedReport(report)
+    navigate(`/admin/billing/${report.id}`)
   }
 
   const handleExportExcel = async (report: BillingReport) => {
@@ -245,8 +255,8 @@ export const BillingPage = () => {
   }
 
   const resetForm = () => {
-    setFormMonth(new Date().getMonth() + 1)
-    setFormYear(new Date().getFullYear())
+    setFormStartDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
+    setFormEndDate(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0])
   }
 
   const getStatusBadge = (status: string) => {
@@ -268,61 +278,57 @@ export const BillingPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Billing Reports</h1>
-              <p className="text-sm text-slate-600">Organization-wide monthly billing grouped by product types</p>
-            </div>
-            <Button
-              onClick={() => {
-                resetForm()
-                setShowCreateForm(!showCreateForm)
-                setShowPreview(false)
-                setSelectedReport(null)
-              }}
-            >
-              {showCreateForm ? (
-                <>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancel
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Billing Report
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </header>
-
+      <AdminHeader 
+        title="Billing Reports" 
+        subtitle="Center-wide monthly billing grouped by product types" 
+      />
       <AdminNav />
 
       <main className="container mx-auto px-4 py-8">
+        {/* Page Actions */}
+        <div className="flex items-center justify-end mb-6">
+          <Button
+            onClick={() => {
+              resetForm()
+              setShowCreateForm(!showCreateForm)
+              setShowPreview(false)
+            }}
+          >
+            {showCreateForm ? (
+              <>
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                New Billing Report
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Create Form */}
         {showCreateForm && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>New Billing Report</CardTitle>
               <CardDescription>
-                Select billing period to generate organization-wide report
+                Select billing period to generate center-wide report
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Organization selector for superadmin */}
+                {/* Center selector for superadmin */}
                 {user?.userRole === 'superadmin' && (
                   <div className="space-y-2">
                     <Label>Organization *</Label>
                     <Select
                       value={selectedOrgId?.toString() || ''}
-                      onValueChange={(value) => setSelectedOrgId(parseInt(value))}
+                      onValueChange={(value) => setFilterOrgId(value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select organization" />
+                        <SelectValue placeholder="Select center" />
                       </SelectTrigger>
                       <SelectContent>
                         {organizations.map((org) => (
@@ -337,41 +343,21 @@ export const BillingPage = () => {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Month *</Label>
-                    <Select
-                      value={formMonth.toString()}
-                      onValueChange={(value) => setFormMonth(parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {months.map((month) => (
-                          <SelectItem key={month.value} value={month.value.toString()}>
-                            {month.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Start Date *</Label>
+                    <Input
+                      type="date"
+                      value={formStartDate}
+                      onChange={(e) => setFormStartDate(e.target.value)}
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Year *</Label>
-                    <Select
-                      value={formYear.toString()}
-                      onValueChange={(value) => setFormYear(parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>End Date *</Label>
+                    <Input
+                      type="date"
+                      value={formEndDate}
+                      onChange={(e) => setFormEndDate(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -408,52 +394,154 @@ export const BillingPage = () => {
                 </div>
 
                 {/* Preview Table */}
-                {showPreview && preview && (
-                  <div className="mt-6">
-                    <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
-                      <h3 className="font-semibold text-blue-900 mb-2">Preview Summary</h3>
-                      <div className="grid md:grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-blue-700">Period:</span>{' '}
-                          <span className="font-medium">
-                            {months[preview.billingMonth - 1].label} {preview.billingYear}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-blue-700">Total Files:</span>{' '}
-                          <span className="font-medium">{preview.totalFiles}</span>
-                        </div>
-                        <div>
-                          <span className="text-blue-700">Teams:</span>{' '}
-                          <span className="font-medium">{preview.teamsCount}</span>
+                {showPreview && preview && (() => {
+                  // Group preview details by team
+                  const teamNameMap: Record<string, string> = {
+                    'FL': 'Florida',
+                    'CA': 'California',
+                    'GI': 'GI Clearing',
+                    'WA': 'Washington',
+                    'MI': 'Michigan',
+                    'CO': 'Colorado',
+                    'UT': 'Utah',
+                    'OR': 'Oregon',
+                    'RS': 'Regional Streamline',
+                    'NS': 'National Streamline',
+                    'FIF': 'FIF',
+                    'SC': 'SCB & PD',
+                    'SCB': 'SCB & PD',
+                    'AZ': 'Arizona',
+                    'TX': 'Texas',
+                    'PE': 'Pennsylvania',
+                    'PA': 'Pennsylvania',
+                    'OH': 'Ohio',
+                    'GU': 'Guam',
+                    'GA': 'Georgia',
+                    'VN': 'Vietnam Team'
+                  }
+
+                  const teamOrder = [
+                    'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan',
+                    'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline',
+                    'FIF', 'SCB & PD', 'Arizona', 'Texas', 'Pennsylvania', 'Ohio', 'Guam',
+                    'Georgia', 'Vietnam Team'
+                  ]
+
+                  const teamData: Record<string, Array<{ product: string; count: number }>> = {}
+                  
+                  // Define team-to-product mapping based on your requirements
+                  const teamProductMapping: Record<string, string[]> = {
+                    'Florida': ['Full Search', 'Update', 'Date Down', 'Amend Title', 'Screening', 'M&B'],
+                    'California': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'GI Clearing': ['GI Clearing'],
+                    'Washington': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Michigan': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Colorado': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Utah': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Oregon': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Regional Streamline': ['RS Clear', 'RS Review', 'RS Search', 'RS No C2G'],
+                    'National Streamline': ['NS Clear', 'NS Review', 'NS Search', 'NS No C2G'],
+                    'FIF': ['FAST', 'Traditional'],
+                    'SCB & PD': ['Schedule B', 'Product Delivery'],
+                    'Arizona': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Texas': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+                    'Pennsylvania': ['Search and Exam', 'Vendor Search'],
+                    'Ohio': ['Full Search', 'Vendor Exam', 'Screening', 'Update']
+                  }
+
+                  preview.details.forEach((detail) => {
+                    // Try to extract team code from product type
+                    const parts = detail.productType.split(' ')
+                    if (parts.length >= 1) {
+                      const teamCode = parts[0]
+                      const productRemainder = detail.productType.substring(teamCode.length + 1).trim()
+                      const teamName = teamNameMap[teamCode] || teamCode
+
+                      // Only add if this product type belongs to this team
+                      if (teamProductMapping[teamName]) {
+                        // Check if the product matches any of the expected products for this team
+                        const matchesTeam = teamProductMapping[teamName].some(expectedProduct => 
+                          productRemainder.includes(expectedProduct) || 
+                          detail.productType.includes(expectedProduct)
+                        )
+                        
+                        if (matchesTeam) {
+                          if (!teamData[teamName]) {
+                            teamData[teamName] = []
+                          }
+                          teamData[teamName].push({
+                            product: productRemainder,
+                            count: detail.totalCount
+                          })
+                        }
+                      }
+                    }
+                  })
+
+                  const sortedTeams = Object.keys(teamData).sort((a, b) => {
+                    const aIdx = teamOrder.indexOf(a)
+                    const bIdx = teamOrder.indexOf(b)
+                    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
+                  })
+
+                  sortedTeams.forEach(team => {
+                    teamData[team].sort((a, b) => a.product.localeCompare(b.product))
+                  })
+
+                  return (
+                    <div className="mt-6">
+                      <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+                        <h3 className="font-semibold text-blue-900 mb-2">Preview Summary</h3>
+                         <div className="grid md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-blue-700">Period:</span>{' '}
+                            <span className="font-medium">
+                              {new Date(preview.startDate).toLocaleDateString()} - {new Date(preview.endDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-blue-700">Total Files:</span>{' '}
+                            <span className="font-medium">{preview.totalFiles}</span>
+                          </div>
+                          <div>
+                            <span className="text-blue-700">Teams:</span>{' '}
+                            <span className="font-medium">{preview.teamsCount}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product Type</TableHead>
-                          <TableHead className="text-center">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {preview.details.map((detail, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">{detail.productType}</TableCell>
-                            <TableCell className="text-center font-semibold">
-                              {detail.totalCount}
-                            </TableCell>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Team Name</TableHead>
+                            <TableHead>Product Type</TableHead>
+                            <TableHead className="text-center">Total</TableHead>
                           </TableRow>
-                        ))}
-                        <TableRow className="bg-slate-50 font-semibold">
-                          <TableCell>GRAND TOTAL</TableCell>
-                          <TableCell className="text-center">{preview.totalFiles}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {sortedTeams.map((teamName) => (
+                            teamData[teamName].map((product, idx) => (
+                              <TableRow key={`${teamName}-${product.product}`}>
+                                <TableCell className={idx === 0 ? 'font-medium' : ''}>
+                                  {idx === 0 ? teamName : ''}
+                                </TableCell>
+                                <TableCell>{product.product}</TableCell>
+                                <TableCell className="text-center font-semibold">
+                                  {product.count}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ))}
+                          <TableRow className="bg-slate-50 font-semibold">
+                            <TableCell>GRAND TOTAL</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-center">{preview.totalFiles}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -465,39 +553,25 @@ export const BillingPage = () => {
             <div className="flex items-center gap-4 flex-wrap">
               <Label className="whitespace-nowrap">Filter by:</Label>
 
-              <Select
-                value={filterMonth?.toString() || 'all'}
-                onValueChange={(value) => setFilterMonth(value === 'all' ? null : parseInt(value))}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="All Months" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Months</SelectItem>
-                  {months.map((month) => (
-                    <SelectItem key={month.value} value={month.value.toString()}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={listFilterStartDate}
+                  onChange={(e) => setListFilterStartDate(e.target.value)}
+                  placeholder="Start Date"
+                  className="w-40"
+                />
+              </div>
 
-              <Select
-                value={filterYear?.toString() || 'all'}
-                onValueChange={(value) => setFilterYear(value === 'all' ? null : parseInt(value))}
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="All Years" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={listFilterEndDate}
+                  onChange={(e) => setListFilterEndDate(e.target.value)}
+                  placeholder="End Date"
+                  className="w-40"
+                />
+              </div>
 
               <Select
                 value={filterStatus || 'all'}
@@ -554,7 +628,7 @@ export const BillingPage = () => {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-slate-500" />
-                            {months[report.billingMonth - 1].label} {report.billingYear}
+                            {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
                           </div>
                         </TableCell>
                         <TableCell className="text-center font-semibold">
@@ -638,84 +712,100 @@ export const BillingPage = () => {
             )}
           </CardContent>
         </Card>
-
-        {/* Report Details Modal */}
-        {selectedReport && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <Card className="max-w-4xl w-full max-h-[90vh] overflow-auto">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>
-                      {months[selectedReport.billingMonth - 1].label}{' '}
-                      {selectedReport.billingYear} - All Teams
-                    </CardTitle>
-                    <CardDescription>Billing report details</CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleExportExcel(selectedReport)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Excel
-                    </Button>
-                    <Button variant="outline" onClick={() => setSelectedReport(null)}>
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4 p-4 bg-slate-50 rounded">
-                  <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Status:</span>{' '}
-                      {getStatusBadge(selectedReport.status)}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Total Files:</span>{' '}
-                      <span className="font-semibold">{selectedReport.totalFiles}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Created By:</span>{' '}
-                      {selectedReport.createdByName}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Finalized By:</span>{' '}
-                      {selectedReport.finalizedByName || '-'}
-                    </div>
-                  </div>
-                </div>
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product Type</TableHead>
-                      <TableHead className="text-center">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedReport.details.map((detail) => (
-                      <TableRow key={detail.id}>
-                        <TableCell className="font-medium">{detail.productType}</TableCell>
-                        <TableCell className="text-center font-semibold">
-                          {detail.totalCount}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="bg-slate-50 font-semibold">
-                      <TableCell>GRAND TOTAL</TableCell>
-                      <TableCell className="text-center">{selectedReport.totalFiles}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </main>
+
+      {/* Finalize Confirmation Dialog */}
+      <Dialog open={showFinalizeDialog} onOpenChange={setShowFinalizeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalize Billing Report</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to finalize this billing report? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {reportToFinalize && (
+            <div className="bg-slate-50 p-4 rounded-md">
+              <p className="text-sm">
+                <span className="font-medium">Period:</span>{' '}
+                {new Date(reportToFinalize.startDate).toLocaleDateString()} - {new Date(reportToFinalize.endDate).toLocaleDateString()}
+              </p>
+              <p className="text-sm mt-1">
+                <span className="font-medium">Total Files:</span> {reportToFinalize.totalFiles}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFinalizeDialog(false)
+                setReportToFinalize(null)
+              }}
+              disabled={processing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmFinalize}
+              disabled={processing}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Finalizing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Finalize Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Billing Report</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this billing report? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {reportToDelete && (
+            <div className="bg-slate-50 p-4 rounded-md">
+              <p className="text-sm">
+                <span className="font-medium">Period:</span>{' '}
+                {new Date(reportToDelete.startDate).toLocaleDateString()} - {new Date(reportToDelete.endDate).toLocaleDateString()}
+              </p>
+              <p className="text-sm mt-1">
+                <span className="font-medium">Total Files:</span> {reportToDelete.totalFiles}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false)
+                setReportToDelete(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDelete}
+              variant="destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

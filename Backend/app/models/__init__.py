@@ -20,7 +20,7 @@ from app.models.order_history import OrderHistory
 
 # Performance metrics
 from app.models.metrics import (
-    EmployeePerformanceMetrics,
+    ExaminerPerformanceMetrics,
     TeamPerformanceMetrics
 )
 
@@ -30,8 +30,8 @@ from app.models.quality_audit import QualityAudit
 # Password reset
 from app.models.password_reset import PasswordResetToken
 
-# Employee weekly targets
-from app.models.employee_weekly_target import EmployeeWeeklyTarget
+# Examiner weekly targets
+from app.models.examiner_weekly_target import ExaminerWeeklyTarget
 
 # Master FA names table
 from app.models.fa_name import FAName
@@ -68,14 +68,14 @@ __all__ = [
     "Order",
     "OrderHistory",
     # Performance metrics
-    "EmployeePerformanceMetrics",
+    "ExaminerPerformanceMetrics",
     "TeamPerformanceMetrics",
     # Quality audits
     "QualityAudit",
     # Password reset
     "PasswordResetToken",
-    # Employee weekly targets
-    "EmployeeWeeklyTarget",
+    # Examiner weekly targets
+    "ExaminerWeeklyTarget",
     # Master FA names
     "FAName",
     # Team FA names

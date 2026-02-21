@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import date
 from io import BytesIO
 from app.database import get_db
 from app.models.user import User
@@ -25,8 +26,8 @@ router = APIRouter()
 
 @router.get("", response_model=BillingReportListResponse)
 def list_billing_reports(
-    billing_month: Optional[int] = Query(None, ge=1, le=12),
-    billing_year: Optional[int] = Query(None, ge=2020, le=2100),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     status: Optional[str] = Query(None),
     org_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
@@ -51,8 +52,8 @@ def list_billing_reports(
     reports = billing_service.get_billing_reports(
         db=db,
         org_id=target_org_id,
-        billing_month=billing_month,
-        billing_year=billing_year,
+        start_date=start_date,
+        end_date=end_date,
         status=status
     )
     
@@ -235,9 +236,8 @@ def export_billing_report_excel(
     # Generate Excel file
     excel_file = billing_service.export_billing_report_to_excel(db, report_id)
     
-    # Create filename
-    filename = f"billing_report_{report.team_name}_{report.billing_month}_{report.billing_year}.xlsx"
-    filename = filename.replace(" ", "_")
+    # Create consistent filename
+    filename = "Billing_Report.xlsx"
     
     return StreamingResponse(
         excel_file,

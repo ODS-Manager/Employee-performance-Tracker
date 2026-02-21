@@ -5,7 +5,7 @@ Now billing is done organization-wide by product type (not by team)
 """
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 
 class BillingDetailResponse(BaseModel):
@@ -29,8 +29,8 @@ class BillingReportResponse(BaseModel):
     org_id: int = Field(alias="orgId")
     team_id: Optional[int] = Field(None, alias="teamId")  # Always null for org-wide reports
     team_name: Optional[str] = Field("All Teams", alias="teamName")
-    billing_month: int = Field(alias="billingMonth")
-    billing_year: int = Field(alias="billingYear")
+    start_date: date = Field(alias="startDate")
+    end_date: date = Field(alias="endDate")
     status: str
     created_by: int = Field(alias="createdBy")
     created_by_name: Optional[str] = Field(None, alias="createdByName")
@@ -53,8 +53,8 @@ class BillingReportListResponse(BaseModel):
 
 class BillingReportCreate(BaseModel):
     """Create a new billing report (admin/superadmin only) - always organization-wide"""
-    billing_month: int = Field(alias="billingMonth", ge=1, le=12)
-    billing_year: int = Field(alias="billingYear", ge=2020, le=2100)
+    start_date: date = Field(alias="startDate")
+    end_date: date = Field(alias="endDate")
     org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
 
 
@@ -65,8 +65,8 @@ class BillingReportFinalize(BaseModel):
 
 class BillingPreviewRequest(BaseModel):
     """Request to preview billing data before generating report"""
-    billing_month: int = Field(alias="billingMonth", ge=1, le=12)
-    billing_year: int = Field(alias="billingYear", ge=2020, le=2100)
+    start_date: date = Field(alias="startDate")
+    end_date: date = Field(alias="endDate")
     org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
 
 
@@ -81,8 +81,8 @@ class BillingPreviewDetail(BaseModel):
 
 class BillingPreviewResponse(BaseModel):
     """Preview billing data before creating report - organization-wide"""
-    billing_month: int = Field(alias="billingMonth")
-    billing_year: int = Field(alias="billingYear")
+    start_date: date = Field(alias="startDate")
+    end_date: date = Field(alias="endDate")
     details: List[BillingPreviewDetail] = []
     total_files: int = Field(alias="totalFiles")
     pending_orders_count: int = Field(alias="pendingOrdersCount")

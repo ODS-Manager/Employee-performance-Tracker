@@ -96,7 +96,7 @@ class SerializerHelper:
         return {
             "id": user.id,
             "userName": user.user_name,
-            "employeeId": user.employee_id,
+            "examinerId": user.examiner_id,
             "userRole": user.user_role,
             "orgId": user.org_id,
             "isActive": user.is_active,
@@ -110,7 +110,7 @@ class SerializerHelper:
         return {
             "id": user.id,
             "userName": user.user_name,
-            "employeeId": user.employee_id,
+            "examinerId": user.examiner_id,
             "userRole": user.user_role,
             "orgId": user.org_id,
             "passwordLastChanged": SerializerHelper.serialize_datetime(user.password_last_changed),
@@ -151,14 +151,10 @@ class SerializerHelper:
             user_id = order.step1_user_id
             user = order.step1_user if hasattr(order, 'step1_user') else None
             fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
-            start_time = order.step1_start_time
-            end_time = order.step1_end_time
         elif step_num == 2:
             user_id = order.step2_user_id
             user = order.step2_user if hasattr(order, 'step2_user') else None
             fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
-            start_time = order.step2_start_time
-            end_time = order.step2_end_time
         else:
             return None
         
@@ -169,8 +165,6 @@ class SerializerHelper:
             "userId": user_id,
             "userName": user.user_name if user else None,
             "faName": fa_name_obj.name if fa_name_obj else None,
-            "startTime": start_time.isoformat() if start_time else None,
-            "endTime": end_time.isoformat() if end_time else None,
         }
     
     @staticmethod
@@ -180,8 +174,8 @@ class SerializerHelper:
         orders_on_hold: int,
         orders_bp_rti: int,
         orders_pending_billing: int,
-        total_employees: int,
-        active_employees: int,
+        total_examiners: int,
+        active_examiners: int,
         total_teams: int,
         avg_completion_time_minutes: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -192,15 +186,15 @@ class SerializerHelper:
             "ordersOnHold": orders_on_hold,
             "ordersBpRti": orders_bp_rti,
             "ordersPendingBilling": orders_pending_billing,
-            "totalEmployees": total_employees,
-            "activeEmployees": active_employees,
+            "totalExaminers": total_examiners,
+            "activeExaminers": active_examiners,
             "totalTeams": total_teams,
             "avgCompletionTimeMinutes": avg_completion_time_minutes,
         }
     
     @staticmethod
-    def serialize_employee_metrics(metrics: Any, user: Optional[Any] = None, team: Optional[Any] = None) -> Dict[str, Any]:
-        """Serialize employee performance metrics"""
+    def serialize_examiner_metrics(metrics: Any, user: Optional[Any] = None, team: Optional[Any] = None) -> Dict[str, Any]:
+        """Serialize examiner performance metrics"""
         return {
             "id": metrics.id,
             "userId": metrics.user_id,
@@ -249,9 +243,9 @@ class SerializerHelper:
             "totalOrdersBpRti": metrics.total_orders_bp_rti,
             "totalTeamWorkingMinutes": metrics.total_team_working_minutes,
             "avgOrderCompletionMinutes": metrics.avg_order_completion_minutes,
-            "activeEmployeesCount": metrics.active_employees_count,
+            "activeExaminersCount": metrics.active_examiners_count,
             "teamEfficiencyScore": float(metrics.team_efficiency_score) if metrics.team_efficiency_score else None,
-            "ordersPerEmployee": float(metrics.orders_per_employee) if metrics.orders_per_employee else None,
+            "ordersPerExaminer": float(metrics.orders_per_examiner) if metrics.orders_per_examiner else None,
             "completionRate": float(metrics.completion_rate) if metrics.completion_rate else None,
             "transactionBreakdown": transaction_breakdown,
             "productBreakdown": product_breakdown,

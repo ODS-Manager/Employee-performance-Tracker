@@ -14,7 +14,9 @@ import {
   DropdownMenuTrigger 
 } from '../../components/ui/dropdown-menu'
 import { Download, Users, Loader2, Shield, Settings, LogOut, Calendar as CalendarIcon } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
 import { useAuthStore } from '../../store/authStore'
@@ -85,7 +87,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
 
     const headers = ['Employee ID', 'Employee Name', 'Working Days', 'Days Present', 'Days Absent', 'Days Leave', 'Attendance %']
     const rows = report.employees.map(emp => [
-      emp.employeeId || 'N/A',
+      emp.examinerId || 'N/A',
       emp.userName || 'N/A',
       emp.workingDays,
       emp.daysPresent,
@@ -109,8 +111,8 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     toast.success('Report exported successfully')
   }
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const selectedTeam = teams.find((t) => t.id === selectedTeamId)
@@ -145,11 +147,14 @@ export const TeamAttendanceReportsPage: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
-              <p className="text-sm text-slate-600">
-                {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to view reports' : 'View attendance statistics'}
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
+                <p className="text-sm text-slate-600">
+                  {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to view reports' : 'View attendance statistics'}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -199,7 +204,9 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                 <Download className="h-4 w-4" />
                 Export CSV
               </Button>
-              
+
+              <HeaderRefreshButton />
+               
               {/* Team Lead Badge */}
               <Badge variant="outline" className="px-3 py-1">
                 <Shield className="w-3 h-3 mr-1" />
@@ -416,7 +423,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                                 <div>
                                   <div className="font-medium text-sm text-slate-900">{employee.userName}</div>
                                   <div className="text-xs text-slate-500">
-                                    ID: {employee.employeeId}
+                                    ID: {employee.examinerId}
                                   </div>
                                 </div>
                               </div>

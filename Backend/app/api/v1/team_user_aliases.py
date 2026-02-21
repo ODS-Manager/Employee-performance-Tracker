@@ -45,7 +45,7 @@ async def get_team_aliases(
     # Check permissions
     if current_user.user_role not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
         # Team leads can only see their own team's aliases
-        if current_user.user_role == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
+        if current_user.user_role.lower() == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to view this team's aliases")
     
     # Get aliases with user info
@@ -161,7 +161,7 @@ async def create_or_update_user_alias(
         raise HTTPException(status_code=400, detail="User is not a member of this team")
     
     # Check permissions - team leads can only manage their own team
-    if current_user.user_role == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to manage this team's aliases")
     
     # Check if alias already exists
@@ -226,7 +226,7 @@ async def delete_user_alias(
         raise HTTPException(status_code=404, detail="Team not found")
     
     # Check permissions - team leads can only manage their own team
-    if current_user.user_role == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD and team.team_lead_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to manage this team's aliases")
     
     # Find and delete the alias

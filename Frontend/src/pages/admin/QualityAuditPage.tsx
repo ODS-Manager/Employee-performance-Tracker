@@ -11,6 +11,8 @@ import { Input } from '../../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { 
   ClipboardCheck, 
@@ -60,6 +62,7 @@ export const QualityAuditPage = () => {
   // Filter state
   const [filterTeamId, setFilterTeamId] = useState<number | null>(null)
   const [filterExaminerId, setFilterExaminerId] = useState<number | null>(null)
+  const [filterExaminerSearch, setFilterExaminerSearch] = useState('')
 
   useEffect(() => {
     if (!user || !hasAnyUserRole(user.userRole, ['admin', 'superadmin', 'team_lead'])) {
@@ -85,12 +88,24 @@ export const QualityAuditPage = () => {
           const filtered = teams.filter(team => userTeamIds.includes(team.id))
           setFilteredTeams(filtered)
           
-          // Reset teamId if it's not in the filtered list
-          if (formData.teamId > 0 && !userTeamIds.includes(formData.teamId)) {
-            setFormData(prev => ({ ...prev, teamId: 0 }))
+          // Check if examiner has no teams
+          if (filtered.length === 0) {
+            const selectedExaminer = examiners.find(e => e.id === formData.examinerId)
+            const examinerName = selectedExaminer?.userName || 'The employee'
+            toast.error(`${examinerName} is not onboarded in any team. Please assign them to a team first.`)
+            // Reset teamId since there are no teams available (only if not in edit mode)
+            if (!editingId) {
+              setFormData(prev => ({ ...prev, teamId: 0 }))
+            }
+          } else {
+            // Reset teamId if it's not in the filtered list (only if not in edit mode or if teamId is invalid)
+            if (formData.teamId > 0 && !userTeamIds.includes(formData.teamId) && !editingId) {
+              setFormData(prev => ({ ...prev, teamId: 0 }))
+            }
           }
         } catch (error) {
           console.error('Failed to fetch user teams:', error)
+          toast.error('Failed to load examiner teams')
           setFilteredTeams(teams) // Fallback to all teams
         }
       } else {
@@ -99,7 +114,7 @@ export const QualityAuditPage = () => {
     }
     
     filterTeamsByExaminer()
-  }, [formData.examinerId, teams])
+  }, [formData.examinerId, teams, examiners, editingId])
 
   // Filter examiners based on selected team in filter section
   useEffect(() => {
@@ -126,6 +141,10 @@ export const QualityAuditPage = () => {
     
     filterExaminersByTeam()
   }, [filterTeamId, examiners, filterExaminerId])
+
+  const searchableFilteredExaminers = filteredExaminersForFilter.filter((examiner) =>
+    examiner.userName.toLowerCase().includes(filterExaminerSearch.toLowerCase().trim())
+  )
 
   const fetchInitialData = async () => {
     try {
@@ -217,6 +236,7 @@ export const QualityAuditPage = () => {
         // Update existing audit
         const updateData = {
           processType: formData.processType,
+          totalFilesReviewed: formData.totalFilesReviewed,
           filesWithError: formData.filesWithError,
           totalErrors: formData.totalErrors,
           filesWithCceError: formData.filesWithCceError,
@@ -244,12 +264,29 @@ export const QualityAuditPage = () => {
     }
   }
 
-  const handleEdit = (audit: QualityAudit) => {
+  const handleEdit = async (audit: QualityAudit) => {
     setEditingId(audit.id)
+    
+    // Pre-load the teams for the examiner before setting form data
+    try {
+      if (audit.examinerId && audit.examinerId > 0) {
+        const userTeams = await usersApi.getTeams(audit.examinerId)
+        const userTeamIds = userTeams.map(ut => ut.teamId)
+        const filtered = teams.filter(team => userTeamIds.includes(team.id))
+        setFilteredTeams(filtered)
+      }
+    } catch (error) {
+      console.error('Failed to fetch user teams for edit:', error)
+      // Continue anyway with all teams
+      setFilteredTeams(teams)
+    }
+    
+    // Set form data after teams are loaded
     setFormData({
       examinerId: audit.examinerId,
       teamId: audit.teamId,
       processType: audit.processType,
+      totalFilesReviewed: audit.totalFilesReviewed,
       filesWithError: audit.filesWithError,
       totalErrors: audit.totalErrors,
       filesWithCceError: audit.filesWithCceError,
@@ -288,6 +325,7 @@ export const QualityAuditPage = () => {
       auditPeriodStart: null,
       auditPeriodEnd: null,
     })
+    setFilteredTeams(teams) // Reset filtered teams to all teams
   }
 
   const getQualityBadge = (quality: number) => {
@@ -304,40 +342,41 @@ export const QualityAuditPage = () => {
     return <XCircle className="h-4 w-4 text-red-600" />
   }
 
+  const formatDisplayDate = (dateValue?: string | null) => {
+    if (!dateValue) return '-'
+    const parsed = new Date(dateValue)
+    return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString()
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Quality Audit</h1>
-              <p className="text-sm text-slate-600">Track file review errors and quality metrics</p>
-            </div>
-            <Button 
-              onClick={() => {
-                resetForm()
-                setShowForm(!showForm)
-              }}
-            >
-              {showForm ? (
-                <>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancel
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Audit Entry
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Quality Audit" subtitle="Track file review errors and quality metrics" />
 
       {isTeamLead ? <TeamLeadNav /> : <AdminNav />}
 
       <main className="container mx-auto px-4 py-8">
+        {/* Action Buttons */}
+        <div className="flex justify-end mb-6">
+          <Button 
+            onClick={() => {
+              resetForm()
+              setShowForm(!showForm)
+            }}
+          >
+            {showForm ? (
+              <>
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                New Audit Entry
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Data Entry Form */}
         {showForm && (
           <Card className="mb-6">
@@ -350,16 +389,15 @@ export const QualityAuditPage = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-2">
-                  {/* Examiner Selection */}
+                  {/* Employee Selection */}
                   <div className="space-y-2">
-                    <Label>Examiner Name *</Label>
+                    <Label>Employee Name *</Label>
                     <Select
-                      value={formData.examinerId.toString()}
+                      value={formData.examinerId?.toString() || '0'}
                       onValueChange={(value) => setFormData({ ...formData, examinerId: parseInt(value) })}
-                      disabled={!!editingId}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select examiner" />
+                        <SelectValue placeholder="Select employee" />
                       </SelectTrigger>
                       <SelectContent>
                         {examiners.map((examiner) => (
@@ -375,21 +413,32 @@ export const QualityAuditPage = () => {
                   <div className="space-y-2">
                     <Label>Team Name *</Label>
                     <Select
-                      value={formData.teamId.toString()}
+                      value={formData.teamId?.toString() || '0'}
                       onValueChange={(value) => setFormData({ ...formData, teamId: parseInt(value) })}
-                      disabled={!!editingId}
+                      disabled={filteredTeams.length === 0}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select team" />
+                        <SelectValue placeholder={filteredTeams.length === 0 ? "No teams available" : "Select team"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredTeams.map((team) => (
-                          <SelectItem key={team.id} value={team.id.toString()}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
+                        {filteredTeams.length === 0 ? (
+                          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            No teams available for this employee
+                          </div>
+                        ) : (
+                          filteredTeams.map((team) => (
+                            <SelectItem key={team.id} value={team.id.toString()}>
+                              {team.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {formData.examinerId > 0 && filteredTeams.length === 0 && (
+                      <p className="text-xs text-red-600">
+                        Selected employee is not onboarded in any team
+                      </p>
+                    )}
                   </div>
 
                   {/* Process Type */}
@@ -443,7 +492,7 @@ export const QualityAuditPage = () => {
                       className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Total number of files reviewed by the examiner
+                      Total number of files reviewed by the employee
                     </p>
                   </div>
 
@@ -454,7 +503,7 @@ export const QualityAuditPage = () => {
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      value={formData.filesWithError.toString()}
+                      value={formData.filesWithError?.toString() || '0'}
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '')
                         setFormData({ ...formData, filesWithError: value === '' ? 0 : parseInt(value) })
@@ -472,7 +521,7 @@ export const QualityAuditPage = () => {
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      value={formData.totalErrors.toString()}
+                      value={formData.totalErrors?.toString() || '0'}
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '')
                         setFormData({ ...formData, totalErrors: value === '' ? 0 : parseInt(value) })
@@ -490,7 +539,7 @@ export const QualityAuditPage = () => {
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      value={formData.filesWithCceError.toString()}
+                      value={formData.filesWithCceError?.toString() || '0'}
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '')
                         setFormData({ ...formData, filesWithCceError: value === '' ? 0 : parseInt(value) })
@@ -584,18 +633,33 @@ export const QualityAuditPage = () => {
 
               <Select
                 value={filterExaminerId?.toString() || 'all'}
-                onValueChange={(value) => setFilterExaminerId(value === 'all' ? null : parseInt(value))}
+                onValueChange={(value) => {
+                  setFilterExaminerId(value === 'all' ? null : parseInt(value))
+                  setFilterExaminerSearch('')
+                }}
               >
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Examiners" />
+                  <SelectValue placeholder="All Employees" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Examiners</SelectItem>
-                  {filteredExaminersForFilter.map((examiner) => (
+                  <div className="p-2 border-b">
+                    <Input
+                      value={filterExaminerSearch}
+                      onChange={(e) => setFilterExaminerSearch(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      placeholder="Search employee..."
+                      className="h-8"
+                    />
+                  </div>
+                  <SelectItem value="all">All Employees</SelectItem>
+                  {searchableFilteredExaminers.map((examiner) => (
                     <SelectItem key={examiner.id} value={examiner.id.toString()}>
                       {examiner.userName}
                     </SelectItem>
                   ))}
+                  {searchableFilteredExaminers.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No employees found</div>
+                  )}
                 </SelectContent>
               </Select>
 
@@ -629,7 +693,7 @@ export const QualityAuditPage = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="whitespace-nowrap">S. No.</TableHead>
-                      <TableHead className="whitespace-nowrap">Examiner Name</TableHead>
+                      <TableHead className="whitespace-nowrap">Employee Name</TableHead>
                       <TableHead className="whitespace-nowrap">Team Name</TableHead>
                       <TableHead className="whitespace-nowrap">Process</TableHead>
                       <TableHead className="text-center">OFE</TableHead>
@@ -641,7 +705,7 @@ export const QualityAuditPage = () => {
                       <TableHead className="text-center">FB Quality</TableHead>
                       <TableHead className="text-center">OFE Quality</TableHead>
                       <TableHead className="text-center">CCE Quality</TableHead>
-                      <TableHead className="text-center">Audit Date</TableHead>
+                      <TableHead className="text-center">Last Modified Date</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -677,7 +741,7 @@ export const QualityAuditPage = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-center text-sm">
-                          {new Date(audit.auditDate).toLocaleDateString()}
+                          {formatDisplayDate(audit.modifiedAt || audit.createdAt || audit.auditDate)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-2">

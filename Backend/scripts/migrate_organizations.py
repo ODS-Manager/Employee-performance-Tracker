@@ -50,7 +50,7 @@ def migrate_organizations():
         db.commit()
         
         print("\n[6/7] Migrating performance metrics from ODS-IND to ORG-IND...")
-        result1 = db.execute(text("UPDATE employee_performance_metrics SET org_id = 3 WHERE org_id = 1"))
+        result1 = db.execute(text("UPDATE examiner_performance_metrics SET org_id = 3 WHERE org_id = 1"))
         result2 = db.execute(text("UPDATE team_performance_metrics SET org_id = 3 WHERE org_id = 1"))
         print(f"  ✓ Migrated {result1.rowcount} employee metrics and {result2.rowcount} team metrics")
         db.commit()

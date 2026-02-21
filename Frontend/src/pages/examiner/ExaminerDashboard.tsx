@@ -28,6 +28,7 @@ import {
 } from '../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { ChangePasswordDialog } from '../../components/common/ChangePasswordDialog'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { 
   CheckCircle2, 
   Clock, 
@@ -46,8 +47,9 @@ import {
   Award,
   Lock
 } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 
-export const EmployeeDashboard = () => {
+export const ExaminerDashboard = () => {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -57,7 +59,7 @@ export const EmployeeDashboard = () => {
   const [selectedStatusId, setSelectedStatusId] = useState<string>('')
   const [selectedProcessTypeId, setSelectedProcessTypeId] = useState<string>('')
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>('')
-  const [selectedFakeName, setSelectedFakeName] = useState<string>('')
+  const [selectedFaName, setSelectedFaName] = useState<string>('')
   const [fromDate, setFromDate] = useState<string>('')
   const [toDate, setToDate] = useState<string>('')
   const [orderDetailId, setOrderDetailId] = useState<number | null>(null)
@@ -113,7 +115,7 @@ export const EmployeeDashboard = () => {
   // Use React Query for caching recent orders with filters
   // Now fetches user's orders (where they worked on step1 OR step2)
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
-    queryKey: ['orders', 'my', user?.id, selectedTeamId, selectedStatusId, selectedProcessTypeId, selectedDivisionId, selectedFakeName, fromDate, toDate],
+    queryKey: ['orders', 'my', user?.id, selectedTeamId, selectedStatusId, selectedProcessTypeId, selectedDivisionId, selectedFaName, fromDate, toDate],
     queryFn: () => ordersApi.list({ 
       // Filter by orders where user worked on step1 OR step2
       myOrders: true,
@@ -121,12 +123,12 @@ export const EmployeeDashboard = () => {
       orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
       processTypeId: selectedProcessTypeId ? parseInt(selectedProcessTypeId) : undefined,
       divisionId: selectedDivisionId ? parseInt(selectedDivisionId) : undefined,
-      faName: selectedFakeName || undefined,
+      faName: selectedFaName || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
       pageSize: 100 
     }),
-    enabled: !!user && user.userRole === 'employee',
+    enabled: !!user && user.userRole === 'examiner',
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
@@ -175,10 +177,10 @@ export const EmployeeDashboard = () => {
     queryFn: referenceApi.getDivisions,
   })
 
-  // Fetch fake names for selected team
+  // Fetch FA names for selected team
   const { data: faNamesData } = useQuery({
     queryKey: ['faNames', selectedTeamId],
-    queryFn: () => teamsApi.getFakeNames(parseInt(selectedTeamId)),
+    queryFn: () => teamsApi.getFaNames(parseInt(selectedTeamId)),
     enabled: !!selectedTeamId,
     staleTime: 10 * 60 * 1000, // 10 minutes
   })
@@ -209,7 +211,7 @@ export const EmployeeDashboard = () => {
     totalOrders: recentOrders.length,
     ordersCompleted: recentOrders.filter(o => o.orderStatusName === 'Completed').length,
     ordersOnHold: recentOrders.filter(o => o.orderStatusName === 'On-hold').length,
-    ordersBpRti: recentOrders.filter(o => o.orderStatusName === 'BP and RTI').length,
+    ordersBpRti: recentOrders.filter(o => o.orderStatusName === 'BP & RTI').length,
   }
 
   // Fetch productivity data from backend API (aggregated across all teams)
@@ -296,14 +298,13 @@ export const EmployeeDashboard = () => {
   }, [qualityAuditsData])
 
   useEffect(() => {
-    if (!user || user.userRole !== 'employee') {
+    if (!user || user.userRole !== 'examiner') {
       navigate('/login')
     }
   }, [user, navigate])
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const statsCards = [
@@ -332,16 +333,6 @@ export const EmployeeDashboard = () => {
       color: 'text-purple-600'
     },
   ]
-
-  const getInitials = (name: string) => {
-    if (!name) return '??'
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return '-'
@@ -372,7 +363,7 @@ export const EmployeeDashboard = () => {
     const statusStyles: { [key: string]: string } = {
       'Completed': 'bg-green-100 text-green-800 border-green-300',
       'On-hold': 'bg-orange-100 text-orange-800 border-orange-300',
-      'BP and RTI': 'bg-purple-100 text-purple-800 border-purple-300',
+      'BP & RTI': 'bg-purple-100 text-purple-800 border-purple-300',
     }
     return statusStyles[status] || 'bg-gray-100 text-gray-800 border-gray-300'
   }
@@ -383,14 +374,14 @@ export const EmployeeDashboard = () => {
     setSelectedStatusId('')
     setSelectedProcessTypeId('')
     setSelectedDivisionId('')
-    setSelectedFakeName('')
+    setSelectedFaName('')
     // Reset to empty (no date filter)
     setFromDate('')
     setToDate('')
   }
 
   // Check if any filters are active (empty string is the default state now)
-  const hasActiveFilters = searchQuery || selectedTeamId || selectedStatusId || selectedProcessTypeId || selectedDivisionId || selectedFakeName || fromDate || toDate
+  const hasActiveFilters = searchQuery || selectedTeamId || selectedStatusId || selectedProcessTypeId || selectedDivisionId || selectedFaName || fromDate || toDate
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -398,12 +389,17 @@ export const EmployeeDashboard = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Employee Dashboard</h1>
-              <p className="text-sm text-slate-600">Welcome, {user?.userName}!</p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Employee Dashboard</h1>
+                <p className="text-sm text-slate-600">Welcome, {user?.userName}!</p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
+              <HeaderRefreshButton />
+
               <Badge variant="outline" className="px-3 py-1">
                 <Activity className="w-3 h-3 mr-1" />
                 {user?.userRole}
@@ -665,7 +661,7 @@ export const EmployeeDashboard = () => {
                 <CardTitle className="text-base font-semibold">My Orders</CardTitle>
                 <CardDescription className="text-sm">View and manage your orders</CardDescription>
               </div>
-              <Button onClick={() => navigate('/employee/new-order')} size="sm">
+              <Button onClick={() => navigate('/examiner/new-order')} size="sm">
                 <Plus className="mr-1 h-4 w-4" />
                 New Order
               </Button>
@@ -716,9 +712,9 @@ export const EmployeeDashboard = () => {
                     {/* Team Filter */}
                     <Select value={selectedTeamId || 'all'} onValueChange={(val) => {
                       setSelectedTeamId(val === 'all' ? '' : val)
-                      // Clear fake name filter when team changes
+                      // Clear FA name filter when team changes
                       if (val === 'all' || val !== selectedTeamId) {
-                        setSelectedFakeName('')
+    setSelectedFaName('')
                       }
                     }}>
                       <SelectTrigger className="h-9 text-sm">
@@ -734,17 +730,17 @@ export const EmployeeDashboard = () => {
                       </SelectContent>
                     </Select>
 
-                    {/* Fake Name Filter - Only shown when team is selected */}
+                    {/* FA Name Filter - Only shown when team is selected */}
                     <Select 
-                      value={selectedFakeName || 'all'} 
-                      onValueChange={(val) => setSelectedFakeName(val === 'all' ? '' : val)}
+                      value={selectedFaName || 'all'} 
+                      onValueChange={(val) => setSelectedFaName(val === 'all' ? '' : val)}
                       disabled={!selectedTeamId}
                     >
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="All Fake Names" />
+                        <SelectValue placeholder="All FA Names" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all" className="text-sm">All Fake Names</SelectItem>
+                        <SelectItem value="all" className="text-sm">All FA Names</SelectItem>
                         {faNames.map((fn) => (
                           <SelectItem key={fn.id} value={fn.faName} className="text-sm">
                             {fn.faName}
@@ -760,7 +756,7 @@ export const EmployeeDashboard = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all" className="text-sm">All Statuses</SelectItem>
-                        {orderStatuses?.filter(s => s.isActive).map(status => (
+                        {orderStatuses?.filter(s => s.isActive !== false).map(status => (
                           <SelectItem key={status.id} value={status.id.toString()} className="text-sm">
                             {status.name}
                           </SelectItem>
@@ -775,7 +771,7 @@ export const EmployeeDashboard = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all" className="text-sm">All Process Types</SelectItem>
-                        {processTypes?.filter(p => p.isActive).map(pt => (
+                        {processTypes?.filter(p => p.isActive !== false).map(pt => (
                           <SelectItem key={pt.id} value={pt.id.toString()} className="text-sm">
                             {pt.name}
                           </SelectItem>
@@ -920,7 +916,7 @@ export const EmployeeDashboard = () => {
                                             {orderDetail.editPermissions.canEdit && (
                                               <Button 
                                                 size="sm" 
-                                                onClick={() => navigate(`/employee/edit-order/${orderDetail.id}`)}
+                                                onClick={() => navigate(`/examiner/edit-order/${orderDetail.id}`)}
                                               >
                                                 <Pencil className="h-3 w-3 mr-1" />
                                                 Edit Order
@@ -1006,14 +1002,6 @@ export const EmployeeDashboard = () => {
                                             <span className="text-gray-500">User:</span>
                                             <span className="ml-2">{orderDetail.step1?.userName || 'Not assigned'}</span>
                                           </div>
-                                          <div>
-                                            <span className="text-gray-500">Start:</span>
-                                            <span className="ml-2">{orderDetail.step1?.startTime ? formatDateOnly(orderDetail.step1.startTime) : '-'}</span>
-                                          </div>
-                                          <div>
-                                            <span className="text-gray-500">End:</span>
-                                            <span className="ml-2">{orderDetail.step1?.endTime ? formatDateOnly(orderDetail.step1.endTime) : '-'}</span>
-                                          </div>
                                         </div>
                                       </div>
 
@@ -1043,14 +1031,6 @@ export const EmployeeDashboard = () => {
                                             <span className="text-gray-500">User:</span>
                                             <span className="ml-2">{orderDetail.step2?.userName || 'Not assigned'}</span>
                                           </div>
-                                          <div>
-                                            <span className="text-gray-500">Start:</span>
-                                            <span className="ml-2">{orderDetail.step2?.startTime ? formatDateOnly(orderDetail.step2.startTime) : '-'}</span>
-                                          </div>
-                                          <div>
-                                            <span className="text-gray-500">End:</span>
-                                            <span className="ml-2">{orderDetail.step2?.endTime ? formatDateOnly(orderDetail.step2.endTime) : '-'}</span>
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1060,7 +1040,7 @@ export const EmployeeDashboard = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => navigate(`/employee/edit-order/${order.id}`)}
+                              onClick={() => navigate(`/examiner/edit-order/${order.id}`)}
                               title="Edit Order"
                               className="h-7 px-2"
                             >
@@ -1087,4 +1067,4 @@ export const EmployeeDashboard = () => {
   )
 }
 
-export default EmployeeDashboard
+export default ExaminerDashboard

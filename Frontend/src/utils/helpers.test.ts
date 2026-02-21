@@ -14,7 +14,7 @@ const testUsers = [
   { userRole: 'superadmin' },
   { userRole: 'admin' },
   { userRole: 'team_lead' },
-  { userRole: 'employee' },
+  { userRole: 'examiner' },
 ]
 
 describe('Role Helper Functions', () => {
@@ -26,14 +26,14 @@ describe('Role Helper Functions', () => {
       expect(isUserRole('admin', 'admin')).toBe(true)
       expect(isUserRole('TEAM_LEAD', 'team_lead')).toBe(true)
       expect(isUserRole('team_lead', 'team_lead')).toBe(true)
-      expect(isUserRole('EMPLOYEE', 'employee')).toBe(true)
-      expect(isUserRole('employee', 'employee')).toBe(true)
+      expect(isUserRole('EMPLOYEE', 'examiner')).toBe(true)
+      expect(isUserRole('examiner', 'examiner')).toBe(true)
     })
 
     it('should return false for non-matching roles', () => {
       expect(isUserRole('SUPERADMIN', 'admin')).toBe(false)
       expect(isUserRole('admin', 'superadmin')).toBe(false)
-      expect(isUserRole('employee', 'admin')).toBe(false)
+      expect(isUserRole('examiner', 'admin')).toBe(false)
     })
 
     it('should handle undefined userRole', () => {
@@ -52,7 +52,7 @@ describe('Role Helper Functions', () => {
 
     it('should return false when user does not have any allowed roles', () => {
       expect(hasAnyUserRole('EMPLOYEE', ['admin', 'superadmin'])).toBe(false)
-      expect(hasAnyUserRole('employee', ['admin', 'superadmin'])).toBe(false)
+      expect(hasAnyUserRole('examiner', ['admin', 'superadmin'])).toBe(false)
     })
 
     it('should handle undefined userRole', () => {
@@ -69,7 +69,7 @@ describe('Role Helper Functions', () => {
       expect(getRoleDisplayName('TEAM_LEAD')).toBe('Team Lead')
       expect(getRoleDisplayName('team_lead')).toBe('Team Lead')
       expect(getRoleDisplayName('EMPLOYEE')).toBe('Employee')
-      expect(getRoleDisplayName('employee')).toBe('Employee')
+      expect(getRoleDisplayName('examiner')).toBe('Employee')
     })
 
     it('should handle unknown roles', () => {
@@ -87,7 +87,7 @@ describe('Role Helper Functions', () => {
       expect(getRoleBadgeColor('TEAM_LEAD')).toBe('bg-blue-100 text-blue-700 border-blue-200')
       expect(getRoleBadgeColor('team_lead')).toBe('bg-blue-100 text-blue-700 border-blue-200')
       expect(getRoleBadgeColor('EMPLOYEE')).toBe('bg-green-100 text-green-700 border-green-200')
-      expect(getRoleBadgeColor('employee')).toBe('bg-green-100 text-green-700 border-green-200')
+      expect(getRoleBadgeColor('examiner')).toBe('bg-green-100 text-green-700 border-green-200')
     })
 
     it('should handle unknown roles with default styling', () => {
@@ -121,7 +121,7 @@ describe('Role Comparison Integration', () => {
       { backend: 'SUPERADMIN', frontend: 'superadmin', expected: true },
       { backend: 'ADMIN', frontend: 'admin', expected: true },
       { backend: 'TEAM_LEAD', frontend: 'team_lead', expected: true },
-      { backend: 'EMPLOYEE', frontend: 'employee', expected: true },
+      { backend: 'EMPLOYEE', frontend: 'examiner', expected: true },
       { backend: 'superadmin', frontend: 'superadmin', expected: true },
       { backend: 'Admin', frontend: 'admin', expected: true },
       { backend: 'Team_Lead', frontend: 'team_lead', expected: true },

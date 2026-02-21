@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.middleware import CSRFMiddleware, SecurityHeadersMiddleware
-from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, employee_weekly_targets, team_user_aliases, attendance, fa_names
+from app.core.db_migrations import ensure_orders_file_product_team_index_non_unique
+from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, examiner_weekly_targets, team_user_aliases, attendance, fa_names
 from app.tasks.session_cleanup import start_session_cleanup_scheduler
 
 # Scheduler instance
@@ -17,6 +18,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     global scheduler
+    ensure_orders_file_product_team_index_non_unique()
     scheduler = start_session_cleanup_scheduler()
     scheduler.start()
     yield
@@ -65,7 +67,7 @@ app.include_router(quality_audits.router, prefix="/api/v1", tags=["Quality Audit
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
 app.include_router(database.router, prefix="/api/v1/database", tags=["Database"])
-app.include_router(employee_weekly_targets.router, prefix="/api/v1/weekly-targets", tags=["Weekly Targets"])
+app.include_router(examiner_weekly_targets.router, prefix="/api/v1/weekly-targets", tags=["Weekly Targets"])
 app.include_router(attendance.router, prefix="/api/v1", tags=["Attendance"])
 
 @app.get("/")

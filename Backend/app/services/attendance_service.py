@@ -18,10 +18,10 @@ from app.schemas.attendance import (
     AttendanceBulkCreate,
     AttendanceRecordUpdate,
     AttendanceRecordResponse,
-    DailyRosterEmployee,
+    DailyRosterExaminer,
     DailyRosterResponse,
     AttendanceSummary,
-    EmployeeAttendanceDetail,
+    ExaminerAttendanceDetail,
     TeamAttendanceReport,
     AttendanceAuditLogResponse
 )
@@ -53,7 +53,7 @@ class AttendanceService:
         if not membership:
             raise HTTPException(
                 status_code=400,
-                detail="Employee is not a member of this team"
+                detail="Examiner is not a member of this team"
             )
     
     def _log_audit(
@@ -91,7 +91,7 @@ class AttendanceService:
         marked_by: int,
         notes: Optional[str] = None
     ) -> AttendanceRecordResponse:
-        """Mark attendance for single employee on single date"""
+        """Mark attendance for single examiner on single date"""
         # Validate current month
         self._validate_current_month(check_date)
         
@@ -158,7 +158,7 @@ class AttendanceService:
             id=record.id,
             userId=record.user_id,
             userName=user.user_name,
-            employeeId=user.employee_id,
+            examinerId=user.examiner_id,
             teamId=record.team_id,
             date=record.date,
             status=record.status,
@@ -176,22 +176,22 @@ class AttendanceService:
         team_id: int,
         check_date: date,
         status: str,
-        employee_ids: List[int],
+        examiner_ids: List[int],
         marked_by: int
     ) -> List[AttendanceRecordResponse]:
-        """Bulk mark attendance for multiple employees"""
+        """Bulk mark attendance for multiple examiners"""
         # Validate current month
         self._validate_current_month(check_date)
         
         results = []
-        for user_id in employee_ids:
+        for user_id in examiner_ids:
             try:
                 result = self.mark_attendance_single(
                     user_id, team_id, check_date, status, marked_by
                 )
                 results.append(result)
             except Exception as e:
-                # Continue with other employees if one fails
+                # Continue with other examiners if one fails
                 print(f"Failed to mark attendance for user {user_id}: {str(e)}")
                 continue
         
@@ -225,8 +225,8 @@ class AttendanceService:
         # Create dict for quick lookup
         attendance_dict = {r.user_id: r for r in attendance_records}
         
-        # Build employee roster
-        employees = []
+        # Build examiner roster
+        examiners = []
         summary = {"present": 0, "absent": 0, "leave": 0, "not_marked": 0}
         
         # Batch query for all marked_by users to avoid N+1
@@ -264,10 +264,10 @@ class AttendanceService:
                 marked_at = None
                 summary["not_marked"] += 1
             
-            employees.append(DailyRosterEmployee(
+            examiners.append(DailyRosterExaminer(
                 userId=user.id,
                 userName=user.user_name,
-                employeeId=user.employee_id,
+                examinerId=user.examiner_id,
                 status=status,
                 attendanceId=attendance_id,
                 notes=notes,
@@ -279,17 +279,17 @@ class AttendanceService:
             teamId=team_id,
             teamName=team.name,
             date=check_date,
-            employees=employees,
+            examiners=examiners,
             summary=summary
         )
     
-    def get_employee_attendance_summary(
+    def get_examiner_attendance_summary(
         self,
         user_id: int,
         start_date: date,
         end_date: date
     ) -> AttendanceSummary:
-        """Get attendance summary for an employee"""
+        """Get attendance summary for an examiner"""
         # Get user
         user = self.db.query(User).filter(User.id == user_id).first()
         
@@ -303,7 +303,7 @@ class AttendanceService:
             return AttendanceSummary(
                 userId=user_id,
                 userName="Unknown",
-                employeeId="Unknown",
+                examinerId="Unknown",
                 startDate=start_date,
                 endDate=end_date,
                 workingDays=working_days_calc,
@@ -335,7 +335,7 @@ class AttendanceService:
         return AttendanceSummary(
             userId=user_id,
             userName=user.user_name,
-            employeeId=user.employee_id,
+            examinerId=user.examiner_id,
             startDate=start_date,
             endDate=end_date,
             workingDays=working_days,
@@ -368,8 +368,8 @@ class AttendanceService:
         effective_end_date = min(end_date, today)
         working_days = (effective_end_date - start_date).days + 1 if effective_end_date >= start_date else 0
         
-        # Get attendance summary for each employee
-        employees = []
+        # Get attendance summary for each examiner
+        examiners = []
         team_present = 0
         team_absent = 0
         team_leave = 0
@@ -379,10 +379,10 @@ class AttendanceService:
             if not user or not user.is_active:
                 continue
             
-            summary = self.get_employee_attendance_summary(
+            summary = self.get_examiner_attendance_summary(
                 user.id, start_date, end_date
             )
-            employees.append(summary)
+            examiners.append(summary)
             
             team_present += summary.days_present
             team_absent += summary.days_absent
@@ -394,11 +394,11 @@ class AttendanceService:
             startDate=start_date,
             endDate=end_date,
             workingDays=working_days,
-            employees=employees,
+            examiners=examiners,
             teamSummary={
                 "total_present": team_present,
                 "total_absent": team_absent,
                 "total_leave": team_leave,
-                "employee_count": len(employees)
+                "examiner_count": len(examiners)
             }
         )

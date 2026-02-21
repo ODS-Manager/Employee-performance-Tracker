@@ -12,7 +12,7 @@ class UserRole(str, Enum):
     SUPERADMIN = "superadmin"
     ADMIN = "admin"
     TEAM_LEAD = "team_lead"
-    EMPLOYEE = "employee"
+    EXAMINER = "examiner"
     
     def __str__(self) -> str:
         return self.value
@@ -86,7 +86,7 @@ class AuditAction(str, Enum):
 ROLE_SUPERADMIN = UserRole.SUPERADMIN.value
 ROLE_ADMIN = UserRole.ADMIN.value
 ROLE_TEAM_LEAD = UserRole.TEAM_LEAD.value
-ROLE_EMPLOYEE = UserRole.EMPLOYEE.value
+ROLE_EXAMINER = UserRole.EXAMINER.value
 
 ATTENDANCE_PRESENT = AttendanceStatus.PRESENT.value
 ATTENDANCE_ABSENT = AttendanceStatus.ABSENT.value

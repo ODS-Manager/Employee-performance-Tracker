@@ -503,7 +503,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
     return {
         "id": current_user.id,
         "userName": current_user.user_name,
-        "employeeId": current_user.employee_id,
+        "examinerId": current_user.examiner_id,
         "userRole": current_user.user_role.lower(),
         "orgId": current_user.org_id,
         "passwordLastChanged": current_user.password_last_changed.isoformat() if current_user.password_last_changed else None,

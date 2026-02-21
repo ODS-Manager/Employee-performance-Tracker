@@ -1,20 +1,18 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
-import { usersApi, organizationsApi, metricsApi } from '../../services/api'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
+import { usersApi, organizationsApi } from '../../services/api'
 import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
-import type { Organization, TeamMetrics, User } from '../../types'
+import type { Organization, User } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { 
   Users, 
   UserCheck, 
-  UserX, 
-  UserPlus, 
   TrendingUp, 
   Settings,
   Activity,
@@ -23,8 +21,6 @@ import {
   Filter
 } from 'lucide-react'
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -55,33 +51,19 @@ interface RoleDistribution {
   [key: string]: string | number  // Index signature for recharts compatibility
 }
 
-interface PerformanceData {
-  name: string
-  orders: number
-  avgTime: number
-}
-
-export const EmployeeReportsPage = () => {
+export const ExaminerReportsPage = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
-  const [employees, setEmployees] = useState<User[]>([])
+  const [examiners, setExaminers] = useState<User[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('6months')
-  const [selectedOrg, setSelectedOrg] = useState<string>('all')
 
   // Get filter state from store
   const {
     filterMonth,
     filterYear,
-    filterPeriod,
-    setFilterMonth,
-    setFilterYear,
-    setCurrentMonth,
-    setPreviousMonth,
-    setFilterPeriod,
+    filterOrgId,
   } = useDashboardFilterStore()
 
   useEffect(() => {
@@ -96,20 +78,18 @@ export const EmployeeReportsPage = () => {
     try {
       setLoading(true)
       
-      // Fetch employees, organizations, and team metrics in parallel
-      const [usersRes, orgsRes, metricsRes] = await Promise.all([
+      // Fetch examiners and organizations in parallel
+      const [usersRes, orgsRes] = await Promise.all([
         usersApi.list(),
         organizationsApi.list({ isActive: true }),
-        metricsApi.getTeamMetrics({ periodType: 'weekly' }).catch(() => ({ items: [] }))
       ])
       
-      // Filter out superadmin from the list (they're not regular employees)
-      const filteredEmployees = (usersRes.items || []).filter((u: User) => 
+      // Filter out superadmin from the list (they're not regular examiners)
+      const filteredExaminers = (usersRes.items || []).filter((u: User) => 
         !isUserRole(u.userRole, 'superadmin')
       )
-      setEmployees(filteredEmployees)
+      setExaminers(filteredExaminers)
       setOrganizations(orgsRes.items || [])
-      setTeamMetrics(metricsRes.items || [])
     } catch (error) {
       console.error('Failed to fetch data:', error)
     } finally {
@@ -117,13 +97,13 @@ export const EmployeeReportsPage = () => {
     }
   }
 
-  // Filter employees based on selected filters
-  const filteredEmployees = useMemo(() => {
-    let filtered = [...employees]
+  // Filter examiners based on selected filters
+  const filteredExaminers = useMemo(() => {
+    let filtered = [...examiners]
     
     // Apply organization filter
-    if (selectedOrg !== 'all') {
-      const orgId = parseInt(selectedOrg)
+    if (filterOrgId) {
+      const orgId = parseInt(filterOrgId)
       filtered = filtered.filter(emp => emp.orgId === orgId)
     }
     
@@ -137,7 +117,7 @@ export const EmployeeReportsPage = () => {
         
         const empCreateDate = new Date(emp.createdAt)
         
-        // Employee must have been created before or during the filter month
+        // Examiner must have been created before or during the filter month
         // and still be active in that month (not deactivated before the filter month)
         const wasCreatedBeforeOrDuring = empCreateDate < nextMonth
         const wasStillActiveInMonth = !emp.deactivatedAt || new Date(emp.deactivatedAt) >= filterDate
@@ -147,30 +127,28 @@ export const EmployeeReportsPage = () => {
     }
     
     return filtered
-  }, [employees, selectedOrg, filterMonth, filterYear])
+  }, [examiners, filterOrgId, filterMonth, filterYear])
 
   // Check if filters are active
-  const hasActiveFilters = selectedOrg !== 'all' || (filterMonth && filterYear)
+  const hasActiveFilters = !!filterOrgId || (filterMonth && filterYear)
   
   // Get organization name for display
   const getOrgName = (orgId: string): string => {
-    if (orgId === 'all') return 'All Organizations'
     const org = organizations.find(o => o.id.toString() === orgId)
     return org?.name || 'Unknown Organization'
   }
 
-  // Calculate stats from filtered employees
-  const activeCount = filteredEmployees.filter(e => e.isActive).length
-  const inactiveCount = filteredEmployees.length - activeCount
-  const activeEmployees = filteredEmployees.filter(e => e.isActive)
-  const adminCount = activeEmployees.filter(e => isUserRole(e.userRole, 'admin')).length
-  const teamLeadCount = activeEmployees.filter(e => isUserRole(e.userRole, 'team_lead')).length
-  const employeeCount = activeEmployees.filter(e => isUserRole(e.userRole, 'employee')).length
+  // Calculate stats from filtered examiners
+  const activeCount = filteredExaminers.filter(e => e.isActive).length
+  const activeExaminers = filteredExaminers.filter(e => e.isActive)
+  const adminCount = activeExaminers.filter(e => isUserRole(e.userRole, 'admin')).length
+  const teamLeadCount = activeExaminers.filter(e => isUserRole(e.userRole, 'team_lead')).length
+  const examinerCount = activeExaminers.filter(e => isUserRole(e.userRole, 'examiner')).length
 
-  // Generate trend data based on actual employee creation dates
+  // Generate trend data based on actual examiner creation dates
   const generateTrendData = (): TrendData[] => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const basePeriods = selectedPeriod === '3months' ? 3 : selectedPeriod === '6months' ? 6 : selectedPeriod === '12months' ? 12 : 24
+    const basePeriods = 6 // Default to 6 months
     
     // Get the date range based on selected period
     const now = new Date()
@@ -183,10 +161,10 @@ export const EmployeeReportsPage = () => {
     const hiresByMonth: Map<string, number> = new Map()
     const leftByMonth: Map<string, number> = new Map()
     
-    // Find the earliest employee creation date
+    // Find the earliest examiner creation date
     let earliestDate: Date | null = null
     
-    filteredEmployees.forEach(emp => {
+    filteredExaminers.forEach(emp => {
       // Track hires by createdAt
       if (emp.createdAt) {
         const createdDate = new Date(emp.createdAt)
@@ -216,14 +194,8 @@ export const EmployeeReportsPage = () => {
       }
     })
     
-    // Calculate how many months to show
-    let actualPeriods = basePeriods
-    if (earliestDate !== null && selectedPeriod === 'all') {
-      // For "All Time", go back to the earliest employee creation
-      const earliest = earliestDate as Date
-      const monthsDiff = (currentYear - earliest.getFullYear()) * 12 + (currentMonth - earliest.getMonth())
-      actualPeriods = Math.max(monthsDiff + 1, 1)
-    }
+    // Use the base period (6 months)
+    const actualPeriods = basePeriods
     
     // Calculate running active count
     let runningActive = 0
@@ -260,57 +232,14 @@ export const EmployeeReportsPage = () => {
 
   // Role distribution for pie chart
   const roleDistribution: RoleDistribution[] = [
-    { name: 'Employees', value: employeeCount, color: '#22c55e' },
+    { name: 'Examiner', value: examinerCount, color: '#22c55e' },
     { name: 'Team Leads', value: teamLeadCount, color: '#3b82f6' },
     { name: 'Admins', value: adminCount, color: '#8b5cf6' },
   ]
 
-  // Generate performance data from real team metrics
-  const generatePerformanceData = (): PerformanceData[] => {
-    if (teamMetrics.length === 0) {
-      return []
-    }
-
-    // Sort metrics by date and get the last 4 weeks
-    const sortedMetrics = [...teamMetrics]
-      .filter(m => m.periodType === 'weekly')
-      .sort((a, b) => new Date(a.metricDate).getTime() - new Date(b.metricDate).getTime())
-      .slice(-4)
-
-    // Aggregate metrics by week (sum across all teams)
-    const weeklyData: Map<string, { orders: number; avgTime: number; count: number }> = new Map()
-
-    sortedMetrics.forEach(metric => {
-      const weekDate = new Date(metric.metricDate)
-      const weekLabel = `${weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-      
-      const existing = weeklyData.get(weekLabel) || { orders: 0, avgTime: 0, count: 0 }
-      weeklyData.set(weekLabel, {
-        orders: existing.orders + metric.totalOrdersCompleted,
-        avgTime: existing.avgTime + (metric.avgOrderCompletionMinutes || 0),
-        count: existing.count + 1
-      })
-    })
-
-    // Convert to array format
-    const result: PerformanceData[] = []
-    let weekNum = 1
-    weeklyData.forEach((data, weekLabel) => {
-      result.push({
-        name: weekLabel || `Week ${weekNum}`,
-        orders: data.orders,
-        avgTime: data.count > 0 ? Math.round(data.avgTime / data.count) : 0
-      })
-      weekNum++
-    })
-
-    return result
-  }
-
-  const performanceData = generatePerformanceData()
-
   return (
     <div className="min-h-screen bg-slate-50">
+      <AdminHeader title="Employee Reports" subtitle="Analyze employee headcount and distribution" />
       <AdminNav />
       
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -323,7 +252,7 @@ export const EmployeeReportsPage = () => {
             </p>
           </div>
           <Button 
-            onClick={() => navigate('/admin/employee-management')}
+            onClick={() => navigate('/admin/examiner-management')}
             variant="outline"
           >
             <Settings className="h-4 w-4 mr-2" />
@@ -331,104 +260,14 @@ export const EmployeeReportsPage = () => {
           </Button>
         </div>
 
-        {/* Filters Row */}
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-          {/* Left side filters */}
-          <div className="flex items-center gap-4">
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3months">Last 3 Months</SelectItem>
-                <SelectItem value="6months">Last 6 Months</SelectItem>
-                <SelectItem value="12months">Last 12 Months</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {isUserRole(user?.userRole, 'superadmin') && (
-              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Organizations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Organizations</SelectItem>
-                  {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.id.toString()}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          
-          {/* Right side - Month/Year filters */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-500" />
-            <Select 
-              value={filterPeriod} 
-              onValueChange={(value) => {
-                if (value === 'current') {
-                  setCurrentMonth()
-                } else if (value === 'previous') {
-                  setPreviousMonth()
-                } else {
-                  setFilterPeriod('custom')
-                }
-              }}
-            >
-              <SelectTrigger className="w-[130px] h-8 text-xs">
-                <SelectValue placeholder="Select Period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="current">Current Month</SelectItem>
-                <SelectItem value="previous">Previous Month</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select 
-              value={filterMonth} 
-              onValueChange={setFilterMonth}
-            >
-              <SelectTrigger className="w-[110px] h-8 text-xs">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {getMonthOptions(filterYear).map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select 
-              value={filterYear} 
-              onValueChange={setFilterYear}
-            >
-              <SelectTrigger className="w-[85px] h-8 text-xs">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                {getYearOptions().map((year) => (
-                  <SelectItem key={year.value} value={year.value}>
-                    {year.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         {/* Active Filters Indicator */}
         {hasActiveFilters && (
           <div className="flex items-center gap-2 mb-4">
             <Filter className="h-4 w-4 text-slate-500" />
             <span className="text-sm text-slate-600 font-medium">Active filters:</span>
-            {selectedOrg !== 'all' && (
+            {filterOrgId && (
               <Badge variant="secondary" className="text-xs">
-                Organization: {getOrgName(selectedOrg)}
+                Organization: {getOrgName(filterOrgId)}
               </Badge>
             )}
             {filterMonth && filterYear && (
@@ -449,9 +288,9 @@ export const EmployeeReportsPage = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{filteredEmployees.length}</div>
+              <div className="text-2xl font-bold">{filteredExaminers.length}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {hasActiveFilters ? `Filtered from ${employees.length} total` : 'Across all roles'}
+                {hasActiveFilters ? `Filtered from ${examiners.length} total` : 'Across all roles'}
               </p>
             </CardContent>
           </Card>
@@ -464,7 +303,7 @@ export const EmployeeReportsPage = () => {
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{activeCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {((activeCount / Math.max(filteredEmployees.length, 1)) * 100).toFixed(0)}% of {hasActiveFilters ? 'filtered' : 'workforce'}
+                {((activeCount / Math.max(filteredExaminers.length, 1)) * 100).toFixed(0)}% of {hasActiveFilters ? 'filtered' : 'workforce'}
               </p>
             </CardContent>
           </Card>
@@ -595,68 +434,6 @@ export const EmployeeReportsPage = () => {
             </CardContent>
           </Card>
 
-          {/* Status Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Employment Status</CardTitle>
-              <CardDescription>
-                Active vs Inactive employees
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <UserCheck className="h-4 w-4 text-green-600" />
-                      Active
-                    </span>
-                    <span className="text-sm text-muted-foreground">{activeCount}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 rounded-full transition-all"
-                      style={{ width: `${(activeCount / Math.max(filteredEmployees.length, 1)) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <UserX className="h-4 w-4 text-slate-400" />
-                      Inactive
-                    </span>
-                    <span className="text-sm text-muted-foreground">{inactiveCount}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-slate-400 rounded-full transition-all"
-                      style={{ width: `${(inactiveCount / Math.max(filteredEmployees.length, 1)) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 pt-4 border-t">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {((activeCount / Math.max(filteredEmployees.length, 1)) * 100).toFixed(0)}%
-                    </div>
-                    <div className="text-xs text-muted-foreground">Active Rate</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-slate-600">
-                      {filteredEmployees.length}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total Count</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Performance Metrics - Empty for now to complete the 3-column layout */}
           <Card>
             <CardHeader>
@@ -679,8 +456,8 @@ export const EmployeeReportsPage = () => {
                   <Badge variant="secondary">{teamLeadCount}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Employees</span>
-                  <Badge variant="secondary">{employeeCount}</Badge>
+                  <span className="text-sm text-muted-foreground">Examiner</span>
+                  <Badge variant="secondary">{examinerCount}</Badge>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-sm font-medium">Total Active</span>
@@ -695,5 +472,4 @@ export const EmployeeReportsPage = () => {
   )
 }
 
-export default EmployeeReportsPage
-
+export default ExaminerReportsPage

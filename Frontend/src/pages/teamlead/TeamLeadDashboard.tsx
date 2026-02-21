@@ -29,6 +29,7 @@ import {
 } from '../../components/ui/select'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { ChangePasswordDialog } from '../../components/common/ChangePasswordDialog'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { 
   Users, 
   Clock, 
@@ -45,6 +46,7 @@ import {
   Settings,
   Lock
 } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 
 export const TeamLeadDashboard = () => {
   const { user, logout } = useAuthStore()
@@ -124,8 +126,8 @@ export const TeamLeadDashboard = () => {
 
   const recentOrders = ordersData?.items || []
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const getProductivityColor = (percent: number | null) => {
@@ -142,7 +144,7 @@ export const TeamLeadDashboard = () => {
   const statsCards = [
     { 
       title: 'Team Members', 
-      value: (stats?.activeEmployees ?? 0).toString(), 
+      value: (stats?.activeExaminers ?? 0).toString(), 
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50'
@@ -164,7 +166,7 @@ export const TeamLeadDashboard = () => {
   ]
 
   // Top performers from productivity data - sort by score if no productivity %, otherwise by productivity %
-  const topPerformers = teamProductivity?.employees
+  const topPerformers = teamProductivity?.examiners
     ?.filter(e => e.scores?.totalScore > 0 || e.productivityPercent !== null)
     ?.sort((a, b) => {
       // If both have productivity %, sort by that
@@ -182,11 +184,14 @@ export const TeamLeadDashboard = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Lead Dashboard</h1>
-              <p className="text-sm text-slate-600">
-                Welcome, {user?.userName}!
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Team Lead Dashboard</h1>
+                <p className="text-sm text-slate-600">
+                  Welcome, {user?.userName}!
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -218,7 +223,9 @@ export const TeamLeadDashboard = () => {
                   {currentTeam.name}
                 </Badge>
               )}
-              
+
+              <HeaderRefreshButton />
+               
               <Badge variant="outline" className="px-3 py-1">
                 <Activity className="w-3 h-3 mr-1" />
                 {user?.userRole}
@@ -456,7 +463,7 @@ export const TeamLeadDashboard = () => {
                         {idx + 1}
                       </div>
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback>{getInitials('')}</AvatarFallback>
+                        <AvatarFallback>{getInitials(employee.userName || '')}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{employee.userName || employee.userName}</p>
@@ -511,7 +518,7 @@ export const TeamLeadDashboard = () => {
                   <div 
                     key={order.id} 
                     className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/employee/edit-order/${order.id}`)}
+                    onClick={() => navigate(`/examiner/edit-order/${order.id}`)}
                   >
                     <div className="flex items-center gap-4">
                       <div className="font-mono text-sm font-medium">{order.fileNumber}</div>

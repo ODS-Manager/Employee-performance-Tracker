@@ -101,7 +101,7 @@ try:
     # Test user creation and update (this is what fails during login)
     test_user = User(
         user_name="test_user",
-        employee_id="TEST001", 
+        examiner_id="TEST001", 
         password_hash=get_password_hash("test123"),
         user_role="EMPLOYEE",
         org_id=org.id,

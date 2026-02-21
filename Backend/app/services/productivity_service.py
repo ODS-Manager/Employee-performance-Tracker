@@ -1,18 +1,18 @@
 """
 Productivity Service
-Business logic for calculating employee productivity scores based on weekly targets.
+Business logic for calculating examiner productivity scores based on weekly targets.
 
 Business Logic:
-- Target is per employee PER TEAM (each team lead sets target for their team members)
-- Score is calculated across ALL teams the employee belongs to
+- Target is per examiner PER TEAM (each team lead sets target for their team members)
+- Score is calculated across ALL teams the examiner belongs to
 - Each team has its own score multipliers (step1_score, step2_score, single_seat_score)
-- Employee's total target = SUM of targets from all teams for that week
+- Examiner's total target = SUM of targets from all teams for that week
 - Productivity = Total Score (all teams) / Total Target (sum from all teams) × 100
 
 Example:
-- Employee X in Team A: target = 20 (set by Team A lead)
-- Employee X in Team B: target = 15 (set by Team B lead)
-- Employee X total target = 20 + 15 = 35
+- Examiner X in Team A: target = 20 (set by Team A lead)
+- Examiner X in Team B: target = 15 (set by Team B lead)
+- Examiner X total target = 20 + 15 = 35
 """
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportArgumentType=false
@@ -25,13 +25,13 @@ from app.models.order import Order
 from app.models.user import User
 from app.models.team import Team
 from app.models.user_team import UserTeam
-from app.models.employee_weekly_target import EmployeeWeeklyTarget
+from app.models.examiner_weekly_target import ExaminerWeeklyTarget
 from app.services.attendance_service import AttendanceService
 
 
 class ProductivityService:
     """
-    Service for calculating employee productivity scores
+    Service for calculating examiner productivity scores
     
     Score System:
     - Step 1: Configurable per team (team.step1_score)
@@ -44,8 +44,8 @@ class ProductivityService:
     - Target is sum of per-team targets (each team lead sets target for their team)
     
     Example:
-    - Employee X in Team A: target = 20, score = 18
-    - Employee X in Team B: target = 15, score = 12
+    - Examiner X in Team A: target = 20, score = 18
+    - Examiner X in Team B: target = 15, score = 12
     - Total target = 35, Total score = 30
     - Productivity = 30/35 × 100 = 85.7%
     """
@@ -95,7 +95,7 @@ class ProductivityService:
         Calculate total expected target for a date range by summing weekly targets.
         For weeks without explicit targets, carry forward the last known target per team.
         
-        Target is per employee PER TEAM - we sum targets from all teams.
+        Target is per examiner PER TEAM - we sum targets from all teams.
         
         Returns:
             Tuple of (total_target, weekly_target_used, weekly_breakdown)
@@ -108,9 +108,9 @@ class ProductivityService:
         weekly_breakdown = []
         
         # Get all targets for this user across all teams, ordered by week
-        all_targets = self.db.query(EmployeeWeeklyTarget).filter(
-            EmployeeWeeklyTarget.user_id == user_id
-        ).order_by(EmployeeWeeklyTarget.week_start_date).all()
+        all_targets = self.db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == user_id
+        ).order_by(ExaminerWeeklyTarget.week_start_date).all()
         
         # Create a map of (week_start, team_id) -> target
         target_map: Dict[Tuple[date, int], int] = {}
@@ -203,7 +203,7 @@ class ProductivityService:
         delta = end_date - start_date
         return delta.days + 1  # +1 to include both start and end dates
     
-    def get_employee_team_score(
+    def get_examiner_team_score(
         self,
         user_id: int,
         team_id: int,
@@ -211,7 +211,7 @@ class ProductivityService:
         end_date: date
     ) -> Dict[str, Any]:
         """
-        Calculate score for an employee in a specific team (orders only from this team).
+        Calculate score for an examiner in a specific team (orders only from this team).
         Uses team-specific score multipliers.
         
         Returns:
@@ -229,6 +229,7 @@ class ProductivityService:
             }
         
         # Base query for orders in this team within the date range (based on entry_date)
+        # Count work based on step assignments, regardless of order status.
         base_query = self.db.query(Order).filter(
             Order.team_id == team_id,
             Order.deleted_at == None,
@@ -293,44 +294,44 @@ class ProductivityService:
             }
         }
     
-    def calculate_employee_score(
+    def calculate_examiner_score(
         self,
         user_id: int,
         start_date: date,
         end_date: date
     ) -> Dict[str, Any]:
         """
-        Calculate productivity score for an employee.
+        Calculate productivity score for an examiner.
         
         This aggregates:
-        - Scores from ALL teams the employee is assigned to (using each team's multipliers)
+        - Scores from ALL teams the examiner is assigned to (using each team's multipliers)
         - Targets from ALL teams (sum of per-team targets set by respective team leads)
         
         Productivity = Total Score (all teams) / Total Target (sum from all teams) × 100
         
         Example:
-        - Employee X in Team A: target = 20, score = 18
-        - Employee X in Team B: target = 15, score = 12
+        - Examiner X in Team A: target = 20, score = 18
+        - Examiner X in Team B: target = 15, score = 12
         - Total target = 35, Total score = 30
         - Productivity = 30/35 × 100 = 85.7%
         
-        NOTE: Only calculates for users with role 'employee'
+        NOTE: Only calculates for users with role 'examiner'
         
         Returns:
             Dict with step counts, scores, and productivity percentage
         """
-        # Verify user is an employee (not team_lead, admin, superadmin)
+        # Verify user is an examiner (not team_lead, admin, superadmin)
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             return {"error": "User not found"}
-        if user.user_role != 'employee':  # type: ignore
-            return {"error": "Productivity is only calculated for employees"}
+        if user.user_role != 'examiner':  # type: ignore
+            return {"error": "Productivity is only calculated for examiners"}
         
         # Adjust end_date to not exceed today's date
         today = date.today()
         actual_end_date = min(end_date, today)
         
-        # Get ALL active teams the employee is assigned to
+        # Get ALL active teams the examiner is assigned to
         user_teams = self.db.query(UserTeam).filter(
             UserTeam.user_id == user_id,
             UserTeam.is_active == True
@@ -340,7 +341,7 @@ class ProductivityService:
         
         if not user_team_ids:
             return {
-                "error": "Employee is not assigned to any teams",
+                "error": "Examiner is not assigned to any teams",
                 "userId": user_id
             }
         
@@ -355,7 +356,7 @@ class ProductivityService:
         team_breakdown = []
         
         for tid in user_team_ids:
-            team_score_data = self.get_employee_team_score(
+            team_score_data = self.get_examiner_team_score(
                 user_id=user_id,
                 team_id=tid,
                 start_date=start_date,
@@ -377,10 +378,10 @@ class ProductivityService:
         # Calculate working days (up to today, not future dates)
         working_days = self.get_working_days_in_range(start_date, actual_end_date)
         
-        # Get expected target from weekly targets (single target per employee)
-        # total_expected_target is proportional based on date range
-        # weekly_target_used is the full weekly target (sum from all teams)
-        proportional_target, weekly_target_used, weekly_breakdown = self.get_weekly_target_for_range(
+        # Get expected target from weekly targets (single target per examiner)
+        # range_target is retained for reporting, weekly_target_used is the
+        # actual weekly target (sum from all teams) used for productivity.
+        _range_target, weekly_target_used, weekly_breakdown = self.get_weekly_target_for_range(
             user_id=user_id,
             start_date=start_date,
             end_date=actual_end_date
@@ -388,17 +389,13 @@ class ProductivityService:
         
         has_weekly_target = weekly_target_used is not None
         
-        # Use proportional target for productivity calculation
-        # but display the full weekly target as expectedTarget
-        proportional_target = round(proportional_target, 2)
-        
-        # expectedTarget should be the full weekly target, not proportional
+        # expectedTarget should be the full weekly target
         expected_target = weekly_target_used if weekly_target_used is not None else 0
         
         # Calculate attendance using manual attendance records
         # Use AttendanceService to get attendance summary
         attendance_service = AttendanceService(self.db)
-        attendance_summary = attendance_service.get_employee_attendance_summary(
+        attendance_summary = attendance_service.get_examiner_attendance_summary(
             user_id=user_id,
             start_date=start_date,
             end_date=actual_end_date
@@ -409,18 +406,17 @@ class ProductivityService:
         days_leave = attendance_summary.days_leave
         attendance_percentage = attendance_summary.attendance_percent
         
-        # Calculate productivity percentage using proportional target
-        # This ensures productivity is calculated based on the selected date range
+        # Calculate productivity percentage using weekly target (not proportional)
         # If no target is set, productivity is None (not 0)
         productivity_percent = None
-        if proportional_target > 0:
-            productivity_percent = round((total_score / proportional_target) * 100, 2)
+        if expected_target > 0:
+            productivity_percent = round((total_score / expected_target) * 100, 2)
         
         return {
             "userId": user_id,
             "userName": user.user_name,
             "userName": user.user_name,
-            "employeeId": user.employee_id,
+            "examinerId": user.examiner_id,
             "teamsIncluded": user_team_ids,
             "weeklyTarget": weekly_target_used,
             "expectedTarget": expected_target,
@@ -462,10 +458,10 @@ class ProductivityService:
     ) -> Dict[str, Any]:
         """
         Calculate productivity for all active members of a team.
-        Shows each employee's score ONLY for this team (not aggregated across all teams).
+        Shows each examiner's score ONLY for this team (not aggregated across all teams).
         
         Returns:
-            Dict with team info and list of employee productivity scores for this team
+            Dict with team info and list of examiner productivity scores for this team
         """
         # Get team
         team = self.db.query(Team).filter(Team.id == team_id).first()
@@ -476,37 +472,37 @@ class ProductivityService:
         today = date.today()
         actual_end_date = min(end_date, today)
         
-        # Get active team members - ONLY employees (not team_lead, admin, superadmin)
+        # Get active team members - ONLY examiners (not team_lead, admin, superadmin)
         team_members = self.db.query(UserTeam).join(
             User, User.id == UserTeam.user_id
         ).filter(
             UserTeam.team_id == team_id,
             UserTeam.is_active == True,
-            User.user_role == 'employee'
+            User.user_role == 'examiner'
         ).all()
         
-        employee_scores = []
+        examiner_scores = []
         total_team_score = 0.0
         total_expected = 0.0
         
         for membership in team_members:
             user = self.db.query(User).filter(
                 User.id == membership.user_id,
-                User.user_role == 'employee'
+                User.user_role == 'examiner'
             ).first()
             if not user:
                 continue
             
             # Get score for THIS TEAM ONLY (not aggregated across all teams)
-            team_score_data = self.get_employee_team_score(
+            team_score_data = self.get_examiner_team_score(
                 user_id=int(user.id),  # type: ignore
                 team_id=team_id,
                 start_date=start_date,
                 end_date=actual_end_date
             )
             
-            # Get employee's weekly target for this team
-            target_for_team = self._get_employee_target_for_team(
+            # Get examiner's weekly target for this team
+            target_for_team = self._get_examiner_target_for_team(
                 user_id=int(user.id),  # type: ignore
                 team_id=team_id,
                 start_date=start_date,
@@ -515,29 +511,29 @@ class ProductivityService:
             
             team_score = team_score_data["scores"]["totalScore"]
             
-            # Calculate productivity % for this employee in this team
-            employee_productivity = None
+            # Calculate productivity % for this examiner in this team
+            examiner_productivity = None
             if target_for_team > 0:
-                employee_productivity = round((team_score / target_for_team) * 100, 2)
+                examiner_productivity = round((team_score / target_for_team) * 100, 2)
             
-            employee_data = {
+            examiner_data = {
                 "userId": int(user.id),  # type: ignore
                 "userName": user.user_name,
                 "userName": user.user_name,
-                "employeeId": user.employee_id,
+                "examinerId": user.examiner_id,
                 "completions": team_score_data["completions"],
                 "scores": team_score_data["scores"],
                 "expectedTarget": target_for_team,
-                "productivityPercent": employee_productivity,
+                "productivityPercent": examiner_productivity,
                 "teamId": team_id,
                 "teamName": team.name
             }
             
-            employee_scores.append(employee_data)
+            examiner_scores.append(examiner_data)
             total_team_score += team_score
             total_expected += target_for_team
         
-        # Determine team target: use monthly_target if set, otherwise sum of employee targets
+        # Determine team target: use monthly_target if set, otherwise sum of examiner targets
         team_target: float = float(team.monthly_target) if team.monthly_target else total_expected
         
         # Calculate team productivity percentage using team target
@@ -560,15 +556,15 @@ class ProductivityService:
                 "requestedEndDate": end_date.isoformat(),
                 "workingDays": self.get_working_days_in_range(start_date, actual_end_date)
             },
-            "activeMembers": len(employee_scores),
+            "activeMembers": len(examiner_scores),
             "totalTeamScore": total_team_score,
-            "totalExpectedTarget": team_target,  # Use team target (monthly_target or sum of employee targets)
-            "employeeTargetSum": total_expected,  # Keep track of sum of employee targets separately
+            "totalExpectedTarget": team_target,  # Use team target (monthly_target or sum of examiner targets)
+            "examinerTargetSum": total_expected,  # Keep track of sum of examiner targets separately
             "teamProductivityPercent": round(float(team_productivity), 2),
-            "employees": employee_scores
+            "examiners": examiner_scores
         }
     
-    def _get_employee_target_for_team(
+    def _get_examiner_target_for_team(
         self,
         user_id: int,
         team_id: int,
@@ -576,46 +572,25 @@ class ProductivityService:
         end_date: date
     ) -> float:
         """
-        Get employee's target for a specific team within a date range.
-        Returns proportional target based on weeks in range.
+        Get examiner's weekly target for a specific team.
+        Uses latest known target up to end_date (carry-forward behavior).
         """
-        weeks = self.get_weeks_in_range(start_date, end_date)
-        total_target = 0.0
-        
         # Get all targets for this user and team, ordered by week
-        all_targets = self.db.query(EmployeeWeeklyTarget).filter(
-            EmployeeWeeklyTarget.user_id == user_id,
-            EmployeeWeeklyTarget.team_id == team_id
-        ).order_by(EmployeeWeeklyTarget.week_start_date).all()
-        
-        # Create a map of week_start -> target
-        target_map: Dict[date, int] = {}
-        for t in all_targets:
-            target_map[t.week_start_date] = int(t.target)  # type: ignore
-        
-        # Find the most recent target before start_date for carryforward
+        all_targets = self.db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == user_id,
+            ExaminerWeeklyTarget.team_id == team_id
+        ).order_by(ExaminerWeeklyTarget.week_start_date).all()
+
+        # Find latest known target up to end_date for carryforward
         last_known_target: Optional[int] = None
         for t in all_targets:
-            if t.week_start_date < start_date:  # type: ignore
+            if t.week_start_date <= end_date:  # type: ignore
                 last_known_target = int(t.target)  # type: ignore
-        
-        for week_start, week_end in weeks:
-            # Check if we have a target for this week
-            if week_start in target_map:
-                last_known_target = target_map[week_start]
-            
-            if last_known_target is not None:
-                # Calculate days of this week that fall within the range
-                overlap_start = max(week_start, start_date)
-                overlap_end = min(week_end, end_date)
-                days_in_range = (overlap_end - overlap_start).days + 1
-                
-                # Proportional target for partial weeks
-                weekly_proportion = days_in_range / 7.0
-                proportional_target = float(last_known_target) * weekly_proportion
-                total_target += proportional_target
-        
-        return round(total_target, 2)
+
+        if last_known_target is None:
+            return 0.0
+
+        return float(last_known_target)
     
     def get_monthly_productivity(
         self,
@@ -633,7 +608,7 @@ class ProductivityService:
         start_date = date(year, month, 1)
         end_date = date(year, month, last_day)
         
-        result = self.calculate_employee_score(
+        result = self.calculate_examiner_score(
             user_id=user_id,
             start_date=start_date,
             end_date=end_date
@@ -663,7 +638,7 @@ class ProductivityService:
             limit: Number of top performers to return
             
         Returns:
-            List of employee productivity scores sorted by total score descending
+            List of examiner productivity scores sorted by total score descending
         """
         # Get teams to query
         teams_query = self.db.query(Team).filter(Team.is_active == True)
@@ -685,11 +660,11 @@ class ProductivityService:
                 end_date=end_date
             )
             
-            if "employees" in team_data:
-                for emp in team_data["employees"]:
-                    if emp["userId"] not in seen_user_ids:
-                        all_scores.append(emp)
-                        seen_user_ids.add(emp["userId"])
+            if "examiners" in team_data:
+                for examiner in team_data["examiners"]:
+                    if examiner["userId"] not in seen_user_ids:
+                        all_scores.append(examiner)
+                        seen_user_ids.add(examiner["userId"])
         
         # Sort by total score descending
         all_scores.sort(key=lambda x: x["scores"]["totalScore"], reverse=True)

@@ -10,7 +10,7 @@ from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, require_admin, require_team_lead, require_team_lead_or_admin,
     check_org_access, check_team_access, get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
 from app.models.team import Team, TeamState, TeamProduct
@@ -85,7 +85,7 @@ def serialize_team_member(user: User, user_team: UserTeam) -> dict:
         "id": user_team.id,
         "userId": user.id,
         "userName": user.user_name,
-        "employeeId": user.employee_id,
+        "examinerId": user.examiner_id,
         "userRole": user.user_role,
         "teamRole": user_team.role,
         "joinedAt": user_team.joined_at.isoformat() if user_team.joined_at else None,
@@ -134,7 +134,7 @@ async def list_teams(
     """List teams with organization-based filtering"""
     
     # TEMPORARY FIX: Disable cache and complex joins to debug issue
-    # cache_org_id = org_id if current_user.user_role == ROLE_SUPERADMIN else current_user.org_id
+    # cache_org_id = org_id if current_user.user_role.lower() == ROLE_SUPERADMIN else current_user.org_id
     # cache_key = cache._build_key(
     #     cache.PREFIX_TEAMS,
     #     "list",
@@ -155,10 +155,10 @@ async def list_teams(
     )
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         if org_id:
             query = query.filter(Team.org_id == org_id)
-    elif current_user.user_role in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE]:
+    elif current_user.user_role in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER]:
         # Others can only see their organization's teams
         query = query.filter(Team.org_id == current_user.org_id)
     
@@ -189,7 +189,7 @@ async def create_team(
     from app.models.organization import Organization
     
     # Admin can only create teams in their organization
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team_data.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -305,7 +305,7 @@ async def get_team(
     has_access = False
     
     # Superadmin has access to everything
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         has_access = True
     # Same organization users have access (check for None)
     elif current_user.org_id is not None and team.org_id == current_user.org_id:
@@ -359,7 +359,7 @@ async def update_team(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -408,7 +408,7 @@ async def delete_team(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -452,7 +452,7 @@ async def activate_team(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -485,7 +485,7 @@ async def get_team_states(
         )
     
     # Check access
-    if current_user.user_role != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -511,7 +511,7 @@ async def add_team_state(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() == ROLE_ADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -558,7 +558,7 @@ async def remove_team_state(
     
     # Check organization access
     team = db.query(Team).filter(Team.id == team_id).first()
-    if current_user.user_role == ROLE_ADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() == ROLE_ADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -586,7 +586,7 @@ async def get_team_products(
         )
     
     # Check access
-    if current_user.user_role != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -612,7 +612,7 @@ async def add_team_product(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() == ROLE_ADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -659,7 +659,7 @@ async def remove_team_product(
     
     # Check organization access
     team = db.query(Team).filter(Team.id == team_id).first()
-    if current_user.user_role == ROLE_ADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() == ROLE_ADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -687,7 +687,7 @@ async def get_team_members(
         )
     
     # Check access
-    if current_user.user_role != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
+    if current_user.user_role.lower() != ROLE_SUPERADMIN and team.org_id != current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -708,10 +708,10 @@ async def add_team_member(
     team_id: int,
     user_id: int = Query(..., alias="userId"),
     role: str = Query("member"),
-    current_user: User = Depends(require_team_lead_or_admin),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Add a member to a team"""
+    """Add a member to a team (Admin or Superadmin only)"""
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(
@@ -727,20 +727,7 @@ async def add_team_member(
         )
     
     # Check access based on role
-    if current_user.user_role == ROLE_TEAM_LEAD:
-        # Team lead can only manage members in teams they lead
-        if team.team_lead_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only manage members in teams you lead"
-            )
-        # Team lead can only add users from the same organization
-        if user.org_id != current_user.org_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only add users from your organization"
-            )
-    elif current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id or user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -806,14 +793,14 @@ async def remove_team_member(
     
     # Check access based on role
     team = db.query(Team).filter(Team.id == team_id).first()
-    if current_user.user_role == ROLE_TEAM_LEAD:
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team lead can only manage members in teams they lead
         if team.team_lead_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage members in teams you lead"
             )
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -852,14 +839,14 @@ async def update_team_member_role(
     
     # Check access based on role
     team = db.query(Team).filter(Team.id == team_id).first()
-    if current_user.user_role == ROLE_TEAM_LEAD:
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team lead can only manage members in teams they lead
         if team.team_lead_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage members in teams you lead"
             )
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -874,8 +861,8 @@ async def update_team_member_role(
     return serialize_team_member(user, user_team)
 
 
-@router.get("/{team_id}/fake-names")
-async def get_team_fake_names(
+@router.get("/{team_id}/fa-names")
+async def get_team_fa_names(
     team_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -913,4 +900,3 @@ async def get_team_fake_names(
         ],
         "total": len(fa_names)
     }
-

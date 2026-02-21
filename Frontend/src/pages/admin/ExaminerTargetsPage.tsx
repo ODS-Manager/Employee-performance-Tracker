@@ -26,7 +26,9 @@ import {
   TableRow,
 } from '../../components/ui/table'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { 
   Target, 
   Users, 
@@ -45,7 +47,7 @@ interface TargetEditState {
   [userId: number]: string
 }
 
-export const EmployeeTargetsPage = () => {
+export const ExaminerTargetsPage = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -63,7 +65,7 @@ export const EmployeeTargetsPage = () => {
 
   // Redirect if not admin or team lead
   useEffect(() => {
-    if (!user || !hasAnyUserRole(user.userRole, ['admin', 'superadmin', 'team_lead'])) {
+    if (!user || !hasAnyUserRole(user.userRole, ['admin', 'team_lead'])) {
       navigate('/login')
     }
   }, [user, navigate])
@@ -241,36 +243,24 @@ export const EmployeeTargetsPage = () => {
   const canEdit = teamTargets?.weekInfo?.canEdit ?? true
   
   // Back navigation path based on user role
-  const backPath = isTeamLead ? '/teamlead/team-management' : '/admin/employee-targets'
+  const backPath = isTeamLead ? '/teamlead/team-management' : '/admin/examiner-targets'
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {isTeamLead && urlTeamId && (
-                <Button variant="ghost" size="icon" onClick={() => navigate(backPath)}>
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              )}
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Employee Weekly Targets</h1>
-                <p className="text-sm text-slate-600">
-                  Set and manage weekly productivity targets for employees
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Employee Weekly Targets" subtitle="Set and manage weekly productivity targets for employees" />
 
       {/* Navigation */}
       {isTeamLead ? <TeamLeadNav /> : <AdminNav />}
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
+        {/* Back button for team leads */}
+        {isTeamLead && urlTeamId && (
+          <Button variant="ghost" size="sm" onClick={() => navigate(backPath)} className="mb-6">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Team Management
+          </Button>
+        )}
         {/* Controls Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -279,7 +269,7 @@ export const EmployeeTargetsPage = () => {
               Target Settings
             </CardTitle>
             <CardDescription>
-              Select a team and week to view or modify employee targets
+              Select a team and week to view or modify examiner targets
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -514,4 +504,4 @@ export const EmployeeTargetsPage = () => {
   )
 }
 
-export default EmployeeTargetsPage
+export default ExaminerTargetsPage

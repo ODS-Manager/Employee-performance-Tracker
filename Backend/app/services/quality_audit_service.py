@@ -207,8 +207,11 @@ class QualityAuditService:
         if audit_data.audit_period_end is not None:
             audit.audit_period_end = audit_data.audit_period_end
         
-        # Recalculate total files reviewed if period changed
-        if audit_data.audit_period_start is not None or audit_data.audit_period_end is not None:
+        # Update total_files_reviewed if provided manually
+        if audit_data.total_files_reviewed is not None:
+            audit.total_files_reviewed = audit_data.total_files_reviewed
+        # Otherwise, recalculate from DB if period changed
+        elif audit_data.audit_period_start is not None or audit_data.audit_period_end is not None:
             audit.total_files_reviewed = QualityAuditService.get_total_files_reviewed(
                 db=db,
                 examiner_id=audit.examiner_id,

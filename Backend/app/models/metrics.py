@@ -1,6 +1,6 @@
 """
 Performance Metrics Models
-Employee and Team performance tracking
+Examiner and Team performance tracking
 """
 from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Index, Numeric, Text
 from sqlalchemy.orm import relationship
@@ -8,9 +8,9 @@ from datetime import datetime
 from app.database import Base
 
 
-class EmployeePerformanceMetrics(Base):
-    """Employee performance metrics - daily/weekly/monthly aggregation"""
-    __tablename__ = "employee_performance_metrics"
+class ExaminerPerformanceMetrics(Base):
+    """Examiner performance metrics - daily/weekly/monthly aggregation"""
+    __tablename__ = "examiner_performance_metrics"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -51,8 +51,8 @@ class EmployeePerformanceMetrics(Base):
     
     # Relationships
     user = relationship("User", back_populates="performance_metrics", foreign_keys=[user_id])
-    team = relationship("Team", back_populates="employee_metrics")
-    organization = relationship("Organization", back_populates="employee_metrics")
+    team = relationship("Team", back_populates="examiner_metrics")
+    organization = relationship("Organization", back_populates="examiner_metrics")
     
     # Indexes
     __table_args__ = (
@@ -87,11 +87,11 @@ class TeamPerformanceMetrics(Base):
     avg_order_completion_minutes = Column(Integer, nullable=True)
     
     # Team composition
-    active_employees_count = Column(Integer, default=0)
+    active_examiners_count = Column(Integer, default=0)
     
     # Performance indicators
     team_efficiency_score = Column(Numeric(5, 2), nullable=True)  # 0-100
-    orders_per_employee = Column(Numeric(5, 2), nullable=True)
+    orders_per_examiner = Column(Numeric(5, 2), nullable=True)
     completion_rate = Column(Numeric(5, 2), nullable=True)  # Percentage
     
     # Breakdowns (JSON)

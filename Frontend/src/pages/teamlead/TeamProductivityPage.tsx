@@ -4,10 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, addDays, subDays } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
-import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { teamsApi, productivityApi, weeklyTargetsApi } from '../../services/api'
-import type { TeamProductivity, EmployeeProductivity } from '../../types'
+import type { TeamProductivity, ExaminerProductivity } from '../../types'
 import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -18,6 +18,7 @@ import { Label } from '../../components/ui/label'
 import { Input } from '../../components/ui/input'
 import { Button } from '../../components/ui/button'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import {
   Select,
   SelectContent,
@@ -25,8 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select'
-import { Calendar } from '../../components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import { 
   Dialog,
   DialogContent,
@@ -57,35 +56,18 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
-} from 'recharts'
+import odsLogo from '../../assets/ods-logo.png'
 
 export const TeamProductivityPage = () => {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { filterMonth, filterYear, filterPeriod, setFilterMonth, setFilterYear, setFilterPeriod, setCurrentMonth, setPreviousMonth } = useDashboardFilterStore()
+  const { filterMonth, filterYear } = useDashboardFilterStore()
   const { selectedTeamId, setSelectedTeamId } = useTeamLeadFilterStore()
   
-  // Custom date range state
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
-  })
-  const [useCustomRange, setUseCustomRange] = useState(false)
-
   // Set Target Dialog state
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeProductivity | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<ExaminerProductivity | null>(null)
   const [targetValue, setTargetValue] = useState<string>('')
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
     const today = new Date()
@@ -147,18 +129,10 @@ export const TeamProductivityPage = () => {
     }
   }, [teamId, selectedTeamId, setSelectedTeamId])
 
-  // Calculate date range based on filter type
-  let startDate: string
-  let endDate: string
-
-  if (useCustomRange && dateRange.from && dateRange.to) {
-    startDate = format(dateRange.from, 'yyyy-MM-dd')
-    endDate = format(dateRange.to, 'yyyy-MM-dd')
-  } else {
-    startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
-    const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
-    endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
-  }
+  // Calculate date range based on filter month/year
+  const startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+  const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
+  const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
 
   // Fetch team productivity
   const { data: teamProductivity, isLoading: loadingProductivity } = useQuery<TeamProductivity>({
@@ -173,7 +147,7 @@ export const TeamProductivityPage = () => {
 
   const currentTeam = myTeams.find(t => t.id === teamId)
 
-  // Mutation to save weekly target for individual employee
+  // Mutation to save weekly target for individual examiner
   const saveTargetMutation = useMutation({
     mutationFn: (data: { teamId: number; userId: number; target: number; weekStartDate: string }) =>
       weeklyTargetsApi.setTeamTargets(data.teamId, {
@@ -220,7 +194,7 @@ export const TeamProductivityPage = () => {
   }, [existingTarget, targetDialogOpen, loadingWeeklyTarget, selectedWeekStart])
 
   // Handle opening the target dialog
-  const handleOpenTargetDialog = (employee: EmployeeProductivity) => {
+  const handleOpenTargetDialog = (employee: ExaminerProductivity) => {
     setSelectedEmployee(employee)
     setTargetValue('')
     // Reset to current week when opening
@@ -244,24 +218,8 @@ export const TeamProductivityPage = () => {
     })
   }
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
-  }
-
-  const handlePeriodChange = (value: string) => {
-    if (value === 'current') {
-      setCurrentMonth()
-      setUseCustomRange(false)
-    } else if (value === 'previous') {
-      setPreviousMonth()
-      setUseCustomRange(false)
-    } else if (value === 'custom') {
-      setFilterPeriod('custom')
-      setUseCustomRange(true)
-    } else {
-      setFilterPeriod('custom')
-      setUseCustomRange(false)
-    }
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const getProductivityColor = (percent: number | null) => {
@@ -280,25 +238,8 @@ export const TeamProductivityPage = () => {
     return 'bg-red-100'
   }
 
-  const getBarColor = (percent: number | null) => {
-    if (percent === null) return '#9ca3af'
-    if (percent >= 100) return '#22c55e'
-    if (percent >= 80) return '#3b82f6'
-    if (percent >= 60) return '#eab308'
-    return '#ef4444'
-  }
-
-  // Prepare chart data - only include employees with valid productivity
-  const chartData = teamProductivity?.employees
-    ?.filter(emp => emp.productivityPercent !== null)
-    ?.map(emp => ({
-      name: emp.userName || emp.userName || `User ${emp.userId}`,
-      productivity: Math.round(emp.productivityPercent as number),
-      score: emp.scores.totalScore,
-    })).sort((a, b) => b.productivity - a.productivity) || []
-
-  // Sort employees by productivity for table (null values at the end)
-  const sortedEmployees = [...(teamProductivity?.employees || [])].sort(
+  // Sort examiners by productivity for table (null values at the end)
+  const sortedExaminers = [...(teamProductivity?.examiners || [])].sort(
     (a, b) => {
       if (a.productivityPercent === null && b.productivityPercent === null) return 0
       if (a.productivityPercent === null) return 1
@@ -309,9 +250,6 @@ export const TeamProductivityPage = () => {
 
   // Get month name for display
   const getDateRangeDisplay = () => {
-    if (useCustomRange && dateRange.from && dateRange.to) {
-      return `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}`
-    }
     const monthName = new Date(parseInt(filterYear), parseInt(filterMonth) - 1).toLocaleString('default', { month: 'long' })
     return `${monthName} ${filterYear}`
   }
@@ -322,14 +260,19 @@ export const TeamProductivityPage = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Productivity</h1>
-              <p className="text-sm text-slate-600">
-                {currentTeam?.name || 'Loading...'} - {getDateRangeDisplay()}
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Team Productivity</h1>
+                <p className="text-sm text-slate-600">
+                  {currentTeam?.name || 'Loading...'} - {getDateRangeDisplay()}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
+              <HeaderRefreshButton />
+
               <Badge variant="outline" className="px-3 py-1">
                 <Shield className="w-3 h-3 mr-1" />
                 Team Lead
@@ -381,7 +324,7 @@ export const TeamProductivityPage = () => {
               <Filter className="h-4 w-4 text-slate-500" />
               <span className="text-sm font-medium text-slate-700">Filters</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="flex items-center gap-4">
               {/* Team Filter */}
               {myTeams.length > 0 && (
                 <div className="space-y-1">
@@ -402,125 +345,6 @@ export const TeamProductivityPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              
-              {/* Period Filter */}
-              <div className="space-y-1">
-                <Label className="text-xs text-slate-500">Period</Label>
-                <Select value={useCustomRange ? 'custom' : filterPeriod} onValueChange={handlePeriodChange}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">Current Month</SelectItem>
-                    <SelectItem value="previous">Previous Month</SelectItem>
-                    <SelectItem value="custom">Custom Range</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Month Filter - Only show when not custom range */}
-              {!useCustomRange && (
-                <>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Month</Label>
-                    <Select 
-                      value={filterMonth} 
-                      onValueChange={setFilterMonth}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getMonthOptions(filterYear).map((month) => (
-                          <SelectItem key={month.value} value={month.value}>
-                            {month.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Year</Label>
-                    <Select 
-                      value={filterYear} 
-                      onValueChange={setFilterYear}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getYearOptions().map((year) => (
-                          <SelectItem key={year.value} value={year.value}>
-                            {year.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-              
-              {/* Custom Date Range Picker - From Date */}
-              {useCustomRange && (
-                <>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">From Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full h-9 justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.from ? (
-                            format(dateRange.from, 'MMM dd, yyyy')
-                          ) : (
-                            <span className="text-muted-foreground">Pick start date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-white" align="start" side="bottom">
-                        <Calendar
-                          mode="single"
-                          selected={dateRange.from}
-                          onSelect={(date) => setDateRange({ ...dateRange, from: date })}
-                          disabled={(date) => dateRange.to ? date > dateRange.to : false}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  
-                  {/* Custom Date Range Picker - To Date */}
-                  <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">To Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full h-9 justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.to ? (
-                            format(dateRange.to, 'MMM dd, yyyy')
-                          ) : (
-                            <span className="text-muted-foreground">Pick end date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-white" align="start" side="bottom">
-                        <Calendar
-                          mode="single"
-                          selected={dateRange.to}
-                          onSelect={(date) => setDateRange({ ...dateRange, to: date })}
-                          disabled={(date) => dateRange.from ? date < dateRange.from : false}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </>
               )}
             </div>
           </CardContent>
@@ -602,46 +426,11 @@ export const TeamProductivityPage = () => {
                     {teamProductivity?.period?.workingDays || 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Weekly targets per employee
+                    Weekly targets per examiner
                   </p>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Productivity Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Employee Productivity Comparison</CardTitle>
-                <CardDescription>Productivity percentage by team member</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {chartData.length > 0 ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData} layout="vertical" margin={{ left: 100 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                        <XAxis type="number" domain={[0, 120]} tickFormatter={(v) => `${v}%`} />
-                        <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                        <Tooltip 
-                          formatter={(value) => [`${value}%`, 'Productivity']}
-                          labelStyle={{ fontWeight: 'bold' }}
-                        />
-                        <ReferenceLine x={100} stroke="#10b981" strokeDasharray="5 5" label="Target" />
-                        <Bar dataKey="productivity" radius={[0, 4, 4, 0]}>
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={getBarColor(entry.productivity)} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    No productivity data available
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
             {/* Employee Productivity Table */}
             <Card>
@@ -669,15 +458,15 @@ export const TeamProductivityPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedEmployees.length === 0 ? (
+                    {sortedExaminers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                           No productivity data available
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sortedEmployees.map((employee: EmployeeProductivity, index: number) => (
-                        <TableRow key={employee.userId}>
+                      sortedExaminers.map((examiner: ExaminerProductivity, index: number) => (
+                        <TableRow key={examiner.userId}>
                           <TableCell>
                             <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                               index === 0 ? 'bg-yellow-100 text-yellow-800' :
@@ -691,58 +480,58 @@ export const TeamProductivityPage = () => {
                           <TableCell className="font-medium">
                             <div 
                               className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
-                              onClick={() => navigate(`/teamlead/employee/${employee.userId}/performance`)}
+                              onClick={() => navigate(`/teamlead/examiner/${examiner.userId}/performance`)}
                             >
                               <Avatar className="h-8 w-8">
                                 <AvatarFallback>
-                                  {getInitials('')}
+                                  {getInitials(examiner.userName || '')}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <div>{employee.userName || employee.userName}</div>
+                                <div>{examiner.userName || examiner.userName}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  {employee.employeeId}
+                                  {examiner.examinerId}
                                 </div>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="text-sm">
-                              <span className="font-medium">{employee.completions.step1Only}</span>
+                              <span className="font-medium">{examiner.completions.step1Only}</span>
                               <span className="text-muted-foreground ml-1">
-                                ({employee.scores.step1Score.toFixed(1)})
+                                ({examiner.scores.step1Score.toFixed(1)})
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="text-sm">
-                              <span className="font-medium">{employee.completions.step2Only}</span>
+                              <span className="font-medium">{examiner.completions.step2Only}</span>
                               <span className="text-muted-foreground ml-1">
-                                ({employee.scores.step2Score.toFixed(1)})
+                                ({examiner.scores.step2Score.toFixed(1)})
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="text-sm">
-                              <span className="font-medium">{employee.completions.singleSeat}</span>
+                              <span className="font-medium">{examiner.completions.singleSeat}</span>
                               <span className="text-muted-foreground ml-1">
-                                ({employee.scores.singleSeatScore.toFixed(1)})
+                                ({examiner.scores.singleSeatScore.toFixed(1)})
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            {employee.scores.totalScore.toFixed(1)}
+                            {examiner.scores.totalScore.toFixed(1)}
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
-                            {employee.expectedTarget.toFixed(1)}
+                            {examiner.expectedTarget.toFixed(1)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge 
                               variant="outline"
-                              className={`${getProductivityBgColor(employee.productivityPercent)} ${getProductivityColor(employee.productivityPercent)}`}
+                              className={`${getProductivityBgColor(examiner.productivityPercent)} ${getProductivityColor(examiner.productivityPercent)}`}
                             >
-                              {employee.productivityPercent !== null 
-                                ? `${Math.round(employee.productivityPercent)}%`
+                              {examiner.productivityPercent !== null 
+                                ? `${Math.round(examiner.productivityPercent)}%`
                                 : 'N/A'
                               }
                             </Badge>
@@ -751,7 +540,7 @@ export const TeamProductivityPage = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleOpenTargetDialog(employee)}
+                              onClick={() => handleOpenTargetDialog(examiner)}
                             >
                               <Target className="h-4 w-4 mr-1" />
                               Set Target

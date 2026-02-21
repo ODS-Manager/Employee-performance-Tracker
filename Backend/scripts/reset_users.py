@@ -44,7 +44,7 @@ def reset_users():
             {
                 "user_name": "superadmin",
                 "password": "SuperAdmin123!",
-                "employee_id": "SA001",
+                "examiner_id": "SA001",
                 "user_role": "SUPERADMIN",
                 "org_id": None,  # Superadmin has no org
                 "is_active": True,
@@ -54,7 +54,7 @@ def reset_users():
             {
                 "user_name": "admin_ods_ind",
                 "password": "AdminOdsInd123!",
-                "employee_id": "A001",
+                "examiner_id": "A001",
                 "user_role": "ADMIN",
                 "org_id": org_ind.id,
                 "is_active": True,
@@ -64,7 +64,7 @@ def reset_users():
             {
                 "user_name": "employee_ods_ind",
                 "password": "EmployeeOdsInd123!",
-                "employee_id": "E001",
+                "examiner_id": "E001",
                 "user_role": "EMPLOYEE",
                 "org_id": org_ind.id,
                 "is_active": True,
@@ -96,7 +96,7 @@ def reset_users():
             print(f"Password: {password}")
             print(f"Role: {user.user_role}")
             print(f"Org ID: {user.org_id}")
-            print(f"Employee ID: {user.employee_id}")
+            print(f"Employee ID: {user.examiner_id}")
             print("-" * 80)
         
         return True

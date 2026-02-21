@@ -28,8 +28,8 @@ import type {
   ProcessType,
   OrderStatus,
   Division,
-  EmployeeMetrics,
-  EmployeeMetricsListResponse,
+  ExaminerMetrics,
+  ExaminerMetricsListResponse,
   TeamMetrics,
   TeamMetricsListResponse,
   DashboardStats,
@@ -41,7 +41,7 @@ import type {
   ChangePasswordRequest,
   MessageResponse,
   DatabaseResetResponse,
-  EmployeeProductivity,
+  ExaminerProductivity,
   TeamProductivity,
   ProductivityLeaderboardResponse,
   FileNumberCheckResponse,
@@ -60,7 +60,7 @@ import type {
   WeeklyTargetBulkCreate,
   WeeklyTargetSaveResponse,
   CurrentWeekInfo,
-  EmployeeTargetHistoryResponse,
+  ExaminerTargetHistoryResponse,
   TeamUserAlias,
   TeamUserAliasCreate,
   TeamUserAliasUpdate,
@@ -416,8 +416,8 @@ export const teamsApi = {
   },
 
   // Team FA names (pool-based)
-  getFakeNames: async (teamId: number): Promise<{ items: Array<{ id: number; faName: string; teamId: number }>; total: number }> => {
-    const response = await api.get(`/teams/${teamId}/fake-names`)
+  getFaNames: async (teamId: number): Promise<{ items: Array<{ id: number; faName: string; teamId: number }>; total: number }> => {
+    const response = await api.get(`/teams/${teamId}/fa-names`)
     return response.data
   },
 
@@ -539,6 +539,23 @@ export const ordersApi = {
       orderIds,
       billingStatus,
     })
+    return response.data
+  },
+
+  // Filter options
+  getAvailableStates: async (params?: {
+    orgId?: number
+    teamId?: number
+  }): Promise<string[]> => {
+    const response = await api.get('/orders/filter-options/states', { params })
+    return response.data
+  },
+
+  getAvailableProducts: async (params?: {
+    orgId?: number
+    teamId?: number
+  }): Promise<string[]> => {
+    const response = await api.get('/orders/filter-options/products', { params })
     return response.data
   },
 }
@@ -675,14 +692,14 @@ export const metricsApi = {
     return response.data
   },
 
-  // Employee metrics
-  getEmployeeMetrics: async (params?: MetricsFilterParams): Promise<EmployeeMetricsListResponse> => {
-    const response = await api.get('/metrics/employees', { params })
+  // Examiner metrics
+  getExaminerMetrics: async (params?: MetricsFilterParams): Promise<ExaminerMetricsListResponse> => {
+    const response = await api.get('/metrics/examiners', { params })
     return response.data
   },
 
-  // List employee metrics with more flexible parameters
-  listEmployeeMetrics: async (params?: {
+  // List examiner metrics with more flexible parameters
+  listExaminerMetrics: async (params?: {
     orgId?: number
     teamId?: number
     userId?: number
@@ -691,7 +708,7 @@ export const metricsApi = {
     endDate?: string
     page?: number
     pageSize?: number
-  }): Promise<EmployeeMetricsListResponse> => {
+  }): Promise<ExaminerMetricsListResponse> => {
     const queryParams: Record<string, unknown> = {}
     if (params?.orgId !== undefined) queryParams.org_id = params.orgId
     if (params?.teamId !== undefined) queryParams.team_id = params.teamId
@@ -702,15 +719,15 @@ export const metricsApi = {
     if (params?.page !== undefined) queryParams.page = params.page
     if (params?.pageSize !== undefined) queryParams.page_size = params.pageSize
     
-    const response = await api.get('/metrics/employees', { params: queryParams })
+    const response = await api.get('/metrics/examiners', { params: queryParams })
     return response.data
   },
 
-  getEmployeeMetricsByUser: async (
+  getExaminerMetricsByUser: async (
     userId: number,
     params?: MetricsFilterParams
-  ): Promise<EmployeeMetrics[]> => {
-    const response = await api.get(`/metrics/employees/${userId}`, { params })
+  ): Promise<ExaminerMetrics[]> => {
+    const response = await api.get(`/metrics/examiners/${userId}`, { params })
     return response.data
   },
 
@@ -729,12 +746,12 @@ export const metricsApi = {
   },
 
   // Calculate metrics (admin only)
-  calculateEmployeeMetrics: async (params: {
+  calculateExaminerMetrics: async (params: {
     userId: number
     date: string
     periodType: 'daily' | 'weekly' | 'monthly'
-  }): Promise<EmployeeMetrics> => {
-    const response = await api.post('/metrics/calculate/employee', params)
+  }): Promise<ExaminerMetrics> => {
+    const response = await api.post('/metrics/calculate/examiner', params)
     return response.data
   },
 
@@ -757,33 +774,33 @@ export const databaseApi = {
 }
 
 // ============ Productivity API ============
-// NOTE: Target is per employee (not per team). Score is aggregated across ALL teams.
+// NOTE: Target is per examiner (not per team). Score is aggregated across ALL teams.
 export const productivityApi = {
-  // Get employee productivity for a date range (aggregates across all teams)
-  getEmployeeProductivity: async (params: {
+  // Get examiner productivity for a date range (aggregates across all teams)
+  getExaminerProductivity: async (params: {
     userId: number
     startDate: string
     endDate: string
-  }): Promise<EmployeeProductivity> => {
+  }): Promise<ExaminerProductivity> => {
     const queryParams = {
       start_date: params.startDate,
       end_date: params.endDate,
     }
-    const response = await api.get(`/productivity/employee/${params.userId}`, { params: queryParams })
+    const response = await api.get(`/productivity/examiner/${params.userId}`, { params: queryParams })
     return response.data
   },
 
-  // Get employee monthly productivity
-  getEmployeeMonthlyProductivity: async (params: {
+  // Get examiner monthly productivity
+  getExaminerMonthlyProductivity: async (params: {
     userId: number
     year: number
     month: number
-  }): Promise<EmployeeProductivity> => {
+  }): Promise<ExaminerProductivity> => {
     const queryParams = {
       year: params.year,
       month: params.month,
     }
-    const response = await api.get(`/productivity/employee/${params.userId}/monthly`, { params: queryParams })
+    const response = await api.get(`/productivity/examiner/${params.userId}/monthly`, { params: queryParams })
     return response.data
   },
 
@@ -825,7 +842,7 @@ export const productivityApi = {
   getMyProductivity: async (params: {
     startDate: string
     endDate: string
-  }): Promise<EmployeeProductivity> => {
+  }): Promise<ExaminerProductivity> => {
     const queryParams = {
       start_date: params.startDate,
       end_date: params.endDate,
@@ -883,6 +900,7 @@ export const qualityAuditApi = {
   update: async (id: number, data: QualityAuditUpdate): Promise<QualityAudit> => {
     const payload: Record<string, unknown> = {}
     if (data.processType !== undefined) payload.process_type = data.processType
+    if (data.totalFilesReviewed !== undefined) payload.total_files_reviewed = data.totalFilesReviewed
     if (data.filesWithError !== undefined) payload.files_with_error = data.filesWithError
     if (data.totalErrors !== undefined) payload.total_errors = data.totalErrors
     if (data.filesWithCceError !== undefined) payload.files_with_cce_error = data.filesWithCceError
@@ -1014,19 +1032,19 @@ export const weeklyTargetsApi = {
     return response.data
   },
 
-  // Get employee target history
-  getEmployeeTargets: async (params: {
+  // Get examiner target history
+  getExaminerTargets: async (params: {
     userId: number
     teamId: number
     startDate?: string
     endDate?: string
-  }): Promise<EmployeeTargetHistoryResponse> => {
+  }): Promise<ExaminerTargetHistoryResponse> => {
     const queryParams: Record<string, unknown> = {
       team_id: params.teamId,
     }
     if (params.startDate) queryParams.start_date = params.startDate
     if (params.endDate) queryParams.end_date = params.endDate
-    const response = await api.get(`/weekly-targets/employee/${params.userId}`, { params: queryParams })
+    const response = await api.get(`/weekly-targets/examiner/${params.userId}`, { params: queryParams })
     return response.data
   },
 
@@ -1064,7 +1082,7 @@ export const attendanceApi = {
       team_id: data.teamId,
       date: data.date,
       status: data.status,
-      employee_ids: data.employeeIds,
+      examiner_ids: data.examinerIds,
     }
     const response = await api.post('/attendance/mark-bulk', payload)
     return response.data
@@ -1081,13 +1099,13 @@ export const attendanceApi = {
     return response.data
   },
 
-  // Get employee attendance summary
-  getEmployeeAttendance: async (
+  // Get examiner attendance summary
+  getExaminerAttendance: async (
     userId: number,
     startDate: string,
     endDate: string
   ): Promise<AttendanceSummary> => {
-    const response = await api.get(`/attendance/employee/${userId}`, {
+    const response = await api.get(`/attendance/examiner/${userId}`, {
       params: {
         start_date: startDate,
         end_date: endDate,

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapPin, Package, Users, Loader2, AlertCircle } from 'lucide-react'
 import { AdminNav } from '@/components/layout/AdminNav'
+import { AdminHeader } from '@/components/layout/AdminHeader'
+import { GlobalFilters } from '@/components/filters/GlobalFilters'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,7 +31,7 @@ interface TeamMember {
   id: number
   userId: number
   userName: string
-  employeeId: string
+  examinerId: string
   userRole: string
   teamRole: string
   isActive: boolean
@@ -91,7 +93,7 @@ const TeamReportDetailPage = () => {
         return 'bg-purple-100 text-purple-700 border-purple-200'
       case 'team_lead':
         return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'employee':
+      case 'examiner':
         return 'bg-green-100 text-green-700 border-green-200'
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200'
@@ -141,26 +143,17 @@ const TeamReportDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
-                {team.name.charAt(0)}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">{team.name}</h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant={team.isActive ? 'default' : 'secondary'}>
-                    {team.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                  <span className="text-sm text-slate-600">{organization?.name || 'Unknown Organization'}</span>
-                </div>
-              </div>
-            </div>
+      <AdminHeader 
+        title={team.name} 
+        subtitle={
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant={team.isActive ? 'default' : 'secondary'}>
+              {team.isActive ? 'Active' : 'Inactive'}
+            </Badge>
+            <span className="text-sm text-slate-600">{organization?.name || 'Unknown Organization'}</span>
           </div>
-        </div>
-      </header>
+        } 
+      />
 
       <AdminNav />
 
@@ -282,7 +275,7 @@ const TeamReportDetailPage = () => {
                           </Avatar>
                           <div>
                             <div className="font-medium">{member.userName}</div>
-                            <div className="text-xs text-muted-foreground">{member.employeeId}</div>
+                            <div className="text-xs text-muted-foreground">{member.examinerId}</div>
                           </div>
                         </div>
                       </TableCell>

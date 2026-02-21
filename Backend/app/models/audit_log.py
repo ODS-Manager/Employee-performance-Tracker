@@ -12,7 +12,7 @@ This model provides:
 - Searchable and filterable audit trail
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, Index, BigInteger
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, Index
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -31,8 +31,8 @@ class AuditLog(Base):
     """
     __tablename__ = "audit_logs"
     
-    # Primary key
-    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    # Primary key (using Integer for SQLite compatibility with autoincrement)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # Entity information
     entity_type = Column(String(100), nullable=False, index=True, comment="Type of entity (User, Team, Order, etc.)")
@@ -159,7 +159,7 @@ class AuditEntityType:
     PROCESS_TYPE = "ProcessType"
     ORDER_STATUS = "OrderStatus"
     DIVISION = "Division"
-    EMPLOYEE_WEEKLY_TARGET = "EmployeeWeeklyTarget"
+    EXAMINER_WEEKLY_TARGET = "ExaminerWeeklyTarget"
     PERFORMANCE_METRIC = "PerformanceMetric"
     TEAM_STATE = "TeamState"
     TEAM_PRODUCT = "TeamProduct"

@@ -46,7 +46,7 @@ from app.schemas.order_history import (
 
 # Metrics
 from app.schemas.metrics import (
-    EmployeeMetricsBase, EmployeeMetricsCreate, EmployeeMetricsResponse, EmployeeMetricsListResponse,
+    ExaminerMetricsBase, ExaminerMetricsCreate, ExaminerMetricsResponse, ExaminerMetricsListResponse,
     TeamMetricsBase, TeamMetricsCreate, TeamMetricsResponse, TeamMetricsListResponse,
     DashboardStats, MetricsFilterParams
 )
@@ -77,7 +77,7 @@ __all__ = [
     # Order History
     "OrderHistoryBase", "OrderHistoryCreate", "OrderHistoryResponse", "OrderHistoryListResponse",
     # Metrics
-    "EmployeeMetricsBase", "EmployeeMetricsCreate", "EmployeeMetricsResponse", "EmployeeMetricsListResponse",
+    "ExaminerMetricsBase", "ExaminerMetricsCreate", "ExaminerMetricsResponse", "ExaminerMetricsListResponse",
     "TeamMetricsBase", "TeamMetricsCreate", "TeamMetricsResponse", "TeamMetricsListResponse",
     "DashboardStats", "MetricsFilterParams"
 ]

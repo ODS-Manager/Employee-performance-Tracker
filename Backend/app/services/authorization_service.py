@@ -12,7 +12,7 @@ from app.core.dependencies import (
     ROLE_SUPERADMIN,
     ROLE_ADMIN,
     ROLE_TEAM_LEAD,
-    ROLE_EMPLOYEE,
+    ROLE_EXAMINER,
     get_user_teams
 )
 
@@ -69,11 +69,11 @@ class AuthorizationService:
                 return False
             return True
         
-        # EMPLOYEE cannot manage teams
+        # EXAMINER cannot manage teams
         if raise_exception:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Employees cannot access this resource"
+                detail="Examiners cannot access this resource"
             )
         return False
     
@@ -118,13 +118,13 @@ class AuthorizationService:
         return True
     
     @staticmethod
-    def check_employee_readonly_access(
+    def check_examiner_readonly_access(
         current_user: User,
         target_user_id: int,
         raise_exception: bool = True
     ) -> bool:
         """
-        Check if current user can view another user's data (employees can only view self).
+        Check if current user can view another user's data (examiners can only view self).
         
         Args:
             current_user: The current user
@@ -134,11 +134,11 @@ class AuthorizationService:
         Returns:
             True if access allowed
         """
-        if current_user.user_role == ROLE_EMPLOYEE and current_user.id != target_user_id:
+        if current_user.user_role == ROLE_EXAMINER and current_user.id != target_user_id:
             if raise_exception:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Employees can only view their own data"
+                    detail="Examiners can only view their own data"
                 )
             return False
         return True

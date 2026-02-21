@@ -10,6 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Badge } from '../../components/ui/badge'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
@@ -128,7 +129,7 @@ export const TeamMembersPage = () => {
     return (
       u.userName.toLowerCase().includes(query) ||
       u.userName.toLowerCase().includes(query) ||
-      u.employeeId.toLowerCase().includes(query)
+      u.examinerId.toLowerCase().includes(query)
     )
   })
 
@@ -239,7 +240,7 @@ export const TeamMembersPage = () => {
         return 'bg-purple-100 text-purple-700'
       case 'team_lead':
         return 'bg-blue-100 text-blue-700'
-      case 'employee':
+      case 'examiner':
         return 'bg-green-100 text-green-700'
       default:
         return 'bg-gray-100 text-gray-700'
@@ -285,35 +286,29 @@ export const TeamMembersPage = () => {
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-right" />
       
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate(backPath)}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">{team.name}</h1>
-                <p className="text-sm text-slate-600">Manage team members</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={fetchTeamData}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button onClick={() => setAddMemberDialogOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title={team.name} subtitle="Manage team members" />
       
       {isTeamLead ? <TeamLeadNav /> : <AdminNav />}
       
       <main className="container mx-auto px-4 py-8">
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="ghost" size="sm" onClick={() => navigate(backPath)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Team Management
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchTeamData}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button onClick={() => setAddMemberDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add Member
+            </Button>
+          </div>
+        </div>
+
         {/* Team Info Card */}
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -484,7 +479,7 @@ export const TeamMembersPage = () => {
           <DialogHeader>
             <DialogTitle>Add Team Member</DialogTitle>
             <DialogDescription>
-              Select an employee from {team.orgId ? `this organization` : 'the organization'} to add to {team.name}
+              Select an examiner from {team.orgId ? `this organization` : 'the organization'} to add to {team.name}
             </DialogDescription>
           </DialogHeader>
           
@@ -537,7 +532,7 @@ export const TeamMembersPage = () => {
                     >
                       <div>
                         <p className="font-medium text-sm">{u.userName}</p>
-                        <p className="text-xs text-slate-500">@{u.userName} &bull; {u.employeeId}</p>
+                        <p className="text-xs text-slate-500">@{u.userName} &bull; {u.examinerId}</p>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded ${getUserRoleBadgeColor(u.userRole)}`}>
                         {u.userRole.replace('_', ' ')}

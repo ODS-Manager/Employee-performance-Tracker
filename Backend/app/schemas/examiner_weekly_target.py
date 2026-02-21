@@ -1,26 +1,26 @@
 """
-Employee Weekly Target Schemas
-Pydantic schemas for managing employee weekly productivity targets.
+Examiner Weekly Target Schemas
+Pydantic schemas for managing examiner weekly productivity targets.
 
 Business Logic:
-- Target is per employee PER TEAM (each team lead sets target for their team)
-- Employee's total target = SUM of targets from all teams they belong to
+- Target is per examiner PER TEAM (each team lead sets target for their team)
+- Examiner's total target = SUM of targets from all teams they belong to
 - Productivity = Total Score / Sum of All Team Targets × 100
 
 Example:
-- Employee X in Team A: target = 20 (set by Team A lead)
-- Employee X in Team B: target = 15 (set by Team B lead)
-- Employee X total target = 20 + 15 = 35
+- Examiner X in Team A: target = 20 (set by Team A lead)
+- Examiner X in Team B: target = 15 (set by Team B lead)
+- Examiner X total target = 20 + 15 = 35
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 
 
-# ============ Employee Weekly Target Schemas ============
+# ============ Examiner Weekly Target Schemas ============
 
-class EmployeeWeeklyTargetBase(BaseModel):
-    """Base schema for employee weekly target"""
+class ExaminerWeeklyTargetBase(BaseModel):
+    """Base schema for examiner weekly target"""
     user_id: int = Field(..., alias="userId")
     team_id: int = Field(..., alias="teamId")  # Team context for this target
     week_start_date: date = Field(..., alias="weekStartDate")
@@ -31,7 +31,7 @@ class EmployeeWeeklyTargetBase(BaseModel):
         populate_by_name = True
 
 
-class EmployeeWeeklyTargetCreate(BaseModel):
+class ExaminerWeeklyTargetCreate(BaseModel):
     """Schema for creating a weekly target"""
     user_id: int = Field(..., alias="userId")
     team_id: int = Field(..., alias="teamId")  # Team context for this target
@@ -42,12 +42,12 @@ class EmployeeWeeklyTargetCreate(BaseModel):
         populate_by_name = True
 
 
-class EmployeeWeeklyTargetUpdate(BaseModel):
+class ExaminerWeeklyTargetUpdate(BaseModel):
     """Schema for updating a weekly target"""
     target: int = Field(..., ge=0, le=1000)
 
 
-class EmployeeWeeklyTargetResponse(BaseModel):
+class ExaminerWeeklyTargetResponse(BaseModel):
     """Response schema for weekly target"""
     id: int
     user_id: int = Field(..., alias="userId")
@@ -64,7 +64,7 @@ class EmployeeWeeklyTargetResponse(BaseModel):
         populate_by_name = True
 
 
-class EmployeeWeeklyTargetWithUserResponse(EmployeeWeeklyTargetResponse):
+class ExaminerWeeklyTargetWithUserResponse(ExaminerWeeklyTargetResponse):
     """Response schema with user details"""
     user_name: Optional[str] = Field(None, alias="userName")
     team_name: Optional[str] = Field(None, alias="teamName")  # Team name for display
@@ -86,7 +86,7 @@ class WeeklyTargetBulkEntry(BaseModel):
 
 
 class WeeklyTargetBulkCreate(BaseModel):
-    """Schema for setting multiple employee targets at once"""
+    """Schema for setting multiple examiner targets at once"""
     week_start_date: date = Field(..., alias="weekStartDate")
     targets: List[WeeklyTargetBulkEntry]
 
@@ -109,10 +109,10 @@ class WeekInfo(BaseModel):
 
 
 class TeamMemberTargetEntry(BaseModel):
-    """Target entry for a team member (target is per employee per team)"""
+    """Target entry for a team member (target is per examiner per team)"""
     user_id: int = Field(..., alias="userId")
     user_name: str = Field(..., alias="userName")
-    employee_id: Optional[str] = Field(None, alias="employeeId")
+    examiner_id: Optional[str] = Field(None, alias="examinerId")
     current_target: Optional[int] = Field(None, alias="currentTarget")  # Target for THIS team
     previous_target: Optional[int] = Field(None, alias="previousTarget")  # Previous week's target for THIS team
     target_id: Optional[int] = Field(None, alias="targetId")
@@ -132,10 +132,10 @@ class TeamWeeklyTargetsResponse(BaseModel):
         populate_by_name = True
 
 
-class EmployeeTargetHistoryResponse(BaseModel):
-    """Historical targets for an employee"""
+class ExaminerTargetHistoryResponse(BaseModel):
+    """Historical targets for an examiner"""
     user_id: int = Field(..., alias="userId")
-    targets: List[EmployeeWeeklyTargetResponse]
+    targets: List[ExaminerWeeklyTargetResponse]
 
     class Config:
         populate_by_name = True

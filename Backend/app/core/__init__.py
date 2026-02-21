@@ -14,7 +14,7 @@ from app.core.enums import (
     ROLE_SUPERADMIN,
     ROLE_ADMIN,
     ROLE_TEAM_LEAD,
-    ROLE_EMPLOYEE,
+    ROLE_EXAMINER,
 )
 
 __all__ = [
@@ -26,5 +26,5 @@ __all__ = [
     "ROLE_SUPERADMIN",
     "ROLE_ADMIN",
     "ROLE_TEAM_LEAD",
-    "ROLE_EMPLOYEE",
+    "ROLE_EXAMINER",
 ]

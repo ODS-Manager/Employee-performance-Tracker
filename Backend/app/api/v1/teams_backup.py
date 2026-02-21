@@ -10,7 +10,7 @@ from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, require_admin, require_team_lead, require_team_lead_or_admin,
     check_org_access, check_team_access, get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
 from app.models.team import Team, TeamState, TeamProduct
@@ -85,7 +85,7 @@ def serialize_team_member(user: User, user_team: UserTeam) -> dict:
         "id": user_team.id,
         "userId": user.id,
         "userName": user.user_name,
-        "employeeId": user.employee_id,
+        "examinerId": user.examiner_id,
         "userRole": user.user_role,
         "teamRole": user_team.role,
         "joinedAt": user_team.joined_at.isoformat() if user_team.joined_at else None,
@@ -158,7 +158,7 @@ async def list_teams(
     if current_user.user_role == ROLE_SUPERADMIN:
         if org_id:
             query = query.filter(Team.org_id == org_id)
-    elif current_user.user_role in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE]:
+    elif current_user.user_role in [ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER]:
         # Others can only see their organization's teams
         query = query.filter(Team.org_id == current_user.org_id)
     
@@ -973,8 +973,8 @@ async def update_team_member_role(
     return serialize_team_member(user, user_team)
 
 
-@router.get("/{team_id}/fake-names")
-async def get_team_fake_names(
+@router.get("/{team_id}/fa-names")
+async def get_team_fa_names(
     team_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

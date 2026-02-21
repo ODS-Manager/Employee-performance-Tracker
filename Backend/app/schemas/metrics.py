@@ -1,6 +1,6 @@
 """
 Performance Metrics Schemas
-Pydantic schemas for employee and team performance metrics
+Pydantic schemas for examiner and team performance metrics
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -8,8 +8,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 
-# ============ Employee Performance Metrics Schemas ============
-class EmployeeMetricsBase(BaseModel):
+# ============ Examiner Performance Metrics Schemas ============
+class ExaminerMetricsBase(BaseModel):
     user_id: int = Field(..., alias="userId")
     team_id: Optional[int] = Field(None, alias="teamId")
     org_id: int = Field(..., alias="orgId")
@@ -17,7 +17,7 @@ class EmployeeMetricsBase(BaseModel):
     period_type: str = Field(..., alias="periodType")  # daily, weekly, monthly
 
 
-class EmployeeMetricsCreate(EmployeeMetricsBase):
+class ExaminerMetricsCreate(ExaminerMetricsBase):
     total_orders_assigned: int = Field(0, alias="totalOrdersAssigned")
     total_step1_completed: int = Field(0, alias="totalStep1Completed")
     total_step2_completed: int = Field(0, alias="totalStep2Completed")
@@ -34,7 +34,7 @@ class EmployeeMetricsCreate(EmployeeMetricsBase):
     quality_score: Optional[Decimal] = Field(None, alias="qualityScore")
 
 
-class EmployeeMetricsResponse(EmployeeMetricsBase):
+class ExaminerMetricsResponse(ExaminerMetricsBase):
     id: int
     total_orders_assigned: int = Field(..., alias="totalOrdersAssigned")
     total_step1_completed: int = Field(..., alias="totalStep1Completed")
@@ -63,8 +63,8 @@ class EmployeeMetricsResponse(EmployeeMetricsBase):
         populate_by_name = True
 
 
-class EmployeeMetricsListResponse(BaseModel):
-    items: List[EmployeeMetricsResponse]
+class ExaminerMetricsListResponse(BaseModel):
+    items: List[ExaminerMetricsResponse]
     total: int
 
 
@@ -84,9 +84,9 @@ class TeamMetricsCreate(TeamMetricsBase):
     total_orders_bp_rti: int = Field(0, alias="totalOrdersBpRti")
     total_team_working_minutes: int = Field(0, alias="totalTeamWorkingMinutes")
     avg_order_completion_minutes: Optional[int] = Field(None, alias="avgOrderCompletionMinutes")
-    active_employees_count: int = Field(0, alias="activeEmployeesCount")
+    active_examiners_count: int = Field(0, alias="activeExaminersCount")
     team_efficiency_score: Optional[Decimal] = Field(None, alias="teamEfficiencyScore")
-    orders_per_employee: Optional[Decimal] = Field(None, alias="ordersPerEmployee")
+    orders_per_examiner: Optional[Decimal] = Field(None, alias="ordersPerExaminer")
     completion_rate: Optional[Decimal] = Field(None, alias="completionRate")
     transaction_breakdown: Optional[str] = Field(None, alias="transactionBreakdown")
     product_breakdown: Optional[str] = Field(None, alias="productBreakdown")
@@ -102,9 +102,9 @@ class TeamMetricsResponse(TeamMetricsBase):
     total_orders_bp_rti: int = Field(..., alias="totalOrdersBpRti")
     total_team_working_minutes: int = Field(..., alias="totalTeamWorkingMinutes")
     avg_order_completion_minutes: Optional[int] = Field(None, alias="avgOrderCompletionMinutes")
-    active_employees_count: int = Field(..., alias="activeEmployeesCount")
+    active_examiners_count: int = Field(..., alias="activeExaminersCount")
     team_efficiency_score: Optional[float] = Field(None, alias="teamEfficiencyScore")
-    orders_per_employee: Optional[float] = Field(None, alias="ordersPerEmployee")
+    orders_per_examiner: Optional[float] = Field(None, alias="ordersPerExaminer")
     completion_rate: Optional[float] = Field(None, alias="completionRate")
     transaction_breakdown: Optional[Dict[str, Any]] = Field(None, alias="transactionBreakdown")
     product_breakdown: Optional[Dict[str, Any]] = Field(None, alias="productBreakdown")
@@ -134,8 +134,8 @@ class DashboardStats(BaseModel):
     orders_on_hold: int = Field(..., alias="ordersOnHold")
     orders_bp_rti: int = Field(..., alias="ordersBpRti")
     orders_pending_billing: int = Field(..., alias="ordersPendingBilling")
-    total_employees: int = Field(..., alias="totalEmployees")
-    active_employees: int = Field(..., alias="activeEmployees")
+    total_examiners: int = Field(..., alias="totalExaminers")
+    active_examiners: int = Field(..., alias="activeExaminers")
     total_teams: int = Field(..., alias="totalTeams")
     avg_completion_time_minutes: Optional[int] = Field(None, alias="avgCompletionTimeMinutes")
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
 import { teamsApi, organizationsApi, productivityApi } from '../../services/api'
-import type { Organization, Team, TeamProductivity, EmployeeProductivity } from '../../types'
+import type { Organization, Team, TeamProductivity, ExaminerProductivity } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
@@ -12,13 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Progress } from '../../components/ui/progress'
 import { Badge } from '../../components/ui/badge'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { 
   TrendingUp, 
   Settings, 
   RefreshCw,
   Activity,
-  Filter,
   Users,
   Trophy,
   Zap,
@@ -48,15 +49,11 @@ export const ProductivityReportsPage = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [teamProductivity, setTeamProductivity] = useState<TeamProductivity | null>(null)
-  const [leaderboard, setLeaderboard] = useState<EmployeeProductivity[]>([])
+  const [leaderboard, setLeaderboard] = useState<ExaminerProductivity[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingTeamData, setLoadingTeamData] = useState(false)
   const [expandedTeams, setExpandedTeams] = useState<Set<number>>(new Set())
   const [allTeamsProductivity, setAllTeamsProductivity] = useState<TeamProductivity[]>([])
-  
-  // Custom date range states
-  const [customStartDate, setCustomStartDate] = useState<string>('')
-  const [customEndDate, setCustomEndDate] = useState<string>('')
   
   // Get filter state from store
   const {
@@ -95,7 +92,7 @@ export const ProductivityReportsPage = () => {
     if (user && teams.length > 0) {
       fetchProductivityData()
     }
-  }, [filterMonth, filterYear, selectedTeamId, teams, customStartDate, customEndDate])
+  }, [filterMonth, filterYear, selectedTeamId, teams])
 
   const fetchInitialData = async () => {
     try {
@@ -138,18 +135,10 @@ export const ProductivityReportsPage = () => {
     try {
       setLoadingTeamData(true)
       
-      // Calculate date range - use custom dates if period is 'custom', otherwise use month/year
-      let startDate: string
-      let endDate: string
-      
-      if (filterPeriod === 'custom' && customStartDate && customEndDate) {
-        startDate = customStartDate
-        endDate = customEndDate
-      } else {
-        const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
-        startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
-        endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
-      }
+      // Calculate date range from month/year
+      const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
+      const startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+      const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
       
       const orgIdToFetch = user?.userRole === 'superadmin' 
         ? (selectedOrgId ?? undefined) 
@@ -238,20 +227,7 @@ export const ProductivityReportsPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Productivity Reports</h1>
-              <p className="text-sm text-slate-600">Track employee and team productivity scores</p>
-            </div>
-            <Button onClick={() => navigate('/admin/team-management')}>
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Targets
-            </Button>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Productivity Reports" subtitle="Track employee and team productivity scores" />
 
       <AdminNav />
 
@@ -274,10 +250,10 @@ export const ProductivityReportsPage = () => {
                       }}
                     >
                       <SelectTrigger className="w-48">
-                        <SelectValue placeholder="All Organizations" />
+                        <SelectValue placeholder="All Centers" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Organizations</SelectItem>
+                        <SelectItem value="all">All Centers</SelectItem>
                         {organizations.map((org) => (
                           <SelectItem key={org.id} value={org.id.toString()}>
                             {org.name}
@@ -309,81 +285,8 @@ export const ProductivityReportsPage = () => {
                 </Select>
               </div>
               
-              {/* Right side - Period filters */}
+              {/* Right side - Refresh button */}
               <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-slate-500" />
-                <Select 
-                  value={filterPeriod} 
-                  onValueChange={(value) => {
-                    if (value === 'current') {
-                      setCurrentMonth()
-                    } else if (value === 'previous') {
-                      setPreviousMonth()
-                    } else {
-                      setFilterPeriod('custom')
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-[130px] h-8 text-xs">
-                    <SelectValue placeholder="Select Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">Current Month</SelectItem>
-                    <SelectItem value="previous">Previous Month</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                {filterPeriod === 'custom' ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs whitespace-nowrap">From:</Label>
-                      <Input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="w-40 h-8 text-xs"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs whitespace-nowrap">To:</Label>
-                      <Input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="w-40 h-8 text-xs"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Select value={filterMonth} onValueChange={setFilterMonth}>
-                      <SelectTrigger className="w-[110px] h-8 text-xs">
-                        <SelectValue placeholder="Month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getMonthOptions(filterYear).map((month) => (
-                          <SelectItem key={month.value} value={month.value}>
-                            {month.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterYear} onValueChange={setFilterYear}>
-                      <SelectTrigger className="w-[85px] h-8 text-xs">
-                        <SelectValue placeholder="Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getYearOptions().map((year) => (
-                          <SelectItem key={year.value} value={year.value}>
-                            {year.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </>
-                )}
-                
                 <Button variant="outline" size="sm" onClick={fetchProductivityData} disabled={loadingTeamData}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${loadingTeamData ? 'animate-spin' : ''}`} />
                   Refresh
@@ -450,11 +353,7 @@ export const ProductivityReportsPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {filterPeriod === 'custom' && customStartDate && customEndDate ? (
-                      `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                    ) : (
-                      new Date(parseInt(filterYear), parseInt(filterMonth) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                    )}
+                    {new Date(parseInt(filterYear), parseInt(filterMonth) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {teamProductivity?.period?.workingDays || '--'} working days
@@ -608,7 +507,7 @@ export const ProductivityReportsPage = () => {
                             <div>
                               <div className="font-medium">{tp.teamName}</div>
                               <div className="text-sm text-muted-foreground">
-                                {tp.activeMembers} members | Target: {tp.dailyTarget}/day | Step2 Score: {tp.step2ScoreMultiplier}x
+                                {tp.activeMembers} members | Step2 Score: {tp.step2ScoreMultiplier}x
                               </div>
                             </div>
                           </div>
@@ -627,7 +526,7 @@ export const ProductivityReportsPage = () => {
                         </div>
                         
                         {/* Expanded Employee Details */}
-                        {expandedTeams.has(tp.teamId) && tp.employees && tp.employees.length > 0 && (
+                        {expandedTeams.has(tp.teamId) && tp.examiners && tp.examiners.length > 0 && (
                           <div className="border-t">
                             <Table>
                               <TableHeader>
@@ -642,45 +541,45 @@ export const ProductivityReportsPage = () => {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {tp.employees
+                                {tp.examiners
                                   .sort((a, b) => {
                                     if (a.productivityPercent === null && b.productivityPercent === null) return 0
                                     if (a.productivityPercent === null) return 1
                                     if (b.productivityPercent === null) return -1
                                     return b.productivityPercent - a.productivityPercent
                                   })
-                                  .map((emp) => (
-                                  <TableRow key={emp.userId}>
+                                  .map((examiner) => (
+                                  <TableRow key={examiner.userId}>
                                     <TableCell>
                                       <div>
-                                        <div className="font-medium">{emp.userName || emp.userName}</div>
-                                        <div className="text-xs text-muted-foreground">{emp.employeeId}</div>
+                                        <div className="font-medium">{examiner.userName || examiner.userName}</div>
+                                        <div className="text-xs text-muted-foreground">{examiner.examinerId}</div>
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                      <div>{emp.completions.step1Only}</div>
-                                      <div className="text-xs text-muted-foreground">({emp.scores.step1Score} pts)</div>
+                                      <div>{examiner.completions.step1Only}</div>
+                                      <div className="text-xs text-muted-foreground">({examiner.scores.step1Score} pts)</div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                      <div>{emp.completions.step2Only}</div>
-                                      <div className="text-xs text-muted-foreground">({emp.scores.step2Score.toFixed(1)} pts)</div>
+                                      <div>{examiner.completions.step2Only}</div>
+                                      <div className="text-xs text-muted-foreground">({examiner.scores.step2Score.toFixed(1)} pts)</div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                      <div>{emp.completions.singleSeat}</div>
-                                      <div className="text-xs text-muted-foreground">({emp.scores.singleSeatScore} pts)</div>
+                                      <div>{examiner.completions.singleSeat}</div>
+                                      <div className="text-xs text-muted-foreground">({examiner.scores.singleSeatScore} pts)</div>
                                     </TableCell>
                                     <TableCell className="text-center font-medium">
-                                      {emp.scores.totalScore.toFixed(1)}
+                                      {examiner.scores.totalScore.toFixed(1)}
                                     </TableCell>
                                     <TableCell className="text-center text-muted-foreground">
-                                      {emp.expectedTarget}
+                                      {examiner.expectedTarget}
                                     </TableCell>
                                     <TableCell className="text-right">
                                       <Badge 
                                         variant="outline" 
-                                        className={`${getProductivityColor(emp.productivityPercent)} border-current`}
+                                        className={`${getProductivityColor(examiner.productivityPercent)} border-current`}
                                       >
-                                        {emp.productivityPercent !== null ? `${emp.productivityPercent.toFixed(1)}%` : 'N/A'}
+                                        {examiner.productivityPercent !== null ? `${examiner.productivityPercent.toFixed(1)}%` : 'N/A'}
                                       </Badge>
                                     </TableCell>
                                   </TableRow>
@@ -690,7 +589,7 @@ export const ProductivityReportsPage = () => {
                           </div>
                         )}
                         
-                        {expandedTeams.has(tp.teamId) && (!tp.employees || tp.employees.length === 0) && (
+                        {expandedTeams.has(tp.teamId) && (!tp.examiners || tp.examiners.length === 0) && (
                           <div className="p-4 text-center text-muted-foreground border-t">
                             No employee data available
                           </div>
@@ -727,11 +626,11 @@ export const ProductivityReportsPage = () => {
                     <h4 className="font-medium mb-2">Productivity Formula</h4>
                     <p className="text-muted-foreground">
                       <code className="bg-slate-100 px-2 py-1 rounded">
-                        Productivity % = (Total Score / Expected Target) × 100
+                        Productivity % = (Total Score / Monthly Target) × 100
                       </code>
                     </p>
                     <p className="text-muted-foreground mt-2">
-                      Expected Target = Working Days × Daily Target
+                      Monthly Target is set per employee in Score Management
                     </p>
                   </div>
                 </div>

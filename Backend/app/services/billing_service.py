@@ -37,19 +37,24 @@ def get_team_short_name(team_name: str) -> str:
     Washington -> WA, Florida -> FL, California -> CA, etc.
     """
     team_mapping = {
-        'Washington': 'WA',
-        'Florida': 'FL',
+        'Arizona': 'AZ',
         'California': 'CA',
-        'Utah': 'UT',
-        'Michigan': 'MI',
-        'Oregon': 'OR',
-        'Texas': 'TX',
+        'Colorado': 'CO',
+        'FIF': 'FI',
+        'Florida': 'FL',
         'Georgia': 'GA',
-        'Vietnam Team': 'VN',
         'GI Clearing': 'GI',
-        'Regional Streamline': 'RS',
+        'Michigan': 'MI',
         'National Streamline': 'NS',
-        'FIF': 'FIF'
+        'Ohio': 'OH',
+        'Oregon': 'OR',
+        'Pennsylvania': 'PA',
+        'Regional Streamline': 'RS',
+        'SCB & PD': 'SC',
+        'Texas': 'TX',
+        'Utah': 'UT',
+        'Vietnam Team': 'VN',
+        'Washington': 'WA'
     }
     return team_mapping.get(team_name, team_name[:2].upper())
 
@@ -68,8 +73,8 @@ def format_product_type(team_name: str, product_type: str) -> str:
 def get_billing_reports(
     db: Session,
     org_id: Optional[int],
-    billing_month: Optional[int] = None,
-    billing_year: Optional[int] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     status: Optional[str] = None
 ) -> List[BillingReportResponse]:
     """
@@ -83,16 +88,15 @@ def get_billing_reports(
     if org_id is not None:
         query = query.filter(BillingReport.org_id == org_id)
     
-    if billing_month:
-        query = query.filter(BillingReport.billing_month == billing_month)
-    if billing_year:
-        query = query.filter(BillingReport.billing_year == billing_year)
+    if start_date:
+        query = query.filter(BillingReport.start_date >= start_date)
+    if end_date:
+        query = query.filter(BillingReport.end_date <= end_date)
     if status:
         query = query.filter(BillingReport.status == status)
     
     reports = query.order_by(
-        BillingReport.billing_year.desc(),
-        BillingReport.billing_month.desc()
+        BillingReport.start_date.desc()
     ).all()
     
     # Convert to response models with details
@@ -117,9 +121,9 @@ def get_billing_reports(
             id=report.id,
             orgId=report.org_id,
             teamId=report.team_id,
-            teamName=report.team.team_name if report.team else "All Teams",
-            billingMonth=report.billing_month,
-            billingYear=report.billing_year,
+            teamName=report.team.name if report.team else "All Teams",
+            startDate=report.start_date,
+            endDate=report.end_date,
             status=report.status,
             createdBy=report.created_by,
             createdByName=report.created_by_user.user_name if report.created_by_user else None,
@@ -146,31 +150,49 @@ def preview_billing_data(
     Shows what will be included in the billing report
     Organization-wide, grouped by product type (team + product)
     """
-    # Calculate date range for the billing month
-    start_date = date(request.billing_year, request.billing_month, 1)
-    if request.billing_month == 12:
-        end_date = date(request.billing_year + 1, 1, 1)
-    else:
-        end_date = date(request.billing_year, request.billing_month + 1, 1)
+    # Use the date range from request
+    start_date = request.start_date
+    end_date = request.end_date
     
-    # Query ALL pending orders in the organization for this period
+    # Get all active teams in the organization
+    teams = db.query(Team).filter(
+        Team.org_id == org_id,
+        Team.is_active == True
+    ).order_by(Team.name).all()
+    
+    # Get all unique product types from the organization's orders
+    product_types = db.query(Order.product_type).filter(
+        Order.org_id == org_id,
+        Order.deleted_at.is_(None)
+    ).distinct().all()
+    product_types = sorted([pt[0] for pt in product_types if pt[0]])
+    
+    # Query ALL pending orders with Completed status in the organization for this period
+    # ONLY include Completed orders (order_status_id = 1) for billing
     orders = db.query(Order).filter(
         Order.org_id == org_id,
         Order.billing_status == 'pending',
+        Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
         Order.entry_date < end_date,
         Order.deleted_at.is_(None)
     ).all()
     
-    if not orders:
-        raise HTTPException(
-            status_code=400,
-            detail="No pending orders found for this period"
-        )
-    
-    # Group by formatted product type (team + product)
+    # Initialize billing_data with ALL teams and ALL product types (with 0 counts)
     billing_data: Dict[str, Dict[str, int]] = {}
     
+    for team in teams:
+        for product_type in product_types:
+            formatted_product = format_product_type(team.name, product_type)
+            billing_data[formatted_product] = {
+                'single_seat': 0,
+                'only_step1': 0,
+                'only_step2': 0,
+                'team_name': team.name,
+                'product_type': product_type
+            }
+    
+    # Now count actual orders
     for order in orders:
         # Get team name
         team = db.query(Team).filter(Team.id == order.team_id).first()
@@ -181,10 +203,13 @@ def preview_billing_data(
         formatted_product = format_product_type(team.name, order.product_type)
         
         if formatted_product not in billing_data:
+            # This shouldn't happen since we initialized all combinations
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
-                'only_step2': 0
+                'only_step2': 0,
+                'team_name': team.name,
+                'product_type': order.product_type
             }
         
         # Determine order type
@@ -195,7 +220,7 @@ def preview_billing_data(
         elif order.step2_user_id:
             billing_data[formatted_product]['only_step2'] += 1
     
-    # Convert to preview details
+    # Convert to preview details (include all entries, even with 0 counts)
     details = []
     for product_type, counts in sorted(billing_data.items()):
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
@@ -210,11 +235,11 @@ def preview_billing_data(
         )
     
     total_files = sum(d.total_count for d in details)
-    teams_count = db.query(Team).filter(Team.org_id == org_id).count()
+    teams_count = len(teams)
     
     return BillingPreviewResponse(
-        billingMonth=request.billing_month,
-        billingYear=request.billing_year,
+        startDate=start_date,
+        endDate=end_date,
         details=details,
         totalFiles=total_files,
         pendingOrdersCount=len(orders),
@@ -235,53 +260,71 @@ def create_billing_report(
     existing = db.query(BillingReport).filter(
         BillingReport.org_id == org_id,
         BillingReport.team_id.is_(None),  # Org-wide reports have null team_id
-        BillingReport.billing_month == data.billing_month,
-        BillingReport.billing_year == data.billing_year
+        BillingReport.start_date == data.start_date,
+        BillingReport.end_date == data.end_date
     ).first()
     
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Billing report already exists for {data.billing_month}/{data.billing_year}. Report ID: {existing.id}"
+            detail=f"Billing report already exists for {data.start_date} to {data.end_date}. Report ID: {existing.id}"
         )
     
-    # Calculate date range
-    start_date = date(data.billing_year, data.billing_month, 1)
-    if data.billing_month == 12:
-        end_date = date(data.billing_year + 1, 1, 1)
-    else:
-        end_date = date(data.billing_year, data.billing_month + 1, 1)
+    # Use the date range from request
+    start_date = data.start_date
+    end_date = data.end_date
     
-    # Query pending orders for this period
+    # Get all active teams in the organization
+    teams = db.query(Team).filter(
+        Team.org_id == org_id,
+        Team.is_active == True
+    ).order_by(Team.name).all()
+    
+    # Get all unique product types from the organization's orders
+    product_types = db.query(Order.product_type).filter(
+        Order.org_id == org_id,
+        Order.deleted_at.is_(None)
+    ).distinct().all()
+    product_types = sorted([pt[0] for pt in product_types if pt[0]])
+    
+    # Query pending orders with Completed status for this period
+    # ONLY include Completed orders (order_status_id = 1) for billing
     orders = db.query(Order).filter(
         Order.org_id == org_id,
         Order.billing_status == 'pending',
+        Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
         Order.entry_date < end_date,
         Order.deleted_at.is_(None)
     ).all()
     
-    if not orders:
-        raise HTTPException(
-            status_code=400,
-            detail="No pending orders found for this period"
-        )
-    
     # Create billing report (team_id is NULL for org-wide)
     report = BillingReport(
         org_id=org_id,
         team_id=None,  # Org-wide report
-        billing_month=data.billing_month,
-        billing_year=data.billing_year,
+        start_date=start_date,
+        end_date=end_date,
         status='draft',
         created_by=current_user_id
     )
     db.add(report)
     db.flush()  # Get report.id
     
-    # Group orders by formatted product type
+    # Initialize billing_data with ALL teams and ALL product types (with 0 counts)
     billing_data: Dict[str, Dict[str, int]] = {}
     
+    for team in teams:
+        for product_type in product_types:
+            formatted_product = format_product_type(team.name, product_type)
+            billing_data[formatted_product] = {
+                'single_seat': 0,
+                'only_step1': 0,
+                'only_step2': 0,
+                'team_name': team.name,
+                'product_type': product_type
+            }
+    
+    # Now count actual orders
     for order in orders:
         # Get team name
         team = db.query(Team).filter(Team.id == order.team_id).first()
@@ -292,10 +335,13 @@ def create_billing_report(
         formatted_product = format_product_type(team.name, order.product_type)
         
         if formatted_product not in billing_data:
+            # This shouldn't happen since we initialized all combinations
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
-                'only_step2': 0
+                'only_step2': 0,
+                'team_name': team.name,
+                'product_type': order.product_type
             }
         
         # Determine order type
@@ -306,7 +352,7 @@ def create_billing_report(
         elif order.step2_user_id:
             billing_data[formatted_product]['only_step2'] += 1
     
-    # Create billing details
+    # Create billing details for ALL combinations (including zeros)
     for product_type, counts in billing_data.items():
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
         detail = BillingDetail(
@@ -329,7 +375,7 @@ def create_billing_report(
         if 'idx_billing_org_team_period' in str(e) or 'unique constraint' in str(e).lower():
             raise HTTPException(
                 status_code=400,
-                detail=f"Billing report already exists for {data.billing_month}/{data.billing_year}. Please delete the existing report before creating a new one."
+                detail=f"Billing report already exists for {data.start_date} to {data.end_date}. Please delete the existing report before creating a new one."
             )
         else:
             # Re-raise other integrity errors
@@ -366,21 +412,21 @@ def get_billing_report_by_id(db: Session, report_id: int) -> BillingReportRespon
     
     return BillingReportResponse(
         id=report.id,
-        orgId=report.org_id,
-        teamId=None,
-        teamName="All Teams",
-        billingMonth=report.billing_month,
-        billingYear=report.billing_year,
+        org_id=report.org_id,
+        team_id=None,
+        team_name="All Teams",
+        start_date=report.start_date,
+        end_date=report.end_date,
         status=report.status,
-        createdBy=report.created_by,
-        createdByName=report.created_by_user.user_name if report.created_by_user else None,
-        finalizedBy=report.finalized_by,
-        finalizedByName=report.finalized_by_user.user_name if report.finalized_by_user else None,
-        finalizedAt=report.finalized_at,
-        createdAt=report.created_at,
-        modifiedAt=report.modified_at,
+        created_by=report.created_by,
+        created_by_name=report.created_by_user.user_name if report.created_by_user else None,
+        finalized_by=report.finalized_by,
+        finalized_by_name=report.finalized_by_user.user_name if report.finalized_by_user else None,
+        finalized_at=report.finalized_at,
+        created_at=report.created_at,
+        modified_at=report.modified_at,
         details=details,
-        totalFiles=total_files
+        total_files=total_files
     )
 
 
@@ -402,17 +448,16 @@ def finalize_billing_report(
     if report.status == 'finalized':
         raise HTTPException(status_code=400, detail="Report is already finalized")
     
-    # Calculate date range
-    start_date = date(report.billing_year, report.billing_month, 1)
-    if report.billing_month == 12:
-        end_date = date(report.billing_year + 1, 1, 1)
-    else:
-        end_date = date(report.billing_year, report.billing_month + 1, 1)
+    # Use the date range from the report
+    start_date = report.start_date
+    end_date = report.end_date
     
-    # Update all pending orders for this organization and period to 'done'
+    # Update all pending Completed orders for this organization and period to 'done'
+    # ONLY update Completed orders (order_status_id = 1)
     updated_count = db.query(Order).filter(
         Order.org_id == report.org_id,
         Order.billing_status == 'pending',
+        Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
         Order.entry_date < end_date,
         Order.deleted_at.is_(None)
@@ -455,7 +500,8 @@ def delete_billing_report(db: Session, report_id: int) -> None:
 
 def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     """
-    Export billing report to Excel format - Product Type based
+    Export billing report to Excel format - Team x Product Type matrix
+    Shows all teams and all product types (even with 0 counts)
     """
     if not EXCEL_AVAILABLE:
         raise HTTPException(
@@ -485,36 +531,82 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     )
     center_align = Alignment(horizontal='center', vertical='center')
     
-    # Header row for data table - Start at row 1 (removed report info section)
-    header_row = 1
-    headers = ['Team Name', 'Product Type', 'Total']
+    # Group details by team and product type
+    # Extract team and product from formatted product_type (e.g., "WA Full Search" -> team="Washington", product="Full Search")
+    team_product_data = {}
     
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=header_row, column=col_num)
-        cell.value = header
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = center_align
-        cell.border = border
+    # Map codes to full names
+    team_name_map = {
+        'AZ': 'Arizona',
+        'CA': 'California',
+        'CO': 'Colorado',
+        'FI': 'FIF',
+        'FL': 'Florida',
+        'GA': 'Georgia',
+        'GI': 'GI Clearing',
+        'GU': 'Guam',
+        'MI': 'Michigan',
+        'NS': 'National Streamline',
+        'OH': 'Ohio',
+        'OR': 'Oregon',
+        'PA': 'Pennsylvania',
+        'RS': 'Regional Streamline',
+        'SC': 'SCB & PD',
+        'TX': 'Texas',
+        'UT': 'Utah',
+        'VN': 'Vietnam Team',
+        'WA': 'Washington'
+    }
     
-    # Group details by team (extract team from product_type)
-    # Product types are formatted as "WA Full Search", "FL Update", etc.
-    team_data = {}
+    # Define team-to-product mapping to filter products for each team
+    team_product_mapping = {
+        'Florida': ['Full Search', 'Update', 'Date Down', 'Amend Title', 'Screening', 'M&B'],
+        'California': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'GI Clearing': ['GI Clearing'],
+        'Washington': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Michigan': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Colorado': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Utah': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Oregon': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Regional Streamline': ['RS Clear', 'RS Review', 'RS Search', 'RS No C2G'],
+        'National Streamline': ['NS Clear', 'NS Review', 'NS Search', 'NS No C2G'],
+        'FIF': ['FAST', 'Traditional'],
+        'SCB & PD': ['Schedule B', 'Product Delivery'],
+        'Arizona': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Texas': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+        'Pennsylvania': ['Search and Exam', 'Vendor Search'],
+        'Ohio': ['Full Search', 'Vendor Exam', 'Screening', 'Update']
+    }
+    
     for detail in report.details:
-        # Extract team code (first 2-3 chars before space)
+        # Extract team code and product from product_type
         parts = detail.product_type.split(' ', 1)
         if len(parts) >= 2:
-            team_code = parts[0]  # e.g., "WA", "FL", "CA"
-            product = parts[1]     # e.g., "Full Search", "Update"
+            team_code = parts[0]
+            product = parts[1].strip()
+            team_name = team_name_map.get(team_code, team_code)
             
-            if team_code not in team_data:
-                team_data[team_code] = []
-            team_data[team_code].append({
-                'product': product,
-                'count': detail.total_count
-            })
+            # Only include products that belong to this team
+            if team_name in team_product_mapping:
+                # Check if this product matches any expected products for this team
+                matches_team = any(
+                    expected_product in product or product in expected_product
+                    for expected_product in team_product_mapping[team_name]
+                )
+                
+                if matches_team:
+                    if team_name not in team_product_data:
+                        team_product_data[team_name] = {}
+                    team_product_data[team_name][product] = detail.total_count
     
-    # Define team order based on common teams
+    # Get all unique product types and teams
+    all_products = sorted(set(
+        product 
+        for products in team_product_data.values() 
+        for product in products.keys()
+    ))
+    
+    # Define team order
     team_order = [
         'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan', 
         'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline', 
@@ -522,65 +614,52 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
         'Georgia', 'Vietnam Team'
     ]
     
-    # Map codes to full names
-    team_name_map = {
-        'FL': 'Florida',
-        'CA': 'California',
-        'GI': 'GI Clearing',
-        'WA': 'Washington',
-        'MI': 'Michigan',
-        'CO': 'Colorado',
-        'UT': 'Utah',
-        'OR': 'Oregon',
-        'RS': 'Regional Streamline',
-        'NS': 'National Streamline',
-        'FIF': 'FIF',
-        'SC': 'SCB & PD',
-        'SCB': 'SCB & PD',
-        'AZ': 'Arizona',
-        'TX': 'Texas',
-        'PE': 'Pennsylvania',
-        'PA': 'Pennsylvania',
-        'OH': 'Ohio',
-        'GU': 'Guam',
-        'GA': 'Georgia',
-        'VN': 'Vietnam Team'
-    }
+    # Sort teams by the defined order
+    sorted_teams = sorted(
+        team_product_data.keys(),
+        key=lambda t: team_order.index(t) if t in team_order else 999
+    )
     
-    total_files = 0
+    # Header row
+    header_row = 1
+    ws.cell(row=header_row, column=1).value = "Team Name"
+    ws.cell(row=header_row, column=1).fill = header_fill
+    ws.cell(row=header_row, column=1).font = header_font
+    ws.cell(row=header_row, column=1).alignment = center_align
+    ws.cell(row=header_row, column=1).border = border
+    
+    ws.cell(row=header_row, column=2).value = "Product Type"
+    ws.cell(row=header_row, column=2).fill = header_fill
+    ws.cell(row=header_row, column=2).font = header_font
+    ws.cell(row=header_row, column=2).alignment = center_align
+    ws.cell(row=header_row, column=2).border = border
+    
+    ws.cell(row=header_row, column=3).value = "Total"
+    ws.cell(row=header_row, column=3).fill = header_fill
+    ws.cell(row=header_row, column=3).font = header_font
+    ws.cell(row=header_row, column=3).alignment = center_align
+    ws.cell(row=header_row, column=3).border = border
+    
+    # Write data rows
     current_row = header_row + 1
+    total_files = 0
     
-    # Sort teams by the order defined
-    sorted_teams = []
-    for team_code, products in team_data.items():
-        team_full_name = team_name_map.get(team_code, team_code)
-        sorted_teams.append((team_code, team_full_name, products))
-    
-    # Sort by team order
-    def get_team_sort_key(item):
-        team_full_name = item[1]
-        try:
-            return team_order.index(team_full_name)
-        except ValueError:
-            return 999  # Put unknown teams at end
-    
-    sorted_teams.sort(key=get_team_sort_key)
-    
-    # Write data rows grouped by team
-    for team_code, team_full_name, products in sorted_teams:
+    for team_name in sorted_teams:
+        products = team_product_data[team_name]
         # Sort products alphabetically
-        products.sort(key=lambda x: x['product'])
+        sorted_products = sorted(products.keys())
         
-        # Write each product for this team
-        for idx, product_data in enumerate(products):
-            # Team name only on first row
+        for idx, product in enumerate(sorted_products):
+            count = products[product]
+            
+            # Team name only on first row of each team
             if idx == 0:
-                ws.cell(row=current_row, column=1).value = team_full_name
+                ws.cell(row=current_row, column=1).value = team_name
             else:
                 ws.cell(row=current_row, column=1).value = ""
             
-            ws.cell(row=current_row, column=2).value = product_data['product']
-            ws.cell(row=current_row, column=3).value = product_data['count']
+            ws.cell(row=current_row, column=2).value = product
+            ws.cell(row=current_row, column=3).value = count
             
             # Apply borders and alignment
             for col in range(1, 4):
@@ -589,25 +668,26 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
                 if col == 3:  # Total column
                     cell.alignment = center_align
             
-            total_files += product_data['count']
+            total_files += count
             current_row += 1
     
     # Total row
     ws.cell(row=current_row, column=1).value = "GRAND TOTAL"
     ws.cell(row=current_row, column=1).font = Font(bold=True)
-    ws.cell(row=current_row, column=2).value = total_files
+    ws.cell(row=current_row, column=2).value = ""
+    ws.cell(row=current_row, column=3).value = total_files
     
     # Apply styling to total row
-    for col in range(1, 3):
+    for col in range(1, 4):
         cell = ws.cell(row=current_row, column=col)
         cell.fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
         cell.font = Font(bold=True)
         cell.border = border
-        if col == 2:
+        if col == 3:
             cell.alignment = center_align
     
     # Adjust column widths
-    ws.column_dimensions['A'].width = 20  # Team Name
+    ws.column_dimensions['A'].width = 25  # Team Name
     ws.column_dimensions['B'].width = 30  # Product Type
     ws.column_dimensions['C'].width = 12  # Total
     

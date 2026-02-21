@@ -1,0 +1,308 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAuthStore } from '../../store/authStore'
+import { billingApi } from '../../services/api'
+import type { BillingReport } from '../../types'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
+import { ArrowLeft, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+export const BillingReportView = () => {
+  const { id } = useParams<{ id: string }>()
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
+
+  const [report, setReport] = useState<BillingReport | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
+      navigate('/login')
+      return
+    }
+    fetchReport()
+  }, [user, id, navigate])
+
+  const fetchReport = async () => {
+    if (!id) return
+
+    try {
+      setLoading(true)
+      const response = await billingApi.get(parseInt(id))
+      setReport(response)
+    } catch (error: any) {
+      console.error('Failed to fetch report:', error)
+      toast.error('Failed to load billing report')
+      navigate('/admin/billing')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    if (!report) return
+
+    try {
+      toast.loading('Generating Excel file...', { id: 'export-excel' })
+      await billingApi.exportExcel(report.id)
+      toast.success('Excel file downloaded successfully', { id: 'export-excel' })
+    } catch (error: any) {
+      console.error('Failed to export billing report:', error)
+      toast.error(error.response?.data?.detail || 'Failed to export billing report', { id: 'export-excel' })
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    if (status === 'finalized') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded">
+          <CheckCircle2 className="h-3 w-3" />
+          Finalized
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded">
+        <AlertCircle className="h-3 w-3" />
+        Draft
+      </span>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <AdminHeader title="Billing Report" subtitle="View billing report details" />
+        <AdminNav />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (!report) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <AdminHeader title="Billing Report" subtitle="View billing report details" />
+        <AdminNav />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Report not found</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Group details by team (extract team from product type)
+  const teamNameMap: Record<string, string> = {
+    'FL': 'Florida',
+    'CA': 'California',
+    'GI': 'GI Clearing',
+    'WA': 'Washington',
+    'MI': 'Michigan',
+    'CO': 'Colorado',
+    'UT': 'Utah',
+    'OR': 'Oregon',
+    'RS': 'Regional Streamline',
+    'NS': 'National Streamline',
+    'FIF': 'FIF',
+    'SC': 'SCB & PD',
+    'SCB': 'SCB & PD',
+    'AZ': 'Arizona',
+    'TX': 'Texas',
+    'PE': 'Pennsylvania',
+    'PA': 'Pennsylvania',
+    'OH': 'Ohio',
+    'GU': 'Guam',
+    'GA': 'Georgia',
+    'VN': 'Vietnam Team'
+  }
+
+  const teamOrder = [
+    'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan',
+    'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline',
+    'FIF', 'SCB & PD', 'Arizona', 'Texas', 'Pennsylvania', 'Ohio', 'Guam',
+    'Georgia', 'Vietnam Team'
+  ]
+
+  // Group by team
+  const teamData: Record<string, Array<{ product: string; count: number }>> = {}
+
+  // Define team-to-product mapping based on your requirements
+  const teamProductMapping: Record<string, string[]> = {
+    'Florida': ['Full Search', 'Update', 'Date Down', 'Amend Title', 'Screening', 'M&B'],
+    'California': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'GI Clearing': ['GI Clearing'],
+    'Washington': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Michigan': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Colorado': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Utah': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Oregon': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Regional Streamline': ['RS Clear', 'RS Review', 'RS Search', 'RS No C2G'],
+    'National Streamline': ['NS Clear', 'NS Review', 'NS Search', 'NS No C2G'],
+    'FIF': ['FAST', 'Traditional'],
+    'SCB & PD': ['Schedule B', 'Product Delivery'],
+    'Arizona': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Texas': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
+    'Pennsylvania': ['Search and Exam', 'Vendor Search'],
+    'Ohio': ['Full Search', 'Vendor Exam', 'Screening', 'Update']
+  }
+
+  report.details.forEach((detail) => {
+    // Try to extract team code from product type
+    const parts = detail.productType.split(' ')
+    if (parts.length >= 1) {
+      const teamCode = parts[0]
+      const productRemainder = detail.productType.substring(teamCode.length + 1).trim()
+      const teamName = teamNameMap[teamCode] || teamCode
+
+      // Only add if this product type belongs to this team
+      if (teamProductMapping[teamName]) {
+        // Check if the product matches any of the expected products for this team
+        const matchesTeam = teamProductMapping[teamName].some(expectedProduct => 
+          productRemainder.includes(expectedProduct) || 
+          detail.productType.includes(expectedProduct)
+        )
+        
+        if (matchesTeam) {
+          if (!teamData[teamName]) {
+            teamData[teamName] = []
+          }
+          teamData[teamName].push({
+            product: productRemainder,
+            count: detail.totalCount
+          })
+        }
+      }
+    }
+  })
+
+  // Sort teams and products
+  const sortedTeams = Object.keys(teamData).sort((a, b) => {
+    const aIdx = teamOrder.indexOf(a)
+    const bIdx = teamOrder.indexOf(b)
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
+  })
+
+  sortedTeams.forEach(team => {
+    teamData[team].sort((a, b) => a.product.localeCompare(b.product))
+  })
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <AdminHeader
+        title={`${new Date(report.startDate).toLocaleDateString()} - ${new Date(report.endDate).toLocaleDateString()} - Billing Report`}
+        subtitle="Complete billing report for all teams"
+      />
+      <AdminNav />
+
+      <main className="container mx-auto px-4 py-8">
+        {/* Actions */}
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="outline" onClick={() => navigate('/admin/billing')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Reports
+          </Button>
+          <Button onClick={handleExportExcel}>
+            <Download className="h-4 w-4 mr-2" />
+            Export to Excel
+          </Button>
+        </div>
+
+        {/* Report Info */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Report Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Period:</span>{' '}
+                <span className="font-semibold">
+                  {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status:</span>{' '}
+                {getStatusBadge(report.status)}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total Files:</span>{' '}
+                <span className="font-semibold">{report.totalFiles}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Created By:</span>{' '}
+                <span className="font-semibold">{report.createdByName}</span>
+              </div>
+              {report.finalizedByName && (
+                <>
+                  <div>
+                    <span className="text-muted-foreground">Finalized By:</span>{' '}
+                    <span className="font-semibold">{report.finalizedByName}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Finalized At:</span>{' '}
+                    <span className="font-semibold">
+                      {report.finalizedAt ? new Date(report.finalizedAt).toLocaleString() : '-'}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Billing Data Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing Details by Team and Product Type</CardTitle>
+            <CardDescription>Complete breakdown of all teams and product types</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Team Name</TableHead>
+                    <TableHead className="w-[300px]">Product Type</TableHead>
+                    <TableHead className="text-center w-[150px]">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedTeams.map((teamName) => (
+                    teamData[teamName].map((product, idx) => (
+                      <TableRow key={`${teamName}-${product.product}`}>
+                        <TableCell className={idx === 0 ? 'font-medium align-top' : 'align-top'}>
+                          {idx === 0 ? teamName : ''}
+                        </TableCell>
+                        <TableCell>{product.product}</TableCell>
+                        <TableCell className="text-center font-semibold">
+                          {product.count}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ))}
+                  <TableRow className="bg-slate-50 font-semibold border-t-2">
+                    <TableCell>GRAND TOTAL</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="text-center">{report.totalFiles}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  )
+}
+
+export default BillingReportView

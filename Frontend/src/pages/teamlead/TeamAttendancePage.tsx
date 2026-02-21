@@ -14,8 +14,10 @@ import {
   DropdownMenuTrigger 
 } from '../../components/ui/dropdown-menu'
 import { Calendar, FileText, Loader2, Shield, Settings, LogOut, Users } from 'lucide-react'
+import odsLogo from '../../assets/ods-logo.png'
 import { DailyRosterView } from '../../components/attendance/DailyRosterView'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { teamsApi } from '../../services/api'
 import { TeamSimple } from '../../types'
 import { useAuthStore } from '../../store/authStore'
@@ -53,8 +55,8 @@ export const TeamAttendancePage: React.FC = () => {
     }
   }
 
-  const handleLogout = () => {
-    handleLogoutFlow(logout, navigate)
+  const handleLogout = async () => {
+    await handleLogoutFlow(logout, navigate)
   }
 
   const selectedTeam = teams.find((t) => t.id === selectedTeamId)
@@ -105,11 +107,14 @@ export const TeamAttendancePage: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Attendance</h1>
-              <p className="text-sm text-slate-600">
-                {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to continue' : 'Mark daily attendance'}
-              </p>
+            <div className="flex items-center gap-4">
+              <img src={odsLogo} alt="ODS Logo" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Team Attendance</h1>
+                <p className="text-sm text-slate-600">
+                  {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to continue' : 'Mark daily attendance'}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -149,7 +154,9 @@ export const TeamAttendancePage: React.FC = () => {
                 <FileText className="h-4 w-4" />
                 View Reports
               </Button>
-              
+
+              <HeaderRefreshButton />
+               
               {/* Team Lead Badge */}
               <Badge variant="outline" className="px-3 py-1">
                 <Shield className="w-3 h-3 mr-1" />

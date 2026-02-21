@@ -68,7 +68,7 @@ try:
         ("orders", "SELECT COUNT(*) FROM orders"),
         ("attendance_records", "SELECT COUNT(*) FROM attendance_records"),
         ("quality_audits", "SELECT COUNT(*) FROM quality_audits"),
-        ("employee_performance_metrics", "SELECT COUNT(*) FROM employee_performance_metrics"),
+        ("examiner_performance_metrics", "SELECT COUNT(*) FROM examiner_performance_metrics"),
     ]
     
     print("   Data verification results:")

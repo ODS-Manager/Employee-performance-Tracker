@@ -46,7 +46,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/teamlead/attendance/reports': { label: 'Attendance Reports', parent: '/teamlead/attendance' },
   '/teamlead/quality-audit': { label: 'Quality Audit', parent: '/teamlead/dashboard' },
   '/teamlead/team-management': { label: 'Manage Teams', parent: '/teamlead/dashboard' },
-  '/teamlead/employee/:userId/performance': { label: 'Employee Performance', parent: '/teamlead/productivity' },
+  '/teamlead/examiner/:userId/performance': { label: 'Employee Performance', parent: '/teamlead/productivity' },
 }
 
 // Function to get breadcrumb trail
@@ -186,76 +186,78 @@ export const TeamLeadNav = () => {
           </nav>
         ) : (
           // Other pages: Show breadcrumbs with back button
-          <nav className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-2">
-              {/* Back Button */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleBack}
-                className="mr-2 hover:bg-slate-100"
-              >
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-              
-              {/* Separator */}
-              <div className="h-5 w-px bg-slate-300 mr-2" />
-              
-              {/* Home Icon */}
-              <Link 
-                to="/teamlead/dashboard" 
-                className="text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                <Home className="w-4 h-4" />
-              </Link>
-              
-              {/* Breadcrumbs */}
-              {breadcrumbs.map((crumb, index) => {
-                const isLast = index === breadcrumbs.length - 1
-                const isFirst = index === 0 && crumb.path === '/teamlead'
+          <>
+            <nav className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-2">
+                {/* Back Button */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleBack}
+                  className="mr-2 hover:bg-slate-100"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
+                </Button>
                 
-                // Skip the /teamlead root in breadcrumbs display
-                if (isFirst && crumb.label === 'Team Lead') {
-                  return null
-                }
+                {/* Separator */}
+                <div className="h-5 w-px bg-slate-300 mr-2" />
                 
-                return (
-                  <div key={crumb.path} className="flex items-center">
-                    <ChevronRight className="w-4 h-4 text-slate-400 mx-1" />
-                    {isLast ? (
-                      <span className="text-sm font-medium text-slate-900">
-                        {crumb.label}
-                      </span>
-                    ) : (
-                      <Link 
-                        to={crumb.path}
-                        className="text-sm text-slate-500 hover:text-slate-900 transition-colors hover:underline"
-                      >
-                        {crumb.label}
-                      </Link>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            
-            {/* Quick navigation links on inner pages */}
-            <div className="hidden md:flex items-center gap-1">
-              {navItems.map(({ path, label, icon: Icon }) => (
-                <Link key={path} to={path}>
-                  <Button 
-                    variant={isActive(path) ? "secondary" : "ghost"}
-                    size="sm"
-                    className="whitespace-nowrap text-xs"
-                  >
-                    <Icon className="w-3 h-3 mr-1" />
-                    {label}
-                  </Button>
+                {/* Home Icon */}
+                <Link 
+                  to="/teamlead/dashboard" 
+                  className="text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  <Home className="w-4 h-4" />
                 </Link>
-              ))}
-            </div>
-          </nav>
+                
+                {/* Breadcrumbs */}
+                {breadcrumbs.map((crumb, index) => {
+                  const isLast = index === breadcrumbs.length - 1
+                  const isFirst = index === 0 && crumb.path === '/teamlead'
+                  
+                  // Skip the /teamlead root in breadcrumbs display
+                  if (isFirst && crumb.label === 'Team Lead') {
+                    return null
+                  }
+                  
+                  return (
+                    <div key={crumb.path} className="flex items-center">
+                      <ChevronRight className="w-4 h-4 text-slate-400 mx-1" />
+                      {isLast ? (
+                        <span className="text-sm font-medium text-slate-900">
+                          {crumb.label}
+                        </span>
+                      ) : (
+                        <Link 
+                          to={crumb.path}
+                          className="text-sm text-slate-500 hover:text-slate-900 transition-colors hover:underline"
+                        >
+                          {crumb.label}
+                        </Link>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              
+              {/* Quick navigation links on inner pages */}
+              <div className="hidden md:flex items-center gap-1">
+                {navItems.map(({ path, label, icon: Icon }) => (
+                  <Link key={path} to={path}>
+                    <Button 
+                      variant={isActive(path) ? "secondary" : "ghost"}
+                      size="sm"
+                      className="whitespace-nowrap text-xs"
+                    >
+                      <Icon className="w-3 h-3 mr-1" />
+                      {label}
+                    </Button>
+                  </Link>
+                ))}
+              </div>
+            </nav>
+          </>
         )}
       </div>
     </div>

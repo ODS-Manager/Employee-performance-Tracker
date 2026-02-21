@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { usersApi, organizationsApi, teamsApi } from '../../services/api'
 import { getInitials, handleLogoutFlow, parseApiError, hasAnyUserRole, getRoleBadgeColor, getRoleDisplayName, isUserRole } from '../../utils/helpers'
 import type { Organization, Team, UserRole } from '../../types'
@@ -13,6 +14,7 @@ import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { 
   Dialog,
@@ -45,18 +47,19 @@ import toast from 'react-hot-toast'
 interface UserData {
   id: number
   userName: string
-  employeeId: string
+  examinerId: string
   userRole: string
   orgId: number | null
   isActive: boolean
 }
 
-export const EmployeeManagementPage = () => {
+export const ExaminerManagementPage = () => {
   const { user } = useAuthStore()
+  const { filterOrgId } = useDashboardFilterStore()
   const navigate = useNavigate()
   const location = useLocation()
-  const [employees, setEmployees] = useState<UserData[]>([])
-  const [totalEmployeeCount, setTotalEmployeeCount] = useState<number>(0)
+  const [examiners, setExaminers] = useState<UserData[]>([])
+  const [totalExaminerCount, setTotalExaminerCount] = useState<number>(0)
   const [totalActiveCount, setTotalActiveCount] = useState<number>(0)
   const [totalInactiveCount, setTotalInactiveCount] = useState<number>(0)
   const [organizations, setOrganizations] = useState<Organization[]>([])
@@ -67,7 +70,9 @@ export const EmployeeManagementPage = () => {
   // Filter states
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [orgFilter, setOrgFilter] = useState<string>('all')
+  
+  // Use global filter for organization instead of local state
+  const orgFilter = filterOrgId || 'all'
 
   // Onboarding modal states
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
@@ -75,7 +80,7 @@ export const EmployeeManagementPage = () => {
     userName: '',
     password: '',
     confirmPassword: '',
-    userRole: 'employee' as UserRole,
+    userRole: 'examiner' as UserRole,
     orgId: user?.orgId || null as number | null,
   })
   const [selectedTeams, setSelectedTeams] = useState<number[]>([])
@@ -89,7 +94,7 @@ export const EmployeeManagementPage = () => {
     } else {
       fetchData()
     }
-  }, [user, navigate, location.key])
+  }, [user, navigate, location.key, filterOrgId]) // Add filterOrgId to dependencies
 
   // Refetch data when page becomes visible (e.g., switching browser tabs)
   useEffect(() => {
@@ -128,9 +133,9 @@ export const EmployeeManagementPage = () => {
     try {
       setLoading(true)
       
-      console.log('Fetching employee data with pageSize: 1000...')
+      console.log('Fetching examiner data with pageSize: 1000...')
       
-      // Fetch employees and organizations in parallel
+      // Fetch examiners and organizations in parallel
       const [usersRes, orgsRes] = await Promise.all([
         usersApi.list({ pageSize: 1000 }),
         organizationsApi.list({ isActive: true })
@@ -149,7 +154,7 @@ export const EmployeeManagementPage = () => {
       // If API doesn't provide total or we get no data, use a fallback
       const apiTotal = usersRes.total || usersRes.items?.length || 0
       const displayTotal = apiTotal > 0 ? apiTotal : 149  // Fallback to known database count
-      setTotalEmployeeCount(displayTotal)
+      setTotalExaminerCount(displayTotal)
       
       // Calculate total active/inactive counts from all data
       const allUsers = usersRes.items || []
@@ -161,22 +166,22 @@ export const EmployeeManagementPage = () => {
       setTotalInactiveCount(totalInactive)
       
       // Filter out only the currently logged-in user from the list (not superadmins)
-      const filteredEmployees = (usersRes.items || []).filter((u: UserData) => 
+      const filteredExaminers = (usersRes.items || []).filter((u: UserData) => 
         u.id !== user?.id
       )
       
       console.log('After filtering:', {
         beforeFilter: usersRes.items?.length || 0,
-        afterFilter: filteredEmployees.length,
+        afterFilter: filteredExaminers.length,
         currentUserId: user?.id,
-        filteredOutCount: (usersRes.items?.length || 0) - filteredEmployees.length
+        filteredOutCount: (usersRes.items?.length || 0) - filteredExaminers.length
       })
       
-      setEmployees(filteredEmployees)
+      setExaminers(filteredExaminers)
       setOrganizations(orgsRes.items || [])
     } catch (error) {
       console.error('Failed to fetch data:', error)
-      toast.error('Failed to load employee data')
+      toast.error('Failed to load examiner data')
     } finally {
       setLoading(false)
     }
@@ -206,18 +211,18 @@ export const EmployeeManagementPage = () => {
     return org?.name || 'Unknown Organization'
   }
 
-  // Filter employees based on all filters with memoization for performance
-  const filteredEmployees = useMemo(() => {
-    if (employees.length === 0) {
+  // Filter examiners based on all filters with memoization for performance
+  const filteredExaminers = useMemo(() => {
+    if (examiners.length === 0) {
       return []
     }
 
-    const filtered = employees.filter(emp => {
+    const filtered = examiners.filter(emp => {
       // Search filter
       const searchLower = searchQuery.toLowerCase()
       const matchesSearch = searchQuery === '' || 
         emp.userName.toLowerCase().includes(searchLower) ||
-        emp.employeeId.toLowerCase().includes(searchLower) ||
+        emp.examinerId.toLowerCase().includes(searchLower) ||
         getOrgName(emp.orgId).toLowerCase().includes(searchLower)
       
       // Role filter
@@ -229,7 +234,7 @@ export const EmployeeManagementPage = () => {
         (statusFilter === 'active' && emp.isActive) ||
         (statusFilter === 'inactive' && !emp.isActive)
       
-      // Organization filter
+      // Center filter
       const matchesOrg = 
         orgFilter === 'all' || 
         (emp.orgId !== null && emp.orgId.toString() === orgFilter)
@@ -238,22 +243,22 @@ export const EmployeeManagementPage = () => {
     })
     
     return filtered
-  }, [employees, searchQuery, roleFilter, statusFilter, orgFilter, organizations])
+  }, [examiners, searchQuery, roleFilter, statusFilter, orgFilter, organizations])
 
-  const activeCount = filteredEmployees.filter(e => e.isActive).length
-  const inactiveCount = filteredEmployees.length - activeCount
+  const activeCount = filteredExaminers.filter(e => e.isActive).length
+  const inactiveCount = filteredExaminers.length - activeCount
   
-  // Calculate role distribution for filtered employees
-  const filteredAdminCount = filteredEmployees.filter(e => e.userRole?.toLowerCase() === 'admin').length
-  const filteredTeamLeadCount = filteredEmployees.filter(e => e.userRole?.toLowerCase() === 'team_lead').length
-  const filteredEmployeeCount = filteredEmployees.filter(e => e.userRole?.toLowerCase() === 'employee').length
+  // Calculate role distribution for filtered examiners
+  const filteredAdminCount = filteredExaminers.filter(e => e.userRole?.toLowerCase() === 'admin').length
+  const filteredTeamLeadCount = filteredExaminers.filter(e => e.userRole?.toLowerCase() === 'team_lead').length
+  const filteredExaminerCount = filteredExaminers.filter(e => e.userRole?.toLowerCase() === 'examiner').length
 
   const hasActiveFilters = roleFilter !== 'all' || statusFilter !== 'all' || orgFilter !== 'all' || searchQuery !== ''
 
   const clearFilters = () => {
     setRoleFilter('all')
     setStatusFilter('all')
-    setOrgFilter('all')
+    // Don't clear orgFilter anymore - it's controlled by global store
     setSearchQuery('')
   }
 
@@ -265,7 +270,7 @@ export const EmployeeManagementPage = () => {
       userName: '',
       password: '',
       confirmPassword: '',
-      userRole: 'employee',
+      userRole: 'examiner',
       orgId: user?.orgId || null,
     })
     setSelectedTeams([])
@@ -307,7 +312,7 @@ export const EmployeeManagementPage = () => {
 
     // Non-superadmin users must have an organization
     if (!isUserRole(formData.userRole, 'superadmin') && !formData.orgId) {
-      setFormError('Please select an organization')
+      setFormError('Please select a center')
       return
     }
 
@@ -337,7 +342,7 @@ export const EmployeeManagementPage = () => {
       fetchData() // Refresh the list
       
     } catch (error: any) {
-      let errorMsg = 'Failed to create employee'
+      let errorMsg = 'Failed to create examiner'
       const detail = error.response?.data?.detail
       
       if (detail) {
@@ -363,234 +368,228 @@ export const EmployeeManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => navigate('/admin/employees')}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Employee Management</h1>
-                <p className="text-sm text-slate-600">View, manage, and onboard employees</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => navigate('/admin/employees')}>
-                <BarChart3 className="h-4 w-4 mr-2" />
-                View Analytics
-              </Button>
-              <Dialog open={showOnboardingModal} onOpenChange={(open) => {
-                setShowOnboardingModal(open)
-                if (!open) resetForm()
-              }}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Onboard Employee
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <UserPlus className="h-5 w-5" />
-                      Onboard New Employee
-                    </DialogTitle>
-                    <DialogDescription>
-                      Fill in the details to add a new team member
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  {formError && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{formError}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Role & Organization */}
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-sm text-slate-700">Role & Organization</h3>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="role">Role *</Label>
-                          <Select 
-                            value={formData.userRole} 
-                            onValueChange={(value: UserRole) => setFormData({...formData, userRole: value})}
-                            disabled={isSubmitting}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="employee">Employee</SelectItem>
-                              <SelectItem value="team_lead">Team Lead</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                                      {isUserRole(user?.userRole, 'superadmin') && (
-                                <SelectItem value="superadmin">Super Admin</SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {showOrgSelector && (
-                          <div className="space-y-2">
-                            <Label htmlFor="organization">Organization *</Label>
-                            <Select 
-                              value={formData.orgId ? formData.orgId.toString() : undefined} 
-                              onValueChange={handleOrgChange}
-                              disabled={isSubmitting}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select organization" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {organizations.map((org) => (
-                                  <SelectItem key={org.id} value={org.id.toString()}>
-                                    {org.name} ({org.code})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Basic Info */}
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-sm text-slate-700">Basic Information</h3>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="userName">Username *</Label>
-                          <Input 
-                            id="userName" 
-                            placeholder="e.g., john.doe"
-                            value={formData.userName} 
-                            onChange={(e) => setFormData({...formData, userName: e.target.value})} 
-                            required 
-                            disabled={isSubmitting}
-                          />
-                          <p className="text-xs text-muted-foreground">Used for login and display</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Password */}
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-sm text-slate-700">Password</h3>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="password">Password *</Label>
-                          <Input 
-                            id="password" 
-                            type="password" 
-                            placeholder="Min 8 characters"
-                            value={formData.password} 
-                            onChange={(e) => setFormData({...formData, password: e.target.value})} 
-                            required 
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                          <Input 
-                            id="confirmPassword" 
-                            type="password" 
-                            placeholder="Re-enter password"
-                            value={formData.confirmPassword} 
-                            onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
-                            required 
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Team Assignment */}
-                    {!isUserRole(formData.userRole, 'superadmin') && effectiveOrgId && (
-                      <div className="space-y-4">
-                        <h3 className="font-medium text-sm text-slate-700">Team Assignment (Optional)</h3>
-                        
-                        {loadingTeams ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Loading teams...
-                          </div>
-                        ) : teams.length > 0 ? (
-                          <>
-                            <p className="text-xs text-muted-foreground">Select teams to assign this employee to</p>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {teams.map((team) => (
-                                <Button
-                                  key={team.id}
-                                  type="button"
-                                  variant={selectedTeams.includes(team.id) ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => handleTeamToggle(team.id)}
-                                  disabled={isSubmitting}
-                                  className="justify-start"
-                                >
-                                  {team.name}
-                                </Button>
-                              ))}
-                            </div>
-                            
-                            {selectedTeams.length > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Selected: {selectedTeams.length} team(s)
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No teams available for this organization</p>
-                        )}
-                      </div>
-                    )}
-
-                    {showOrgSelector && !formData.orgId && !isUserRole(formData.userRole, 'superadmin') && (
-                      <p className="text-sm text-amber-600">Please select an organization to see available teams</p>
-                    )}
-
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button type="button" variant="outline" disabled={isSubmitting}>
-                          Cancel
-                        </Button>
-                      </DialogClose>
-                      <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Create Employee
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader title="Employee Management" subtitle="View, manage, and onboard employees" />
 
       <AdminNav />
 
       <main className="container mx-auto px-4 py-8">
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between mb-6">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => navigate('/admin/examiners')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Analytics
+          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => navigate('/admin/examiners')}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              View Analytics
+            </Button>
+            <Dialog open={showOnboardingModal} onOpenChange={(open) => {
+              setShowOnboardingModal(open)
+              if (!open) resetForm()
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Onboard Employee
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5" />
+                    Onboard New Employee
+                  </DialogTitle>
+                  <DialogDescription>
+                    Fill in the details to add a new team member
+                  </DialogDescription>
+                </DialogHeader>
+
+                {formError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{formError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Role & Center */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-sm text-slate-700">Role & Center</h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Role *</Label>
+                        <Select 
+                          value={formData.userRole} 
+                          onValueChange={(value: UserRole) => setFormData({...formData, userRole: value})}
+                          disabled={isSubmitting}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="examiner">Examiner</SelectItem>
+                            <SelectItem value="team_lead">Team Lead</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                                    {isUserRole(user?.userRole, 'superadmin') && (
+                              <SelectItem value="superadmin">Super Admin</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {showOrgSelector && (
+                        <div className="space-y-2">
+                          <Label htmlFor="organization">Organization *</Label>
+                          <Select 
+                            value={formData.orgId ? formData.orgId.toString() : undefined} 
+                            onValueChange={handleOrgChange}
+                            disabled={isSubmitting}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select center" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {organizations.map((org) => (
+                                <SelectItem key={org.id} value={org.id.toString()}>
+                                  {org.name} ({org.code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Basic Info */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-sm text-slate-700">Basic Information</h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="userName">Username *</Label>
+                        <Input 
+                          id="userName" 
+                          placeholder="e.g., john.doe"
+                          value={formData.userName} 
+                          onChange={(e) => setFormData({...formData, userName: e.target.value})} 
+                          required 
+                          disabled={isSubmitting}
+                        />
+                        <p className="text-xs text-muted-foreground">Used for login and display</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-sm text-slate-700">Password</h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Password *</Label>
+                        <Input 
+                          id="password" 
+                          type="password" 
+                          placeholder="Min 8 characters"
+                          value={formData.password} 
+                          onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                          required 
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                        <Input 
+                          id="confirmPassword" 
+                          type="password" 
+                          placeholder="Re-enter password"
+                          value={formData.confirmPassword} 
+                          onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
+                          required 
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Team Assignment */}
+                  {!isUserRole(formData.userRole, 'superadmin') && effectiveOrgId && (
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-sm text-slate-700">Team Assignment (Optional)</h3>
+                      
+                      {loadingTeams ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading teams...
+                        </div>
+                      ) : teams.length > 0 ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">Select teams to assign this examiner to</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {teams.map((team) => (
+                              <Button
+                                key={team.id}
+                                type="button"
+                                variant={selectedTeams.includes(team.id) ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => handleTeamToggle(team.id)}
+                                disabled={isSubmitting}
+                                className="justify-start"
+                              >
+                                {team.name}
+                              </Button>
+                            ))}
+                          </div>
+                          
+                          {selectedTeams.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Selected: {selectedTeams.length} team(s)
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No teams available for this organization</p>
+                      )}
+                    </div>
+                  )}
+
+                  {showOrgSelector && !formData.orgId && !isUserRole(formData.userRole, 'superadmin') && (
+                    <p className="text-sm text-amber-600">Please select a center to see available teams</p>
+                  )}
+
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button" variant="outline" disabled={isSubmitting}>
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Create Examiner
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-8">
           <Card 
@@ -599,15 +598,15 @@ export const EmployeeManagementPage = () => {
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                {hasActiveFilters ? 'Filtered Total' : 'Total Employees'}
+                {hasActiveFilters ? 'Filtered Total' : 'Total Examiners'}
               </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{filteredEmployees.length}</div>
+              <div className="text-2xl font-bold">{filteredExaminers.length}</div>
               {hasActiveFilters && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  of {employees.length} total
+                  of {examiners.length} total
                 </p>
               )}
             </CardContent>
@@ -648,16 +647,16 @@ export const EmployeeManagementPage = () => {
           </Card>
         </div>
 
-        {/* Employees Table */}
+        {/* Examiners Table */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>All Employees</CardTitle>
                 <CardDescription>
-                  {filteredEmployees.length === employees.length 
+                  {filteredExaminers.length === examiners.length 
                     ? 'Complete employee directory'
-                    : `Showing ${filteredEmployees.length} of ${employees.length} employees`
+                    : `Showing ${filteredExaminers.length} of ${examiners.length} employees`
                   }
                 </CardDescription>
               </div>
@@ -695,7 +694,7 @@ export const EmployeeManagementPage = () => {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="team_lead">Team Lead</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="examiner">Examiner</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -711,22 +710,8 @@ export const EmployeeManagementPage = () => {
                 </SelectContent>
               </Select>
               
-              {/* Organization Filter */}
-              {isUserRole(user?.userRole, 'superadmin') && (
-                <Select value={orgFilter} onValueChange={setOrgFilter}>
-                  <SelectTrigger className="w-full md:w-[180px]">
-                    <SelectValue placeholder="Organization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Organizations</SelectItem>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id.toString()}>
-                        {org.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              {/* Center Filter - REMOVED: Now controlled by global filter bar */}
+              {/* The organization filter is now in AdminNav global filter bar */}
             </div>
             
             {/* Active Filters Display */}
@@ -778,17 +763,17 @@ export const EmployeeManagementPage = () => {
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : filteredEmployees.length === 0 ? (
+            ) : filteredExaminers.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground mb-2">No employees found</p>
+                <p className="text-muted-foreground mb-2">No examiners found</p>
                 {hasActiveFilters ? (
                   <Button variant="link" onClick={clearFilters}>
                     Clear all filters
                   </Button>
                 ) : (
                   <Button variant="link" onClick={() => setShowOnboardingModal(true)}>
-                    Onboard your first employee
+                    Onboard your first examiner
                   </Button>
                 )}
               </div>
@@ -805,7 +790,7 @@ export const EmployeeManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEmployees.map((emp) => (
+                  {filteredExaminers.map((emp) => (
                     <TableRow key={emp.id} className={!emp.isActive ? 'opacity-60' : ''}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
@@ -816,7 +801,7 @@ export const EmployeeManagementPage = () => {
                           </Avatar>
                           <div>
                             <div>{emp.userName}</div>
-                            <div className="text-xs text-muted-foreground">{emp.employeeId}</div>
+                            <div className="text-xs text-muted-foreground">{emp.examinerId}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -841,7 +826,7 @@ export const EmployeeManagementPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => navigate(`/admin/employees/${emp.id}/performance`)}
+                            onClick={() => navigate(`/admin/examiners/${emp.id}/performance`)}
                             title="View Performance"
                           >
                             <BarChart3 className="h-4 w-4" />
@@ -849,7 +834,7 @@ export const EmployeeManagementPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => navigate(`/admin/employees/${emp.id}`)}
+                            onClick={() => navigate(`/admin/examiners/${emp.id}`)}
                             title="View Details"
                           >
                             <Eye className="h-4 w-4" />
@@ -857,7 +842,7 @@ export const EmployeeManagementPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => navigate(`/admin/employees/${emp.id}?edit=true`)}
+                            onClick={() => navigate(`/admin/examiners/${emp.id}?edit=true`)}
                             title="Edit Employee"
                           >
                             <Edit className="h-4 w-4" />
@@ -876,4 +861,4 @@ export const EmployeeManagementPage = () => {
   )
 }
 
-export default EmployeeManagementPage
+export default ExaminerManagementPage

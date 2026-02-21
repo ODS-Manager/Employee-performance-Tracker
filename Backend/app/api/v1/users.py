@@ -17,7 +17,7 @@ from app.core.dependencies import (
     require_team_lead,
     check_org_access,
     get_user_teams,
-    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EMPLOYEE
+    ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.core.security import get_password_hash, verify_password
 from app.services.cache_service import cache
@@ -32,7 +32,7 @@ def serialize_user(user: User) -> dict:
     return {
         "id": user.id,
         "userName": user.user_name,
-        "employeeId": user.employee_id,
+        "examinerId": user.examiner_id,
         "userRole": user.user_role,
         "orgId": user.org_id,
         "passwordLastChanged": user.password_last_changed.isoformat() if user.password_last_changed else None,
@@ -76,7 +76,7 @@ async def list_users(
     - Team Lead: Can see users in their teams
     - Employee: Cannot access this endpoint
     """
-    if current_user.user_role == ROLE_EMPLOYEE:
+    if current_user.user_role.lower() == ROLE_EXAMINER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Employees cannot list users"
@@ -87,7 +87,7 @@ async def list_users(
         cache.PREFIX_USERS,
         "list",
         f"role:{current_user.user_role}",
-        f"org:{current_user.org_id if current_user.user_role != ROLE_SUPERADMIN else org_id}",
+        f"org:{current_user.org_id if current_user.user_role.lower() != ROLE_SUPERADMIN else org_id}",
         f"team:{team_id}" if team_id else None,
         f"filter_role:{role}" if role else None,
         f"active:{is_active}" if is_active is not None else None,
@@ -103,14 +103,14 @@ async def list_users(
     query = db.query(User)
     
     # Apply role-based filtering
-    if current_user.user_role == ROLE_SUPERADMIN:
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
         # Superadmin can see all, optionally filter by org
         if org_id:
             query = query.filter(User.org_id == org_id)
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         # Admin can only see users in their organization
         query = query.filter(User.org_id == current_user.org_id)
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team lead can see users in teams they lead or are members of
         accessible_teams = get_user_teams(current_user, db)
         if not accessible_teams:
@@ -188,7 +188,7 @@ async def create_user(
     from app.models.organization import Organization
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user_data.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -224,9 +224,9 @@ async def create_user(
             detail="Username already registered"
         )
     
-    # Auto-generate employee_id if not provided
-    employee_id = user_data.employee_id
-    if not employee_id:
+    # Auto-generate examiner_id if not provided
+    examiner_id = user_data.examiner_id
+    if not examiner_id:
         # Generate employee ID based on org and sequence
         # Format: ORG_CODE + YYYYMM + 4-digit sequence (e.g., IND202412-0001)
         from datetime import datetime as dt
@@ -240,24 +240,24 @@ async def create_user(
             if org:
                 org_prefix = org.code
         
-        # Find the highest employee_id for this prefix and year_month
+        # Find the highest examiner_id for this prefix and year_month
         prefix_pattern = f"{org_prefix}{year_month}-%"
-        last_emp = db.query(User).filter(User.employee_id.like(prefix_pattern)).order_by(User.employee_id.desc()).first()
+        last_emp = db.query(User).filter(User.examiner_id.like(prefix_pattern)).order_by(User.examiner_id.desc()).first()
         
-        if last_emp and last_emp.employee_id:
+        if last_emp and last_emp.examiner_id:
             # Extract sequence number and increment
             try:
-                last_seq = int(last_emp.employee_id.split('-')[-1])
+                last_seq = int(last_emp.examiner_id.split('-')[-1])
                 next_seq = last_seq + 1
             except (ValueError, IndexError):
                 next_seq = 1
         else:
             next_seq = 1
         
-        employee_id = f"{org_prefix}{year_month}-{next_seq:04d}"
+        examiner_id = f"{org_prefix}{year_month}-{next_seq:04d}"
     else:
-        # Check if provided employee_id already exists
-        existing_emp = db.query(User).filter(User.employee_id == employee_id).first()
+        # Check if provided examiner_id already exists
+        existing_emp = db.query(User).filter(User.examiner_id == examiner_id).first()
         if existing_emp:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -267,7 +267,7 @@ async def create_user(
     # Create new user
     new_user = User(
         user_name=user_data.user_name,
-        employee_id=employee_id,
+        examiner_id=examiner_id,
         password_hash=get_password_hash(user_data.password),
         user_role=user_data.user_role,
         org_id=user_data.org_id,
@@ -332,19 +332,19 @@ async def get_user(
         )
     
     # Check access
-    if current_user.user_role == ROLE_EMPLOYEE:
+    if current_user.user_role.lower() == ROLE_EXAMINER:
         if user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own profile"
             )
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Cannot view users from other organizations"
             )
-    elif current_user.user_role == ROLE_TEAM_LEAD:
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Check if user is in any of team lead's teams
         accessible_teams = get_user_teams(current_user, db)
         user_team_ids = db.query(UserTeam.team_id).filter(
@@ -398,7 +398,7 @@ async def update_user(
         )
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -436,10 +436,10 @@ async def update_user(
                 detail="Username already exists"
             )
     
-    # Check for employee_id uniqueness if changing
-    if 'employee_id' in update_data:
+    # Check for examiner_id uniqueness if changing
+    if 'examiner_id' in update_data:
         existing = db.query(User).filter(
-            User.employee_id == update_data['employee_id'],
+            User.examiner_id == update_data['examiner_id'],
             User.id != user_id
         ).first()
         if existing:
@@ -545,7 +545,7 @@ async def delete_user(
         )
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -637,7 +637,7 @@ async def reset_user_password(
         )
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -719,7 +719,7 @@ async def activate_user(
         )
     
     # Check organization access for admin
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -770,7 +770,7 @@ async def add_user_to_team(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id or team.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -842,7 +842,7 @@ async def remove_user_from_team(
         )
     
     # Check organization access
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         team = db.query(Team).filter(Team.id == team_id).first()
         if team and team.org_id != current_user.org_id:
             raise HTTPException(
@@ -874,13 +874,13 @@ async def get_user_teams_endpoint(
         )
     
     # Check access
-    if current_user.user_role == ROLE_EMPLOYEE:
+    if current_user.user_role.lower() == ROLE_EXAMINER:
         if user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own teams"
             )
-    elif current_user.user_role == ROLE_ADMIN:
+    elif current_user.user_role.lower() == ROLE_ADMIN:
         if user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

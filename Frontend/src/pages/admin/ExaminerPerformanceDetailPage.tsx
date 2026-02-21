@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
+import { useDashboardFilterStore, getMonthOptions } from '../../store/dashboardFilterStore'
 import { usersApi, metricsApi, api } from '../../services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { AdminNav } from '../../components/layout/AdminNav'
+import { AdminHeader } from '../../components/layout/AdminHeader'
 import { 
   ArrowLeft,
   Download,
@@ -17,13 +17,12 @@ import {
   Target,
   Award,
   BarChart3,
-  Calendar,
   FileCheck
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import * as XLSX from 'xlsx'
 
-interface EmployeeMetric {
+interface ExaminerMetric {
   id: number
   userId: number
   userName: string | null
@@ -49,7 +48,7 @@ interface EmployeeMetric {
 interface ProductivityData {
   userId: number
   userName: string
-  employeeId: string
+  examinerId: string
   productivityPercent: number | null
   expectedTarget: number
   weeklyTarget: number | null
@@ -83,12 +82,12 @@ interface QualityAudit {
   auditDate: string
 }
 
-export const EmployeePerformanceDetailPage = () => {
+export const ExaminerPerformanceDetailPage = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { userId } = useParams<{ userId: string }>()
-  const [employee, setEmployee] = useState<any>(null)
-  const [metrics, setMetrics] = useState<EmployeeMetric[]>([])
+  const [examiner, setExaminer] = useState<any>(null)
+  const [metrics, setMetrics] = useState<ExaminerMetric[]>([])
   const [productivityData, setProductivityData] = useState<ProductivityData | null>(null)
   const [qualityAudits, setQualityAudits] = useState<QualityAudit[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,31 +97,36 @@ export const EmployeePerformanceDetailPage = () => {
   const {
     filterMonth,
     filterYear,
-    setFilterMonth,
-    setFilterYear,
   } = useDashboardFilterStore()
 
   useEffect(() => {
     if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
       navigate('/login')
     } else if (userId) {
-      fetchEmployee()
-      fetchMetrics()
-      fetchProductivityData()
-      fetchQualityAudits()
+      fetchExaminer()
     }
-  }, [user, navigate, userId, filterMonth, filterYear])
+  }, [user, navigate, userId])
 
-  const fetchEmployee = async () => {
+  useEffect(() => {
+    if (!user || !['admin', 'superadmin'].includes(user.userRole) || !userId) {
+      return
+    }
+
+    fetchMetrics()
+    fetchProductivityData()
+    fetchQualityAudits()
+  }, [user, userId, filterMonth, filterYear])
+
+  const fetchExaminer = async () => {
     try {
-      console.log('Fetching employee:', userId)
-      const response = await usersApi.get(parseInt(userId!))
-      console.log('Employee response:', response)
-      setEmployee(response)
-    } catch (error: any) {
-      console.error('Failed to fetch employee:', error)
-      console.error('Error details:', error.response?.data)
-      toast.error('Failed to load employee details')
+      console.log('Fetching examiner:', userId)
+      const response = await usersApi.get(parseInt(userId || '0'))
+      console.log('Examiner response:', response)
+      setExaminer(response)
+    } catch (error) {
+      console.error('Failed to fetch examiner:', error)
+      navigate('/admin/examiners')
+      toast.error('Failed to load examiner details')
     }
   }
 
@@ -141,7 +145,7 @@ export const EmployeePerformanceDetailPage = () => {
         pageSize: 100,
       })
       
-      const response = await metricsApi.listEmployeeMetrics({
+      const response = await metricsApi.listExaminerMetrics({
         userId: parseInt(userId!),
         periodType: 'daily',
         startDate,
@@ -171,7 +175,7 @@ export const EmployeePerformanceDetailPage = () => {
       const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
       const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
       
-      const response = await api.get(`/productivity/employee/${userId}`, {
+      const response = await api.get(`/productivity/examiner/${userId}`, {
         params: { start_date: startDate, end_date: endDate }
       })
       
@@ -273,10 +277,10 @@ export const EmployeePerformanceDetailPage = () => {
     
     // Create Overview sheet
     const overviewData = [
-      ['EMPLOYEE PERFORMANCE REPORT'],
+      ['EXAMINER PERFORMANCE REPORT'],
       [],
-      ['Employee:', employee?.userName || 'Unknown'],
-      ['Employee ID:', employee?.employeeId || 'N/A'],
+      ['Employee:', examiner?.userName || 'Unknown'],
+      ['Employee ID:', examiner?.examinerId || 'N/A'],
       ['Period:', `${getMonthOptions(filterYear).find(m => m.value === filterMonth)?.label} ${filterYear}`],
       [],
       ['SUMMARY STATISTICS'],
@@ -391,13 +395,14 @@ export const EmployeePerformanceDetailPage = () => {
     }
     
     // Generate Excel file
-    XLSX.writeFile(wb, `Employee_Performance_${employee?.employeeId}_${filterYear}-${filterMonth}.xlsx`)
+    XLSX.writeFile(wb, `Examiner_Performance_${examiner?.examinerId}_${filterYear}-${filterMonth}.xlsx`)
     toast.success('Report exported successfully!')
   }
 
-  if (loading && !employee) {
+  if (loading && !examiner) {
     return (
       <div className="min-h-screen bg-slate-50">
+        <AdminHeader title={`${examiner?.userName || 'Employee'} Performance`} subtitle="View detailed performance metrics and trends" />
         <AdminNav />
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-center py-12">
@@ -410,6 +415,7 @@ export const EmployeePerformanceDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AdminHeader title={`${examiner?.userName || 'Employee'} Performance`} subtitle="View detailed performance metrics and trends" />
       <AdminNav />
       
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -419,16 +425,16 @@ export const EmployeePerformanceDetailPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate('/admin/employee-management')}
+              onClick={() => navigate('/admin/examiner-management')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
               <h1 className="text-3xl font-bold text-slate-900">
-                {employee?.userName || 'Employee'} Performance
+                {examiner?.userName || 'Employee'} Performance
               </h1>
               <p className="text-slate-600 mt-1">
-                Employee ID: {employee?.employeeId || 'N/A'} • 
+                Examiner ID: {examiner?.examinerId || 'N/A'} • 
                 {getMonthOptions(filterYear).find(m => m.value === filterMonth)?.label} {filterYear}
               </p>
             </div>
@@ -438,51 +444,6 @@ export const EmployeePerformanceDetailPage = () => {
             Export to Excel
           </Button>
         </div>
-
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Period Selection
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Month</label>
-                <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-40 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getMonthOptions(filterYear).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Year</label>
-                <Select value={filterYear} onValueChange={setFilterYear}>
-                  <SelectTrigger className="w-32 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getYearOptions().map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -726,4 +687,4 @@ export const EmployeePerformanceDetailPage = () => {
   )
 }
 
-export default EmployeePerformanceDetailPage
+export default ExaminerPerformanceDetailPage

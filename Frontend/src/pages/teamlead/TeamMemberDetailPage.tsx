@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { usersApi, teamsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
-import type { UserWithTeams, Team, EmployeeProductivity, OrderSimple, QualityAudit } from '../../types'
+import type { UserWithTeams, Team, ExaminerProductivity, OrderSimple, QualityAudit } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Progress } from '../../components/ui/progress'
 import { Label } from '../../components/ui/label'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 import {
   Select,
@@ -118,9 +119,9 @@ export const TeamMemberDetailPage = () => {
   })
 
   // Fetch productivity data
-  const { data: productivity, isLoading: loadingProductivity, error: productivityError } = useQuery<EmployeeProductivity>({
-    queryKey: ['productivity', 'employee', employeeUserId, startDate, endDate],
-    queryFn: () => productivityApi.getEmployeeProductivity({
+  const { data: productivity, isLoading: loadingProductivity, error: productivityError } = useQuery<ExaminerProductivity>({
+    queryKey: ['productivity', 'examiner', employeeUserId, startDate, endDate],
+    queryFn: () => productivityApi.getExaminerProductivity({
       userId: employeeUserId,
       startDate,
       endDate
@@ -130,7 +131,7 @@ export const TeamMemberDetailPage = () => {
 
   // Fetch recent orders (last 30 days for this team)
   const { data: ordersData, isLoading: loadingOrders, error: ordersError } = useQuery({
-    queryKey: ['orders', 'employee', employeeUserId, teamIdNum],
+    queryKey: ['orders', 'examiner', employeeUserId, teamIdNum],
     queryFn: () => ordersApi.list({
       teamId: teamIdNum,
       pageSize: 50
@@ -148,7 +149,7 @@ export const TeamMemberDetailPage = () => {
 
   // Fetch quality audits for this employee
   const { data: auditsData, isLoading: loadingAudits, error: auditsError } = useQuery({
-    queryKey: ['quality-audits', 'employee', employeeUserId],
+    queryKey: ['quality-audits', 'examiner', employeeUserId],
     queryFn: () => qualityAuditApi.list({ examinerId: employeeUserId }),
     enabled: !!employeeUserId,
   })
@@ -196,7 +197,7 @@ export const TeamMemberDetailPage = () => {
     switch (role) {
       case 'team_lead':
         return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'employee':
+      case 'examiner':
         return 'bg-green-100 text-green-700 border-green-200'
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200'
@@ -295,6 +296,7 @@ export const TeamMemberDetailPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <HeaderRefreshButton />
               <Button 
                 variant="outline" 
                 onClick={() => navigate(`/teamlead/employee/${userId}/performance`)}
@@ -585,7 +587,7 @@ export const TeamMemberDetailPage = () => {
                     </TableHeader>
                     <TableBody>
                       {employeeOrders.map((order: OrderSimple) => (
-                        <TableRow key={order.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/employee/edit-order/${order.id}`)}>
+                        <TableRow key={order.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/examiner/edit-order/${order.id}`)}>
                           <TableCell className="font-medium font-mono">{order.fileNumber}</TableCell>
                           <TableCell>{order.productType || '-'}</TableCell>
                           <TableCell>{order.state}</TableCell>
@@ -688,7 +690,7 @@ export const TeamMemberDetailPage = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</Label>
-                    <p className="font-medium font-mono">{employee.employeeId}</p>
+                    <p className="font-medium font-mono">{employee.examinerId}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Role</Label>

@@ -85,7 +85,7 @@ async def create_initial_data(db: Session):
     # Create users
     super_admin = User(
         email="superadmin@ods.com",
-        employee_id="SA001",
+        examiner_id="SA001",
         first_name="Super",
         last_name="Administrator",
         hashed_password=get_password_hash("admin123"),
@@ -98,7 +98,7 @@ async def create_initial_data(db: Session):
     
     india_admin = User(
         email="india_admin@ods.com",
-        employee_id="IA001",
+        examiner_id="IA001",
         first_name="India",
         last_name="Administrator",
         hashed_password=get_password_hash("admin123"),
@@ -111,7 +111,7 @@ async def create_initial_data(db: Session):
     
     vietnam_admin = User(
         email="vietnam_admin@ods.com",
-        employee_id="VA001",
+        examiner_id="VA001",
         first_name="Vietnam",
         last_name="Administrator",
         hashed_password=get_password_hash("admin123"),
@@ -159,7 +159,7 @@ async def reset_sequences(db: Session):
     tables_with_sequences = [
         'organizations', 'users', 'teams', 'team_states', 'team_products',
         'transaction_types', 'process_types', 'order_status', 'divisions',
-        'orders', 'order_history', 'employee_performance_metrics',
+        'orders', 'order_history', 'examiner_performance_metrics',
         'team_performance_metrics', 'user_teams', 'password_reset_tokens'
     ]
     
@@ -212,7 +212,7 @@ async def init_database():
                 # Create test user "guru" with password "12345678"
                 test_user = User(
                     user_name="guru",
-                    employee_id="GURU001", 
+                    examiner_id="GURU001", 
                     password_hash=get_password_hash("12345678"),
                     user_role=UserRole.ADMIN,
                     is_active=True
@@ -222,7 +222,7 @@ async def init_database():
                 # Create a simple admin user for testing
                 admin_user = User(
                     user_name="admin",
-                    employee_id="ADMIN001",
+                    examiner_id="ADMIN001",
                     password_hash=get_password_hash("admin123"),
                     user_role=UserRole.ADMIN,
                     is_active=True

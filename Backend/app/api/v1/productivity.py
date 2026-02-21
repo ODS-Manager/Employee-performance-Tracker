@@ -1,10 +1,10 @@
 """
 Productivity API Endpoints
-Endpoints for employee and team productivity calculations.
+Endpoints for examiner and team productivity calculations.
 
 Business Logic:
-- Target is per employee (not per team)
-- Score is calculated across ALL teams the employee belongs to
+- Target is per examiner (not per team)
+- Score is calculated across ALL teams the examiner belongs to
 - Productivity = Total Score (all teams) / Weekly Target × 100
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,8 +22,8 @@ router = APIRouter()
 require_admin_or_higher = RoleChecker(['superadmin', 'admin', 'team_lead'])
 
 
-@router.get("/employee/{user_id}")
-async def get_employee_productivity(
+@router.get("/examiner/{user_id}")
+async def get_examiner_productivity(
     user_id: int,
     start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
@@ -31,23 +31,23 @@ async def get_employee_productivity(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get productivity score for a specific employee.
+    Get productivity score for a specific examiner.
     
-    Calculates scores across ALL teams the employee belongs to,
+    Calculates scores across ALL teams the examiner belongs to,
     compared against their single weekly target.
     
-    - **user_id**: Employee's user ID
+    - **user_id**: Examiner's user ID
     - **start_date**: Start of period
     - **end_date**: End of period
     
     Returns score breakdown and productivity percentage.
     """
-    # Authorization: superadmin can view all, admin can view their org, team_lead their team, employee only themselves
-    if current_user.user_role == 'employee' and current_user.id != user_id:  # type: ignore
+    # Authorization: superadmin can view all, admin can view their org, team_lead their team, examiner only themselves
+    if current_user.user_role == 'examiner' and current_user.id != user_id:  # type: ignore
         raise HTTPException(status_code=403, detail="Can only view your own productivity")
     
     service = ProductivityService(db)
-    result = service.calculate_employee_score(
+    result = service.calculate_examiner_score(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date
@@ -59,8 +59,8 @@ async def get_employee_productivity(
     return result
 
 
-@router.get("/employee/{user_id}/monthly")
-async def get_employee_monthly_productivity(
+@router.get("/examiner/{user_id}/monthly")
+async def get_examiner_monthly_productivity(
     user_id: int,
     year: int = Query(..., description="Year"),
     month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
@@ -68,10 +68,10 @@ async def get_employee_monthly_productivity(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get monthly productivity for an employee.
+    Get monthly productivity for an examiner.
     Aggregates scores across all teams for the entire month.
     """
-    if current_user.user_role == 'employee' and current_user.id != user_id:  # type: ignore
+    if current_user.user_role == 'examiner' and current_user.id != user_id:  # type: ignore
         raise HTTPException(status_code=403, detail="Can only view your own productivity")
     
     service = ProductivityService(db)
@@ -101,11 +101,11 @@ async def get_team_productivity(
     Each employee's score includes their work across ALL teams,
     not just this team.
     
-    - **team_id**: Team ID (to filter which employees to show)
+    - **team_id**: Team ID (to filter which examiners to show)
     - **start_date**: Start of period
     - **end_date**: End of period
     
-    Returns team summary and individual employee scores.
+    Returns team summary and individual examiner scores.
     """
     service = ProductivityService(db)
     result = service.calculate_team_productivity(
@@ -163,7 +163,7 @@ async def get_my_productivity(
     compared against their single weekly target.
     """
     service = ProductivityService(db)
-    result = service.calculate_employee_score(
+    result = service.calculate_examiner_score(
         user_id=int(current_user.id),  # type: ignore
         start_date=start_date,
         end_date=end_date

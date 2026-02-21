@@ -11,7 +11,7 @@ from app.models.order import Order
 from app.models.user import User
 from app.models.team import Team
 from app.models.user_team import UserTeam
-from app.models.metrics import EmployeePerformanceMetrics, TeamPerformanceMetrics
+from app.models.metrics import ExaminerPerformanceMetrics, TeamPerformanceMetrics
 from app.models.reference import OrderStatusType
 
 
@@ -28,13 +28,13 @@ class MetricsService:
         ).first()
         return status.id if status else None
     
-    def calculate_employee_daily_metrics(
+    def calculate_examiner_daily_metrics(
         self,
         user_id: int,
         metric_date: date,
         team_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Calculate daily metrics for an employee"""
+        """Calculate daily metrics for an examiner"""
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             return {}
@@ -58,23 +58,17 @@ class MetricsService:
         # Step 1 completions
         step1_completed = base_query.filter(
             Order.step1_user_id == user_id,
-            Order.step1_end_time >= start_of_day,
-            Order.step1_end_time <= end_of_day
         ).count()
         
         # Step 2 completions
         step2_completed = base_query.filter(
             Order.step2_user_id == user_id,
-            Order.step2_end_time >= start_of_day,
-            Order.step2_end_time <= end_of_day
         ).count()
         
         # Single seat completions (user did both steps)
         single_seat_completed = base_query.filter(
             Order.step1_user_id == user_id,
             Order.step2_user_id == user_id,
-            Order.step2_end_time >= start_of_day,
-            Order.step2_end_time <= end_of_day
         ).count()
         
         # Total working minutes (sum of step durations)
@@ -83,37 +77,27 @@ class MetricsService:
         # Step 1 durations
         step1_orders = base_query.filter(
             Order.step1_user_id == user_id,
-            Order.step1_start_time != None,
-            Order.step1_end_time != None,
-            Order.step1_end_time >= start_of_day,
-            Order.step1_end_time <= end_of_day
         ).all()
         
         step1_durations = []
         for order in step1_orders:
-            duration = (order.step1_end_time - order.step1_start_time).total_seconds() / 60
             total_minutes += int(duration)
             step1_durations.append(duration)
         
         # Step 2 durations
         step2_orders = base_query.filter(
             Order.step2_user_id == user_id,
-            Order.step2_start_time != None,
-            Order.step2_end_time != None,
-            Order.step2_end_time >= start_of_day,
-            Order.step2_end_time <= end_of_day
         ).all()
         
         step2_durations = []
         for order in step2_orders:
-            duration = (order.step2_end_time - order.step2_start_time).total_seconds() / 60
             total_minutes += int(duration)
             step2_durations.append(duration)
         
         # Status counts
         completed_id = self.get_status_id("Completed")
         on_hold_id = self.get_status_id("On-hold")
-        bp_rti_id = self.get_status_id("BP and RTI")
+        bp_rti_id = self.get_status_id("BP & RTI")
         
         orders_completed = base_query.filter(
             Order.order_status_id == completed_id
@@ -175,7 +159,7 @@ class MetricsService:
         # Status counts
         completed_id = self.get_status_id("Completed")
         on_hold_id = self.get_status_id("On-hold")
-        bp_rti_id = self.get_status_id("BP and RTI")
+        bp_rti_id = self.get_status_id("BP & RTI")
         
         completed = base_query.filter(
             Order.order_status_id == completed_id,
@@ -197,8 +181,8 @@ class MetricsService:
             ])
         ).count()
         
-        # Active employees in team
-        active_employees = self.db.query(UserTeam).filter(
+        # Active examiners in team
+        active_examiners = self.db.query(UserTeam).filter(
             UserTeam.team_id == team_id,
             UserTeam.is_active == True
         ).count()
@@ -208,10 +192,10 @@ class MetricsService:
         if total_orders > 0:
             completion_rate = (completed / total_orders) * 100
         
-        # Orders per employee
-        orders_per_emp = None
-        if active_employees > 0:
-            orders_per_emp = completed / active_employees
+        # Orders per examiner
+        orders_per_examiner = None
+        if active_examiners > 0:
+            orders_per_examiner = completed / active_examiners
         
         return {
             "team_id": team_id,
@@ -223,18 +207,18 @@ class MetricsService:
             "total_orders_in_progress": in_progress,
             "total_orders_on_hold": on_hold,
             "total_orders_bp_rti": bp_rti,
-            "active_employees_count": active_employees,
+            "active_examiners_count": active_examiners,
             "completion_rate": completion_rate,
-            "orders_per_employee": orders_per_emp,
+            "orders_per_examiner": orders_per_examiner,
             "calculation_status": "calculated"
         }
     
-    def save_employee_metrics(self, metrics_data: Dict[str, Any]) -> EmployeePerformanceMetrics:
-        """Save or update employee metrics"""
-        existing = self.db.query(EmployeePerformanceMetrics).filter(
-            EmployeePerformanceMetrics.user_id == metrics_data["user_id"],
-            EmployeePerformanceMetrics.metric_date == metrics_data["metric_date"],
-            EmployeePerformanceMetrics.period_type == metrics_data["period_type"]
+    def save_examiner_metrics(self, metrics_data: Dict[str, Any]) -> ExaminerPerformanceMetrics:
+        """Save or update examiner metrics"""
+        existing = self.db.query(ExaminerPerformanceMetrics).filter(
+            ExaminerPerformanceMetrics.user_id == metrics_data["user_id"],
+            ExaminerPerformanceMetrics.metric_date == metrics_data["metric_date"],
+            ExaminerPerformanceMetrics.period_type == metrics_data["period_type"]
         ).first()
         
         if existing:
@@ -243,7 +227,7 @@ class MetricsService:
             self.db.commit()
             return existing
         
-        metrics = EmployeePerformanceMetrics(**metrics_data)
+        metrics = ExaminerPerformanceMetrics(**metrics_data)
         self.db.add(metrics)
         self.db.commit()
         self.db.refresh(metrics)

@@ -70,7 +70,7 @@ try:
         if not existing:
             user = User(
                 user_name=username,
-                employee_id=emp_id,
+                examiner_id=emp_id,
                 password_hash=get_password_hash(password),
                 user_role=role,
                 org_id=organizations[0].id,  # Assign to first org
@@ -185,13 +185,13 @@ try:
         QualityAudit.audit_date <= feb_end.date()
     ).delete()
     
-    session.query(EmployeeWeeklyTarget).filter(
-        EmployeeWeeklyTarget.week_start_date >= feb_start.date()
+    session.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.week_start_date >= feb_start.date()
     ).delete()
     
-    session.query(EmployeePerformanceMetrics).filter(
-        EmployeePerformanceMetrics.metric_date >= feb_start.date(),
-        EmployeePerformanceMetrics.metric_date <= feb_end.date()
+    session.query(ExaminerPerformanceMetrics).filter(
+        ExaminerPerformanceMetrics.metric_date >= feb_start.date(),
+        ExaminerPerformanceMetrics.metric_date <= feb_end.date()
     ).delete()
     
     session.query(TeamPerformanceMetrics).filter(
@@ -429,7 +429,7 @@ try:
                 # Set target between 40-60 for the week
                 weekly_target = random.randint(40, 60)
                 
-                target = EmployeeWeeklyTarget(
+                target = ExaminerWeeklyTarget(
                     user_id=employee.id,
                     team_id=team.id,
                     week_start_date=week_start.date(),
@@ -504,7 +504,7 @@ try:
     
     while current_date <= feb_end:
         for employee in employees:
-            # Create only one metric per employee per day (regardless of teams)
+            # Create only one metric per examiner per day (regardless of teams)
             if (employee.id, current_date.date()) not in created_metrics:
                 # Get all orders for this employee on this date across all teams
                 employee_orders = session.query(Order).filter(
@@ -534,7 +534,7 @@ try:
                             if order.step2_user_id == employee.id and order.step2_start_time and order.step2_end_time:
                                 total_minutes += (order.step2_end_time - order.step2_start_time).total_seconds() / 60
                         
-                        metric = EmployeePerformanceMetrics(
+                        metric = ExaminerPerformanceMetrics(
                             user_id=employee.id,
                             team_id=primary_team.id,
                             org_id=primary_team.org_id,
@@ -586,7 +586,7 @@ try:
             
             if team_orders:
                 # Get active employees count
-                active_employees = session.query(User).join(UserTeam).filter(
+                active_examiners = session.query(User).join(UserTeam).filter(
                     UserTeam.team_id == team.id,
                     UserTeam.is_active == True,
                     User.user_role == 'EMPLOYEE'
@@ -622,9 +622,9 @@ try:
                     total_orders_completed=completed_orders,
                     total_orders_in_progress=in_progress_orders,
                     total_orders_on_hold=on_hold_orders,
-                    active_employees_count=active_employees,
+                    active_examiners_count=active_examiners,
                     team_efficiency_score=round(random.uniform(0.75, 0.95), 4),
-                    orders_per_employee=round(total_orders / max(active_employees, 1), 2),
+                    orders_per_examiner=round(total_orders / max(active_examiners, 1), 2),
                     completion_rate=round(completed_orders / max(total_orders, 1), 4),
                     transaction_breakdown=json.dumps(transaction_breakdown),
                     product_breakdown=json.dumps(product_breakdown),
@@ -678,8 +678,8 @@ try:
     print(f"  📋 Orders: {session.query(Order).filter(Order.entry_date >= feb_start, Order.entry_date <= feb_end).count()}")
     print(f"  📅 Attendance Records: {session.query(AttendanceRecord).filter(AttendanceRecord.date >= feb_start.date(), AttendanceRecord.date <= feb_end.date()).count()}")
     print(f"  🔍 Quality Audits: {session.query(QualityAudit).filter(QualityAudit.audit_date >= feb_start.date(), QualityAudit.audit_date <= feb_end.date()).count()}")
-    print(f"  🎯 Weekly Targets: {session.query(EmployeeWeeklyTarget).filter(EmployeeWeeklyTarget.week_start_date >= feb_start.date()).count()}")
-    print(f"  📊 Employee Metrics: {session.query(EmployeePerformanceMetrics).filter(EmployeePerformanceMetrics.metric_date >= feb_start.date(), EmployeePerformanceMetrics.metric_date <= feb_end.date()).count()}")
+    print(f"  🎯 Weekly Targets: {session.query(ExaminerWeeklyTarget).filter(ExaminerWeeklyTarget.week_start_date >= feb_start.date()).count()}")
+    print(f"  📊 Employee Metrics: {session.query(ExaminerPerformanceMetrics).filter(ExaminerPerformanceMetrics.metric_date >= feb_start.date(), ExaminerPerformanceMetrics.metric_date <= feb_end.date()).count()}")
     print(f"  🏆 Team Metrics: {session.query(TeamPerformanceMetrics).filter(TeamPerformanceMetrics.metric_date >= feb_start.date(), TeamPerformanceMetrics.metric_date <= feb_end.date()).count()}")
     print(f"  💰 Billing Reports: {session.query(BillingReport).filter(BillingReport.billing_month == 2, BillingReport.billing_year == 2026).count()}")
     print(f"  👥 Total Users: {session.query(User).count()}")
