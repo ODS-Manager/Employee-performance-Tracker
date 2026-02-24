@@ -2,7 +2,7 @@
 runtime: python311
 
 # Service settings
-service: examiner-performance-api
+service: employee-performance-backend
 region: asia-south1
 
 # Instance configuration

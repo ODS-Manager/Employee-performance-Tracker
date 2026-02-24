@@ -10,7 +10,7 @@ env:
   PROJECT_ID: project-0990a5d7-310c-4a56-837
   REGION: asia-south1
   REPOSITORY: ods-repo
-  SERVICE_NAME: examiner-performance-api
+  SERVICE_NAME: employee-performance-backend
   IMAGE_NAME: backend
 
 permissions:
