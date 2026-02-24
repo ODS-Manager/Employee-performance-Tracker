@@ -8,7 +8,7 @@ set -e
 PROJECT_ID="${GCP_PROJECT_ID:-employee-performance-tracker}"
 REGION="${GCP_REGION:-us-central1}"
 REPO_NAME="employee-performance-tracker"
-BACKEND_SERVICE_NAME="employee-performance-backend"
+BACKEND_SERVICE_NAME="employee-performance-api"
 FRONTEND_SERVICE_NAME="employee-performance-frontend"
 
 echo "Deploying to Google Cloud Run..."

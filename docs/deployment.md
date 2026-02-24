@@ -48,7 +48,7 @@ You can also trigger the workflow manually:
 
 ## Cloud Run Configuration
 
-- **Service Name**: `employee-performance-backend`
+- **Service Name**: `employee-performance-api`
 - **Memory**: 512Mi
 - **CPU**: 1
 - **Min Instances**: 0 (scale to zero)
@@ -87,7 +87,7 @@ After initial deployment:
 
 After deployment, verify the service is running:
 ```bash
-curl https://employee-performance-backend-<hash>-a.a.run.app/health
+curl https://employee-performance-api-<hash>-a.a.run.app/health
 ```
 
 The service should return: `{"status": "healthy"}`

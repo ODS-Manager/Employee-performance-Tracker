@@ -8,7 +8,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: us-central1
-  BACKEND_SERVICE_NAME: employee-performance-backend
+  BACKEND_SERVICE_NAME: employee-performance-api
   FRONTEND_SERVICE_NAME: employee-performance-frontend
   REPO_NAME: employee-performance-tracker
 

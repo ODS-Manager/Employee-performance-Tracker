@@ -2,7 +2,7 @@
 runtime: python311
 
 # Service settings
-service: employee-performance-backend
+service: employee-performance-api
 region: asia-south1
 
 # Instance configuration
