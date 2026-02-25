@@ -5,8 +5,7 @@ import { teamsApi, referenceApi, usersApi, ordersApi, organizationsApi } from '.
 import type { 
   OrderCreate, 
   OrderUpdate,
-  Order,
-  UserAliasOption  // Used for alias options query result type
+  Order
 } from '../../types'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
@@ -63,6 +62,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_existingOrderId, setExistingOrderId] = useState<number | null>(null)
   const [isCheckingFileNumber, setIsCheckingFileNumber] = useState(false)
+  const [isDuplicateEntry, setIsDuplicateEntry] = useState(false)
+  const [selectedDuplicateAssigneeId, setSelectedDuplicateAssigneeId] = useState<number | null>(null)
 
   // Check user role - determines form behavior
   const isAdminOrSuperadmin = user?.userRole === 'admin' || user?.userRole === 'superadmin'
@@ -158,12 +159,33 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     queryFn: referenceApi.getDivisions,
   })
 
-  // Fetch alias options (masked names) for the selected team - for user assignment
-  const { data: aliasOptions = [], isLoading: loadingAliasOptions } = useQuery({
-    queryKey: ['teamAliasOptions', selectedTeamId],
-    queryFn: () => teamsApi.getAliasOptions(selectedTeamId!),
-    enabled: !!selectedTeamId && canAssignToOthers,
+  // Fetch active examiners for duplicate order assignment
+  const { data: duplicateAssigneesData, isLoading: loadingDuplicateAssignees } = useQuery({
+    queryKey: ['duplicateAssignees', selectedTeamId],
+    queryFn: () => usersApi.list({ teamId: selectedTeamId!, role: 'examiner', isActive: true }),
+    enabled: !!selectedTeamId && canAssignToOthers && !isEditMode,
   })
+
+  const duplicateAssigneeOptions = useMemo(() => {
+    const examiners = (duplicateAssigneesData?.items || []).map((u) => ({
+      id: u.id,
+      label: u.userName,
+    }))
+
+    if (!user) {
+      return examiners
+    }
+
+    const withYouLabel = examiners.map((opt) => (
+      opt.id === user.id ? { ...opt, label: `${opt.label} (You)` } : opt
+    ))
+
+    if (!withYouLabel.some((opt) => opt.id === user.id)) {
+      return [{ id: user.id, label: `${user.userName} (You)` }, ...withYouLabel]
+    }
+
+    return withYouLabel
+  }, [duplicateAssigneesData?.items, user])
 
   // Fetch FA names pool for the selected team - for order masking
   const { data: faNamesData, isLoading: loadingFaNames } = useQuery({
@@ -193,12 +215,20 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setCanAddStep2(false)
       setCanAddStep1(false)
       setExistingOrderId(null)
+      setIsDuplicateEntry(false)
+      setSelectedDuplicateAssigneeId(null)
       return
     }
     
     setIsCheckingFileNumber(true)
     try {
       const result = await ordersApi.checkFileNumber(fileNum.trim(), selectedTeamId, productType.trim())
+      const duplicateEntryAllowed = !!result.duplicatesAllowed
+
+      setIsDuplicateEntry(duplicateEntryAllowed)
+      if (!duplicateEntryAllowed) {
+        setSelectedDuplicateAssigneeId(null)
+      }
       
       if (result.exists) {
         // File + product combination exists globally - check if Step 1 or Step 2 can be added
@@ -275,6 +305,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         setFileNumberExists(false)
         setCanAddStep2(false)
         setCanAddStep1(false)
+        setIsDuplicateEntry(false)
+        setSelectedDuplicateAssigneeId(null)
         setExistingOrderId(null)
       }
     } catch (error) {
@@ -283,6 +315,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setCanAddStep2(false)
       setCanAddStep1(false)
       setExistingOrderId(null)
+      setIsDuplicateEntry(false)
+      setSelectedDuplicateAssigneeId(null)
     } finally {
       setIsCheckingFileNumber(false)
     }
@@ -301,6 +335,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     setCanAddStep2(false)
     setCanAddStep1(false)
     setExistingOrderId(null)
+    setIsDuplicateEntry(false)
+    setSelectedDuplicateAssigneeId(null)
     // Check if file number is already filled
     if (fileNumber.trim() && newProductType.trim() && selectedTeamId && !isEditMode) {
       await checkFileNumberAndProduct(fileNumber, newProductType)
@@ -321,6 +357,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setCanAddStep2(false)
       setCanAddStep1(false)
       setExistingOrderId(null)
+      setIsDuplicateEntry(false)
+      setSelectedDuplicateAssigneeId(null)
     }
   }, [selectedTeamId, isEditMode])
 
@@ -425,18 +463,12 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     // Order status is only required for admins
     if (canAssignToOthers && !selectedOrderStatusId) newErrors.push('Order status is required')
+    if (!isEditMode && canAssignToOthers && isDuplicateEntry && !selectedDuplicateAssigneeId) {
+      newErrors.push('Examiner is required for duplicate order entry')
+    }
     
     // NOTE: We don't validate duplicate file numbers on the frontend anymore.
     // The backend will return appropriate error messages as toast notifications.
-    
-    // For admins assigning to others, validate step users
-    if (canAssignToOthers) {
-      const selectedProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
-      if (selectedProcessType) {
-        // Note: User assignment removed from UI - users will be auto-assigned by backend or manually set
-        // Validation removed since Assign User dropdown is removed
-      }
-    }
     
     // Validate FA names and dates are required
     const currentProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
@@ -488,6 +520,23 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     try {
       const selectedProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
+      let duplicateEntryForSubmit = isDuplicateEntry
+
+      if (!isEditMode && canAssignToOthers && selectedTeamId && selectedProductType.trim() && fileNumber.trim()) {
+        const checkResult = await ordersApi.checkFileNumber(fileNumber.trim(), selectedTeamId, selectedProductType.trim())
+        duplicateEntryForSubmit = !!checkResult.duplicatesAllowed
+        setIsDuplicateEntry(duplicateEntryForSubmit)
+        if (!duplicateEntryForSubmit) {
+          setSelectedDuplicateAssigneeId(null)
+        }
+      }
+
+      if (!isEditMode && canAssignToOthers && duplicateEntryForSubmit && !selectedDuplicateAssigneeId) {
+        toast.error('Select an examiner for duplicate order entry')
+        return
+      }
+
+      const assignedUserId = duplicateEntryForSubmit ? selectedDuplicateAssigneeId! : user!.id
       
       // For examiners editing existing orders, only send step-related fields
       // This prevents sending order details that they can't modify
@@ -528,21 +577,21 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         
         // Determine step user assignment
         if (canAssignToOthers) {
-          // Admin/Team Lead - auto-assign to themselves since Assign User dropdown was removed
+          // Admin/Team Lead - for duplicate entries assign to selected examiner/user; otherwise self
           if (selectedProcessType?.name === 'Step1') {
-            orderData.step1UserId = user!.id
+            orderData.step1UserId = assignedUserId
             if (step1FaName) orderData.step1FaName = step1FaName
           }
           
           if (selectedProcessType?.name === 'Step2') {
-            orderData.step2UserId = user!.id
+            orderData.step2UserId = assignedUserId
             if (step2FaName) orderData.step2FaName = step2FaName
           }
           
           if (selectedProcessType?.name === 'Single Seat') {
-            // For single seat, both step1 and step2 use same user (current user), FA name, and same dates
-            orderData.step1UserId = user!.id
-            orderData.step2UserId = user!.id
+            // For single seat, both step1 and step2 use the same assigned user
+            orderData.step1UserId = assignedUserId
+            orderData.step2UserId = assignedUserId
             if (step1FaName) {
               orderData.step1FaName = step1FaName
               orderData.step2FaName = step1FaName
@@ -602,6 +651,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         setFileNumberExists(false)
         setCanAddStep2(false)
         setCanAddStep1(false)
+        setIsDuplicateEntry(false)
+        setSelectedDuplicateAssigneeId(null)
         
         // Reset to default values
         const defaultProcess = processTypes?.find(p => p.isActive)
@@ -763,6 +814,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     // Order status is required for all users
     if (!selectedOrderStatusId) return false
+    if (!isEditMode && canAssignToOthers && isDuplicateEntry && !selectedDuplicateAssigneeId) return false
     
     const currentProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
     
@@ -792,7 +844,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
     fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
-    step1FaName, step2FaName
+    step1FaName, step2FaName, isDuplicateEntry, selectedDuplicateAssigneeId
   ])
 
   return (
@@ -893,6 +945,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           setCanAddStep2(false)
                           setCanAddStep1(false)
                           setExistingOrderId(null)
+                          setIsDuplicateEntry(false)
+                          setSelectedDuplicateAssigneeId(null)
                         }}
                         onBlur={handleFileNumberBlur}
                         disabled={isEditMode || teamNotSelected}
@@ -1042,6 +1096,30 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Duplicate order assignee */}
+                    {!isEditMode && canAssignToOthers && isDuplicateEntry && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="duplicateAssignee" className="text-xs font-semibold text-gray-700">Examiner *</Label>
+                        <Select
+                          value={selectedDuplicateAssigneeId ? selectedDuplicateAssigneeId.toString() : ''}
+                          onValueChange={(value) => setSelectedDuplicateAssigneeId(parseInt(value))}
+                          disabled={loadingDuplicateAssignees || duplicateAssigneeOptions.length === 0}
+                        >
+                          <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                            <SelectValue placeholder={loadingDuplicateAssignees ? 'Loading users...' : 'Select examiner'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {duplicateAssigneeOptions.map((assignee) => (
+                              <SelectItem key={assignee.id} value={assignee.id.toString()}>{assignee.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {duplicateAssigneeOptions.length === 0 && !loadingDuplicateAssignees && (
+                          <p className="text-[11px] text-red-600">No users available for duplicate assignment in this team.</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
 

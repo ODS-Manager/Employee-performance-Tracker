@@ -473,7 +473,8 @@ async def check_file_number(
     
     # For specific product types, duplicates are explicitly allowed only for
     # superadmin/admin/team lead users.
-    if can_create_duplicate_for_product(current_user, product_type):
+    duplicates_allowed = can_create_duplicate_for_product(current_user, product_type)
+    if duplicates_allowed:
         return {
             "exists": False,
             "fileNumber": file_number,
@@ -506,7 +507,8 @@ async def check_file_number(
             "step1Completed": False,
             "step2Completed": False,
             "orderId": None,
-            "sameTeam": True  # Always true since we're checking within the same team
+            "sameTeam": True,  # Always true since we're checking within the same team
+            "duplicatesAllowed": False,
         }
     
     # File + product_type + team combination exists - check if Step 1 or Step 2 can be added
@@ -526,6 +528,7 @@ async def check_file_number(
         "step2UserName": existing.step2_user.user_name if existing.step2_user else None,
         "sameTeam": True,  # Always true since we're checking within the same team
         "teamId": existing.team_id,
+        "duplicatesAllowed": False,
         # Include existing order details so frontend can use them if adding Step 2
         "existingOrderDetails": {
             "state": existing.state,

@@ -2,16 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
-import api, { teamsApi, metricsApi, productivityApi } from '../../services/api'
-import type { TeamMetrics, TeamProductivity } from '../../types'
+import { teamsApi } from '../../services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { AdminNav } from '../../components/layout/AdminNav'
 import { AdminHeader } from '../../components/layout/AdminHeader'
-import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { 
   Users, 
-  Target, 
   Settings, 
   MapPin, 
   Package,
@@ -39,14 +36,6 @@ interface TeamProduct {
   productType: string
 }
 
-interface TeamMember {
-  id: number
-  userId: number
-  userName: string
-  userRole: string
-  isActive: boolean
-}
-
 interface Team {
   id: number
   name: string
@@ -55,111 +44,57 @@ interface Team {
   isActive: boolean
   states: TeamState[]
   products: TeamProduct[]
-  members?: TeamMember[]
+  memberCount?: number
 }
 
 export const TeamReportsPage = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const [teams, setTeams] = useState<Team[]>([])
-  const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([])
-  const [teamProductivity, setTeamProductivity] = useState<TeamProductivity[]>([])
   const [loading, setLoading] = useState(true)
   
   // Get filter state from store
   const {
-    filterMonth,
-    filterYear,
     filterOrgId,
   } = useDashboardFilterStore()
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const orgIdToFetch = user?.userRole === 'superadmin' 
+          ? (filterOrgId ?? undefined) 
+          : (user?.orgId ?? undefined)
+        
+        // Phase 1 + 2 optimization:
+        // - Remove N team member calls, N productivity calls, and metrics call (unused on this page)
+        // - Request member counts in a single teams list response
+        const teamsResponse = await teamsApi.list({
+          orgId: orgIdToFetch,
+          isActive: true,
+          includeMemberCount: true,
+          includeFaNames: false,
+        })
+        setTeams(teamsResponse.items || [])
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
       navigate('/login')
-    } else {
-      fetchData()
+      return
     }
-  }, [user, navigate])
 
-  // Re-fetch when filterOrgId or month/year filters change
-  useEffect(() => {
-    if (user) {
-      fetchData()
-    }
-  }, [filterOrgId, filterMonth, filterYear])
-
-  const fetchData = async () => {
-    try {
-      setLoading(true)
-      const orgIdToFetch = user?.userRole === 'superadmin' 
-        ? (filterOrgId ?? undefined) 
-        : (user?.orgId ?? undefined)
-      
-      // Fetch teams
-      const teamsResponse = await teamsApi.list({ orgId: orgIdToFetch, isActive: true })
-      const teamsData = teamsResponse.items || []
-      
-      // Fetch member count for all teams
-      const teamsWithMembers = await Promise.all(
-        teamsData.map(async (team: Team) => {
-          try {
-            const members = await teamsApi.getMembers(team.id)
-            return { ...team, members }
-          } catch (error) {
-            console.error(`Failed to fetch members for team ${team.id}:`, error)
-            return { ...team, members: [] }
-          }
-        })
-      )
-      setTeams(teamsWithMembers)
-
-      // Calculate start and end dates from filterMonth and filterYear
-      const startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
-      const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
-      const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
-
-      // Fetch team productivity for all teams
-      const productivityData: TeamProductivity[] = []
-      for (const team of teamsWithMembers) {
-        try {
-          const productivity = await productivityApi.getTeamProductivity({
-            teamId: team.id,
-            startDate,
-            endDate,
-          })
-          productivityData.push(productivity)
-        } catch (error) {
-          console.error(`Failed to fetch productivity for team ${team.id}:`, error)
-        }
-      }
-      setTeamProductivity(productivityData)
-
-      // Fetch team metrics with month/year filter
-      let metricsData: TeamMetrics[] = []
-      try {
-        const metricsResponse = await metricsApi.getTeamMetrics({ 
-          orgId: orgIdToFetch,
-          periodType: 'monthly',
-          startDate,
-          endDate,
-        })
-        metricsData = metricsResponse.items || []
-        setTeamMetrics(metricsData)
-      } catch (error) {
-        console.error('Failed to fetch team metrics:', error)
-        setTeamMetrics([])
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    fetchData()
+  }, [user, navigate, filterOrgId])
 
   // Calculate summary statistics
   const activeTeams = teams.filter(t => t.isActive).length
   const inactiveTeams = teams.filter(t => !t.isActive).length
-  const totalMembers = teams.reduce((acc, t) => acc + (t.members?.length || 0), 0)
+  const totalMembers = teams.reduce((acc, t) => acc + (t.memberCount || 0), 0)
   const totalStates = new Set(teams.flatMap(t => t.states.map(s => s.state))).size
   const totalProducts = new Set(teams.flatMap(t => t.products.map(p => p.productType))).size
 

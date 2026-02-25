@@ -4,6 +4,7 @@ CRUD operations for team management including states, products, and members
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 from app.database import get_db
@@ -58,9 +59,9 @@ def serialize_team_fa_name(team_fa_name) -> dict:
     }
 
 
-def serialize_team(team: Team) -> dict:
+def serialize_team(team: Team, member_count: Optional[int] = None, include_fa_names: bool = True) -> dict:
     """Serialize team to camelCase dict with states, products, and FA names"""
-    return {
+    data = {
         "id": team.id,
         "name": team.name,
         "orgId": team.org_id,
@@ -75,8 +76,13 @@ def serialize_team(team: Team) -> dict:
         "modifiedAt": team.modified_at.isoformat() if team.modified_at else None,
         "states": [serialize_team_state(s) for s in team.states] if team.states else [],
         "products": [serialize_team_product(p) for p in team.products] if team.products else [],
-        "faNames": [serialize_team_fa_name(f) for f in team.fa_names] if hasattr(team, 'fa_names') and team.fa_names else []
+        "faNames": ([serialize_team_fa_name(f) for f in team.fa_names] if hasattr(team, 'fa_names') and team.fa_names else []) if include_fa_names else []
     }
+
+    if member_count is not None:
+        data["memberCount"] = member_count
+
+    return data
 
 
 def serialize_team_member(user: User, user_team: UserTeam) -> dict:
@@ -128,6 +134,8 @@ async def get_my_teams(
 async def list_teams(
     org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
     is_active: Optional[bool] = Query(None, alias="isActive", description="Filter by active status"),
+    include_member_count: bool = Query(False, alias="includeMemberCount", description="Include aggregated member counts"),
+    include_fa_names: bool = Query(True, alias="includeFaNames", description="Include team FA names"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -150,9 +158,11 @@ async def list_teams(
     # Query with necessary joins to load states, products, and FA names
     query = db.query(Team).options(
         joinedload(Team.states),
-        joinedload(Team.products),
-        joinedload(Team.fa_names).joinedload(TeamFAName.fa_name)
+        joinedload(Team.products)
     )
+
+    if include_fa_names:
+        query = query.options(joinedload(Team.fa_names).joinedload(TeamFAName.fa_name))
     
     # Apply role-based filtering
     if current_user.user_role.lower() == ROLE_SUPERADMIN:
@@ -166,9 +176,30 @@ async def list_teams(
         query = query.filter(Team.is_active == is_active)
     
     teams = query.order_by(Team.name).all()
+
+    member_counts = {}
+    if include_member_count and teams:
+        team_ids = [team.id for team in teams]
+        member_count_rows = db.query(
+            UserTeam.team_id,
+            func.count(UserTeam.id)
+        ).filter(
+            UserTeam.team_id.in_(team_ids)
+        ).group_by(
+            UserTeam.team_id
+        ).all()
+
+        member_counts = {team_id: count for team_id, count in member_count_rows}
     
     result = {
-        "items": [serialize_team(team) for team in teams],
+        "items": [
+            serialize_team(
+                team,
+                member_counts.get(team.id) if include_member_count else None,
+                include_fa_names=include_fa_names
+            )
+            for team in teams
+        ],
         "total": len(teams)
     }
     

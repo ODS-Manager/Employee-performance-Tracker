@@ -320,6 +320,8 @@ export const teamsApi = {
   list: async (params?: {
     orgId?: number
     isActive?: boolean
+    includeMemberCount?: boolean
+    includeFaNames?: boolean
     page?: number
     pageSize?: number
   }): Promise<TeamListResponse> => {

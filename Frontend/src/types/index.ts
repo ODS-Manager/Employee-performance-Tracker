@@ -137,6 +137,7 @@ export interface Team {
   orgId: number
   teamLeadId: number | null
   isActive: boolean
+  memberCount?: number
   dailyTarget: number
   monthlyTarget: number | null
   singleSeatScore: number
@@ -155,6 +156,7 @@ export interface TeamSimple {
   orgId: number
   teamLeadId: number | null
   isActive: boolean
+  memberCount?: number
   dailyTarget: number
   monthlyTarget: number | null
   singleSeatScore: number
@@ -664,6 +666,7 @@ export interface FileNumberCheckResponse {
   exists: boolean
   fileNumber: string
   productType: string
+  duplicatesAllowed: boolean
   orderId: number | null
   step1Completed: boolean
   step2Completed: boolean
