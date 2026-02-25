@@ -651,6 +651,12 @@ export interface ProductivityLeaderboardResponse {
   total: number
 }
 
+export interface AdminProductivityOverviewResponse {
+  leaderboard: ExaminerProductivity[]
+  teams: TeamProductivity[]
+  totalTeams: number
+}
+
 // ============ File Number Check Types ============
 export interface ExistingOrderDetails {
   state: string

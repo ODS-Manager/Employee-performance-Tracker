@@ -149,6 +149,36 @@ async def get_productivity_leaderboard(
     return {"items": result, "total": len(result)}
 
 
+@router.get("/admin-overview")
+async def get_admin_productivity_overview(
+    start_date: date = Query(..., description="Start date"),
+    end_date: date = Query(..., description="End date"),
+    org_id: Optional[int] = Query(None, description="Filter by organization"),
+    team_id: Optional[int] = Query(None, description="Filter by team"),
+    team_limit: int = Query(10, ge=1, le=100, description="Maximum teams to summarize"),
+    leaderboard_limit: int = Query(10, ge=1, le=100, description="Top performers count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_higher)
+):
+    """
+    Optimized payload for admin productivity page.
+    Returns leaderboard and summarized team productivity in one response.
+    """
+    # For admin, default to their org
+    if current_user.user_role == 'admin' and org_id is None:  # type: ignore
+        org_id = current_user.org_id  # type: ignore
+
+    service = ProductivityService(db)
+    return service.get_admin_overview(
+        org_id=org_id,
+        team_id=team_id,
+        start_date=start_date,
+        end_date=end_date,
+        team_limit=team_limit,
+        leaderboard_limit=leaderboard_limit,
+    )
+
+
 @router.get("/my")
 async def get_my_productivity(
     start_date: date = Query(..., description="Start date"),

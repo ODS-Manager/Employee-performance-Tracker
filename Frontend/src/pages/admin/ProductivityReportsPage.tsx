@@ -1,23 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { teamsApi, organizationsApi, productivityApi } from '../../services/api'
 import type { Organization, Team, TeamProductivity, ExaminerProductivity } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
-import { Input } from '../../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Progress } from '../../components/ui/progress'
 import { Badge } from '../../components/ui/badge'
 import { AdminNav } from '../../components/layout/AdminNav'
 import { AdminHeader } from '../../components/layout/AdminHeader'
-import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { 
   TrendingUp, 
-  Settings, 
   RefreshCw,
   Activity,
   Users,
@@ -54,17 +51,15 @@ export const ProductivityReportsPage = () => {
   const [loadingTeamData, setLoadingTeamData] = useState(false)
   const [expandedTeams, setExpandedTeams] = useState<Set<number>>(new Set())
   const [allTeamsProductivity, setAllTeamsProductivity] = useState<TeamProductivity[]>([])
+  const [teamDetailsById, setTeamDetailsById] = useState<Record<number, TeamProductivity>>({})
+  const [loadingExpandedTeams, setLoadingExpandedTeams] = useState<Set<number>>(new Set())
+  const hasInitialized = useRef(false)
+  const activeProductivityRequest = useRef(0)
   
   // Get filter state from store
   const {
     filterMonth,
     filterYear,
-    filterPeriod,
-    setFilterMonth,
-    setFilterYear,
-    setCurrentMonth,
-    setPreviousMonth,
-    setFilterPeriod,
   } = useDashboardFilterStore()
   
   // For superadmin: selected org for filtering
@@ -82,7 +77,7 @@ export const ProductivityReportsPage = () => {
 
   // Re-fetch when org filter changes
   useEffect(() => {
-    if (user) {
+    if (user && hasInitialized.current) {
       fetchTeams()
     }
   }, [selectedOrgId])
@@ -92,7 +87,14 @@ export const ProductivityReportsPage = () => {
     if (user && teams.length > 0) {
       fetchProductivityData()
     }
-  }, [filterMonth, filterYear, selectedTeamId, teams])
+  }, [filterMonth, filterYear, selectedTeamId, teams, selectedOrgId])
+
+  const getDateRange = () => {
+    const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
+    const startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+    const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
+    return { startDate, endDate }
+  }
 
   const fetchInitialData = async () => {
     try {
@@ -105,6 +107,7 @@ export const ProductivityReportsPage = () => {
       }
       
       await fetchTeams()
+      hasInitialized.current = true
     } catch (error) {
       console.error('Failed to fetch initial data:', error)
       toast.error('Failed to load data')
@@ -119,75 +122,119 @@ export const ProductivityReportsPage = () => {
         ? (selectedOrgId ?? undefined) 
         : (user?.orgId ?? undefined)
       
-      const teamsResponse = await teamsApi.list({ orgId: orgIdToFetch, isActive: true })
+      const teamsResponse = await teamsApi.list({ orgId: orgIdToFetch, isActive: true, includeFaNames: false })
       setTeams(teamsResponse.items || [])
       
       // Auto-select first team if none selected
-      if (!selectedTeamId && teamsResponse.items?.length > 0) {
+      const availableTeamIds = new Set((teamsResponse.items || []).map((team) => team.id))
+      if (selectedTeamId && !availableTeamIds.has(selectedTeamId)) {
+        setSelectedTeamId(teamsResponse.items?.[0]?.id || null)
+      } else if (!selectedTeamId && teamsResponse.items?.length > 0) {
         setSelectedTeamId(teamsResponse.items[0].id)
+      }
+
+      if (!teamsResponse.items || teamsResponse.items.length === 0) {
+        setSelectedTeamId(null)
+        setLeaderboard([])
+        setTeamProductivity(null)
+        setAllTeamsProductivity([])
       }
     } catch (error) {
       console.error('Failed to fetch teams:', error)
     }
   }
 
+  const fetchTeamDetail = async (teamId: number, startDate: string, endDate: string, forceRefresh: boolean = false) => {
+    const existing = teamDetailsById[teamId]
+    if (!forceRefresh && existing && existing.period?.startDate === startDate && existing.period?.requestedEndDate === endDate) {
+      return existing
+    }
+
+    setLoadingExpandedTeams((prev) => {
+      const next = new Set(prev)
+      next.add(teamId)
+      return next
+    })
+
+    try {
+      const detail = await productivityApi.getTeamProductivity({
+        teamId,
+        startDate,
+        endDate,
+      })
+      setTeamDetailsById((prev) => ({ ...prev, [teamId]: detail }))
+      return detail
+    } catch (error) {
+      console.error(`Failed to fetch team detail for team ${teamId}:`, error)
+      return null
+    } finally {
+      setLoadingExpandedTeams((prev) => {
+        const next = new Set(prev)
+        next.delete(teamId)
+        return next
+      })
+    }
+  }
+
   const fetchProductivityData = async () => {
+    const requestId = ++activeProductivityRequest.current
+
     try {
       setLoadingTeamData(true)
-      
-      // Calculate date range from month/year
-      const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
-      const startDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
-      const endDate = `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
+      const { startDate, endDate } = getDateRange()
+
+      if (teams.length === 0) {
+        setLeaderboard([])
+        setTeamProductivity(null)
+        setAllTeamsProductivity([])
+        return
+      }
       
       const orgIdToFetch = user?.userRole === 'superadmin' 
         ? (selectedOrgId ?? undefined) 
         : (user?.orgId ?? undefined)
       
-      // Fetch leaderboard
-      const leaderboardResponse = await productivityApi.getLeaderboard({
+      // Phase 2: fetch leaderboard + team summaries in one backend call
+      const overviewResponse = await productivityApi.getAdminOverview({
         startDate,
         endDate,
         orgId: orgIdToFetch,
         teamId: selectedTeamId ?? undefined,
-        limit: 10
+        teamLimit: 10,
+        leaderboardLimit: 10,
       })
-      setLeaderboard(leaderboardResponse.items || [])
-      
-      // Fetch productivity for selected team
-      if (selectedTeamId) {
-        const teamProdResponse = await productivityApi.getTeamProductivity({
-          teamId: selectedTeamId,
-          startDate,
-          endDate
-        })
-        setTeamProductivity(teamProdResponse)
+
+      if (requestId !== activeProductivityRequest.current) {
+        return
       }
-      
-      // Fetch productivity for all teams (for overview)
-      const allTeamsProd: TeamProductivity[] = []
-      for (const team of teams.slice(0, 10)) { // Limit to 10 teams for performance
-        try {
-          const prod = await productivityApi.getTeamProductivity({
-            teamId: team.id,
-            startDate,
-            endDate
-          })
-          allTeamsProd.push(prod)
-        } catch (err) {
-          // Skip teams with errors
+
+      setLeaderboard(overviewResponse.leaderboard || [])
+      setAllTeamsProductivity(overviewResponse.teams || [])
+      setTeamDetailsById({})
+
+      const teamToLoad = selectedTeamId
+      if (teamToLoad) {
+        const detail = await fetchTeamDetail(teamToLoad, startDate, endDate, true)
+        if (requestId === activeProductivityRequest.current) {
+          setTeamProductivity(detail)
         }
+      } else {
+        setTeamProductivity((overviewResponse.teams && overviewResponse.teams.length > 0) ? overviewResponse.teams[0] : null)
       }
-      setAllTeamsProductivity(allTeamsProd)
       
     } catch (error) {
       console.error('Failed to fetch productivity data:', error)
     } finally {
-      setLoadingTeamData(false)
+      if (requestId === activeProductivityRequest.current) {
+        setLoadingTeamData(false)
+      }
     }
   }
 
-  const toggleTeamExpand = (teamId: number) => {
+  const toggleTeamExpand = async (teamId: number) => {
+    const { startDate, endDate } = getDateRange()
+    const shouldExpand = !expandedTeams.has(teamId)
+
     setExpandedTeams(prev => {
       const newSet = new Set(prev)
       if (newSet.has(teamId)) {
@@ -197,6 +244,10 @@ export const ProductivityReportsPage = () => {
       }
       return newSet
     })
+
+    if (shouldExpand) {
+      await fetchTeamDetail(teamId, startDate, endDate)
+    }
   }
 
   const getProductivityColor = (percent: number | null) => {
@@ -208,7 +259,7 @@ export const ProductivityReportsPage = () => {
   }
 
   // Prepare chart data for team comparison
-  const teamComparisonData = allTeamsProductivity
+  const teamComparisonData = [...allTeamsProductivity]
     .sort((a, b) => b.teamProductivityPercent - a.teamProductivityPercent)
     .map(tp => ({
       name: tp.teamName.length > 15 ? tp.teamName.substring(0, 12) + '...' : tp.teamName,
@@ -247,6 +298,9 @@ export const ProductivityReportsPage = () => {
                         const orgId = value === 'all' ? null : parseInt(value)
                         setSelectedOrgId(orgId)
                         setSelectedTeamId(null)
+                        setExpandedTeams(new Set())
+                        setTeamDetailsById({})
+                        setTeamProductivity(null)
                       }}
                     >
                       <SelectTrigger className="w-48">
@@ -269,6 +323,7 @@ export const ProductivityReportsPage = () => {
                   value={selectedTeamId ? selectedTeamId.toString() : 'all'}
                   onValueChange={(value) => {
                     setSelectedTeamId(value === 'all' ? null : parseInt(value))
+                    setExpandedTeams(new Set())
                   }}
                 >
                   <SelectTrigger className="w-48">
@@ -526,7 +581,13 @@ export const ProductivityReportsPage = () => {
                         </div>
                         
                         {/* Expanded Employee Details */}
-                        {expandedTeams.has(tp.teamId) && tp.examiners && tp.examiners.length > 0 && (
+                        {expandedTeams.has(tp.teamId) && loadingExpandedTeams.has(tp.teamId) && (
+                          <div className="flex items-center justify-center p-6 border-t">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          </div>
+                        )}
+
+                        {expandedTeams.has(tp.teamId) && !loadingExpandedTeams.has(tp.teamId) && teamDetailsById[tp.teamId]?.examiners && teamDetailsById[tp.teamId].examiners.length > 0 && (
                           <div className="border-t">
                             <Table>
                               <TableHeader>
@@ -541,7 +602,7 @@ export const ProductivityReportsPage = () => {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {tp.examiners
+                                {teamDetailsById[tp.teamId].examiners
                                   .sort((a, b) => {
                                     if (a.productivityPercent === null && b.productivityPercent === null) return 0
                                     if (a.productivityPercent === null) return 1
@@ -589,7 +650,7 @@ export const ProductivityReportsPage = () => {
                           </div>
                         )}
                         
-                        {expandedTeams.has(tp.teamId) && (!tp.examiners || tp.examiners.length === 0) && (
+                        {expandedTeams.has(tp.teamId) && !loadingExpandedTeams.has(tp.teamId) && (!teamDetailsById[tp.teamId]?.examiners || teamDetailsById[tp.teamId].examiners.length === 0) && (
                           <div className="p-4 text-center text-muted-foreground border-t">
                             No employee data available
                           </div>

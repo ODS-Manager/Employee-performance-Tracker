@@ -454,7 +454,8 @@ class ProductivityService:
         self,
         team_id: int,
         start_date: date,
-        end_date: date
+        end_date: date,
+        include_examiners: bool = True
     ) -> Dict[str, Any]:
         """
         Calculate productivity for all active members of a team.
@@ -473,63 +474,174 @@ class ProductivityService:
         actual_end_date = min(end_date, today)
         
         # Get active team members - ONLY examiners (not team_lead, admin, superadmin)
-        team_members = self.db.query(UserTeam).join(
-            User, User.id == UserTeam.user_id
+        team_members = self.db.query(
+            User.id,
+            User.user_name,
+            User.examiner_id,
+        ).join(
+            UserTeam, User.id == UserTeam.user_id
         ).filter(
             UserTeam.team_id == team_id,
             UserTeam.is_active == True,
             User.user_role == 'examiner'
         ).all()
-        
+
+        member_user_ids = [int(member.id) for member in team_members]  # type: ignore
+
+        # Fast path: no active examiners in the team
+        if not member_user_ids:
+            step1_multiplier = float(team.step1_score) if team.step1_score else 0.5
+            step2_multiplier = float(team.step2_score) if team.step2_score else 0.5
+            single_seat_multiplier = float(team.single_seat_score) if team.single_seat_score else 1.0
+
+            return {
+                "teamId": team_id,
+                "teamName": team.name,
+                "monthlyTarget": team.monthly_target,
+                "dailyTarget": team.daily_target,
+                "step2ScoreMultiplier": step2_multiplier,
+                "scoreMultipliers": {
+                    "step1": step1_multiplier,
+                    "step2": step2_multiplier,
+                    "singleSeat": single_seat_multiplier
+                },
+                "period": {
+                    "startDate": start_date.isoformat(),
+                    "endDate": actual_end_date.isoformat(),
+                    "requestedEndDate": end_date.isoformat(),
+                    "workingDays": self.get_working_days_in_range(start_date, actual_end_date)
+                },
+                "activeMembers": 0,
+                "totalTeamScore": 0.0,
+                "totalExpectedTarget": float(team.monthly_target) if team.monthly_target else 0.0,
+                "examinerTargetSum": 0.0,
+                "teamProductivityPercent": 0.0,
+                "examiners": []
+            }
+
+        base_order_filters = [
+            Order.team_id == team_id,
+            Order.deleted_at == None,
+            Order.entry_date >= start_date,
+            Order.entry_date <= actual_end_date,
+        ]
+
+        # Aggregate completion counts for all members in this team in bulk
+        step1_rows = self.db.query(
+            Order.step1_user_id,
+            func.count(Order.id)
+        ).filter(
+            *base_order_filters,
+            Order.step1_user_id.in_(member_user_ids),
+            or_(
+                Order.step2_user_id != Order.step1_user_id,
+                Order.step2_user_id == None,
+            )
+        ).group_by(
+            Order.step1_user_id
+        ).all()
+
+        step2_rows = self.db.query(
+            Order.step2_user_id,
+            func.count(Order.id)
+        ).filter(
+            *base_order_filters,
+            Order.step2_user_id.in_(member_user_ids),
+            or_(
+                Order.step1_user_id != Order.step2_user_id,
+                Order.step1_user_id == None,
+            )
+        ).group_by(
+            Order.step2_user_id
+        ).all()
+
+        single_seat_rows = self.db.query(
+            Order.step1_user_id,
+            func.count(Order.id)
+        ).filter(
+            *base_order_filters,
+            Order.step1_user_id.in_(member_user_ids),
+            Order.step1_user_id == Order.step2_user_id,
+        ).group_by(
+            Order.step1_user_id
+        ).all()
+
+        step1_count_map = {int(user_id): int(count) for user_id, count in step1_rows if user_id is not None}
+        step2_count_map = {int(user_id): int(count) for user_id, count in step2_rows if user_id is not None}
+        single_seat_count_map = {int(user_id): int(count) for user_id, count in single_seat_rows if user_id is not None}
+
+        # Bulk fetch latest known target per examiner for this team (carry-forward up to end_date)
+        target_rows = self.db.query(
+            ExaminerWeeklyTarget.user_id,
+            ExaminerWeeklyTarget.target,
+            ExaminerWeeklyTarget.week_start_date,
+        ).filter(
+            ExaminerWeeklyTarget.team_id == team_id,
+            ExaminerWeeklyTarget.user_id.in_(member_user_ids),
+            ExaminerWeeklyTarget.week_start_date <= actual_end_date,
+        ).order_by(
+            ExaminerWeeklyTarget.user_id,
+            ExaminerWeeklyTarget.week_start_date,
+        ).all()
+
+        latest_target_by_user: Dict[int, float] = {}
+        for user_id, target, _week_start_date in target_rows:
+            if user_id is None:
+                continue
+            latest_target_by_user[int(user_id)] = float(target)
+
         examiner_scores = []
         total_team_score = 0.0
         total_expected = 0.0
+
+        step1_multiplier = float(team.step1_score) if team.step1_score else 0.5
+        step2_multiplier = float(team.step2_score) if team.step2_score else 0.5
+        single_seat_multiplier = float(team.single_seat_score) if team.single_seat_score else 1.0
         
         for membership in team_members:
-            user = self.db.query(User).filter(
-                User.id == membership.user_id,
-                User.user_role == 'examiner'
-            ).first()
-            if not user:
-                continue
-            
-            # Get score for THIS TEAM ONLY (not aggregated across all teams)
-            team_score_data = self.get_examiner_team_score(
-                user_id=int(user.id),  # type: ignore
-                team_id=team_id,
-                start_date=start_date,
-                end_date=actual_end_date
-            )
-            
-            # Get examiner's weekly target for this team
-            target_for_team = self._get_examiner_target_for_team(
-                user_id=int(user.id),  # type: ignore
-                team_id=team_id,
-                start_date=start_date,
-                end_date=actual_end_date
-            )
-            
-            team_score = team_score_data["scores"]["totalScore"]
+            user_id = int(membership.id)  # type: ignore
+            step1_only_count = step1_count_map.get(user_id, 0)
+            step2_only_count = step2_count_map.get(user_id, 0)
+            single_seat_count = single_seat_count_map.get(user_id, 0)
+
+            step1_score = step1_only_count * step1_multiplier
+            step2_score = step2_only_count * step2_multiplier
+            single_seat_score = single_seat_count * single_seat_multiplier
+            team_score = step1_score + step2_score + single_seat_score
+
+            target_for_team = latest_target_by_user.get(user_id, 0.0)
             
             # Calculate productivity % for this examiner in this team
             examiner_productivity = None
             if target_for_team > 0:
                 examiner_productivity = round((team_score / target_for_team) * 100, 2)
             
-            examiner_data = {
-                "userId": int(user.id),  # type: ignore
-                "userName": user.user_name,
-                "userName": user.user_name,
-                "examinerId": user.examiner_id,
-                "completions": team_score_data["completions"],
-                "scores": team_score_data["scores"],
-                "expectedTarget": target_for_team,
-                "productivityPercent": examiner_productivity,
-                "teamId": team_id,
-                "teamName": team.name
-            }
-            
-            examiner_scores.append(examiner_data)
+            if include_examiners:
+                examiner_data = {
+                    "userId": user_id,
+                    "userName": membership.user_name,
+                    "userName": membership.user_name,
+                    "examinerId": membership.examiner_id,
+                    "completions": {
+                        "step1Only": step1_only_count,
+                        "step2Only": step2_only_count,
+                        "singleSeat": single_seat_count,
+                        "total": step1_only_count + step2_only_count + single_seat_count,
+                    },
+                    "scores": {
+                        "step1Score": step1_score,
+                        "step2Score": step2_score,
+                        "singleSeatScore": single_seat_score,
+                        "totalScore": team_score,
+                    },
+                    "expectedTarget": target_for_team,
+                    "productivityPercent": examiner_productivity,
+                    "teamId": team_id,
+                    "teamName": team.name
+                }
+
+                examiner_scores.append(examiner_data)
+
             total_team_score += team_score
             total_expected += target_for_team
         
@@ -545,10 +657,12 @@ class ProductivityService:
             "teamId": team_id,
             "teamName": team.name,
             "monthlyTarget": team.monthly_target,
+            "dailyTarget": team.daily_target,
+            "step2ScoreMultiplier": step2_multiplier,
             "scoreMultipliers": {
-                "step1": float(team.step1_score) if team.step1_score else 0.5,
-                "step2": float(team.step2_score) if team.step2_score else 0.5,
-                "singleSeat": float(team.single_seat_score) if team.single_seat_score else 1.0
+                "step1": step1_multiplier,
+                "step2": step2_multiplier,
+                "singleSeat": single_seat_multiplier
             },
             "period": {
                 "startDate": start_date.isoformat(),
@@ -556,12 +670,57 @@ class ProductivityService:
                 "requestedEndDate": end_date.isoformat(),
                 "workingDays": self.get_working_days_in_range(start_date, actual_end_date)
             },
-            "activeMembers": len(examiner_scores),
+            "activeMembers": len(member_user_ids),
             "totalTeamScore": total_team_score,
             "totalExpectedTarget": team_target,  # Use team target (monthly_target or sum of examiner targets)
             "examinerTargetSum": total_expected,  # Keep track of sum of examiner targets separately
             "teamProductivityPercent": round(float(team_productivity), 2),
-            "examiners": examiner_scores
+            "examiners": examiner_scores if include_examiners else []
+        }
+
+    def get_admin_overview(
+        self,
+        org_id: Optional[int],
+        team_id: Optional[int],
+        start_date: date,
+        end_date: date,
+        team_limit: int = 10,
+        leaderboard_limit: int = 10,
+    ) -> Dict[str, Any]:
+        """Get combined leaderboard + team summaries for admin productivity page."""
+        teams_query = self.db.query(Team).filter(Team.is_active == True)
+
+        if org_id:
+            teams_query = teams_query.filter(Team.org_id == org_id)
+        if team_id:
+            teams_query = teams_query.filter(Team.id == team_id)
+
+        total_teams = teams_query.count()
+        teams = teams_query.order_by(Team.name).limit(team_limit).all()
+
+        leaderboard = self.get_leaderboard(
+            org_id=org_id,
+            team_id=team_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=leaderboard_limit,
+        )
+
+        team_summaries = []
+        for team in teams:
+            team_data = self.calculate_team_productivity(
+                team_id=int(team.id),  # type: ignore
+                start_date=start_date,
+                end_date=end_date,
+                include_examiners=False,
+            )
+            if "error" not in team_data:
+                team_summaries.append(team_data)
+
+        return {
+            "leaderboard": leaderboard,
+            "teams": team_summaries,
+            "totalTeams": total_teams,
         }
     
     def _get_examiner_target_for_team(

@@ -44,6 +44,7 @@ import type {
   ExaminerProductivity,
   TeamProductivity,
   ProductivityLeaderboardResponse,
+  AdminProductivityOverviewResponse,
   FileNumberCheckResponse,
   QualityAudit,
   QualityAuditCreate,
@@ -837,6 +838,28 @@ export const productivityApi = {
     if (params.limit !== undefined) queryParams.limit = params.limit
     
     const response = await api.get('/productivity/leaderboard', { params: queryParams })
+    return response.data
+  },
+
+  // Optimized admin overview payload (leaderboard + team summaries)
+  getAdminOverview: async (params: {
+    startDate: string
+    endDate: string
+    orgId?: number
+    teamId?: number
+    teamLimit?: number
+    leaderboardLimit?: number
+  }): Promise<AdminProductivityOverviewResponse> => {
+    const queryParams: Record<string, unknown> = {
+      start_date: params.startDate,
+      end_date: params.endDate,
+    }
+    if (params.orgId !== undefined) queryParams.org_id = params.orgId
+    if (params.teamId !== undefined) queryParams.team_id = params.teamId
+    if (params.teamLimit !== undefined) queryParams.team_limit = params.teamLimit
+    if (params.leaderboardLimit !== undefined) queryParams.leaderboard_limit = params.leaderboardLimit
+
+    const response = await api.get('/productivity/admin-overview', { params: queryParams })
     return response.data
   },
 
