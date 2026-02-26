@@ -309,6 +309,7 @@ export interface StepInfo {
   userId: number | null
   userName: string | null
   faName: string | null
+  faNameId: number | null
 }
 
 export interface EditPermissions {
@@ -380,9 +381,9 @@ export interface OrderCreate {
   teamId: number
   orgId: number
   step1UserId?: number
-  step1FaName?: string
+  step1FaNameId?: number
   step2UserId?: number
-  step2FaName?: string
+  step2FaNameId?: number
 }
 
 export interface OrderUpdate {
@@ -397,9 +398,9 @@ export interface OrderUpdate {
   productType?: string
   teamId?: number
   step1UserId?: number
-  step1FaName?: string
+  step1FaNameId?: number
   step2UserId?: number
-  step2FaName?: string
+  step2FaNameId?: number
   billingStatus?: 'pending' | 'done'
 }
 

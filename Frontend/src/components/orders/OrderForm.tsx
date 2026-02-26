@@ -51,9 +51,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Step assignment state - only used by admins
   const [step1UserId, setStep1UserId] = useState<number | null>(null)
-  const [step1FaName, setStep1FaName] = useState<string>('')
+  const [step1FaNameId, setStep1FaNameId] = useState<number | null>(null)
   const [step2UserId, setStep2UserId] = useState<number | null>(null)
-  const [step2FaName, setStep2FaName] = useState<string>('')
+  const [step2FaNameId, setStep2FaNameId] = useState<number | null>(null)
   
   const [submitting, setSubmitting] = useState(false)
   
@@ -424,11 +424,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       // Set step info
       if (order.step1) {
         if (order.step1.userId) setStep1UserId(order.step1.userId)
-        if (order.step1.faName) setStep1FaName(order.step1.faName)
+        if (order.step1.faNameId) setStep1FaNameId(order.step1.faNameId)
       }
       if (order.step2) {
         if (order.step2.userId) setStep2UserId(order.step2.userId)
-        if (order.step2.faName) setStep2FaName(order.step2.faName)
+        if (order.step2.faNameId) setStep2FaNameId(order.step2.faNameId)
       }
     }
   }, [isEditMode, order])
@@ -518,24 +518,24 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       if (isEditMode && !canAssignToOthers) {
         // Employee editing - validate FA names for steps they can edit
         if (canEditStep1 && (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat')) {
-          if (!step1FaName || !step1FaName.trim()) {
+          if (!step1FaNameId) {
             newErrors.push('Step 1 FA name is required')
           }
         }
         if (canEditStep2 && currentProcessType.name === 'Step2') {
-          if (!step2FaName || !step2FaName.trim()) {
+          if (!step2FaNameId) {
             newErrors.push('Step 2 FA name is required')
           }
         }
       } else {
         // Create mode or admin - validate FA names based on process type
         if (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat') {
-          if (!step1FaName || !step1FaName.trim()) {
+          if (!step1FaNameId) {
             newErrors.push('Step 1 FA name is required')
           }
         }
         if (currentProcessType.name === 'Step2') {
-          if (!step2FaName || !step2FaName.trim()) {
+          if (!step2FaNameId) {
             newErrors.push('Step 2 FA name is required')
           }
         }
@@ -596,13 +596,13 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         // Send Step 1 data if employee can edit it and has entered data
         if (canEditStep1) {
           orderData.step1UserId = user!.id
-          if (step1FaName) orderData.step1FaName = step1FaName
+          if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
         }
         
         // Send Step 2 data if employee can edit it and has entered data
         if (canEditStep2) {
           orderData.step2UserId = user!.id
-          if (step2FaName) orderData.step2FaName = step2FaName
+          if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
         }
       } else {
         // Admin/Team Lead OR new order creation - send all fields
@@ -626,20 +626,20 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
             // Admin/Team Lead EDITING existing order — use step user IDs from form state (editable via dropdown)
             if (selectedProcessType?.name === 'Step1') {
               if (step1UserId) orderData.step1UserId = step1UserId
-              if (step1FaName) orderData.step1FaName = step1FaName
+              if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
             }
             
             if (selectedProcessType?.name === 'Step2') {
               if (step2UserId) orderData.step2UserId = step2UserId
-              if (step2FaName) orderData.step2FaName = step2FaName
+              if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
             }
             
             if (selectedProcessType?.name === 'Single Seat') {
               if (step1UserId) orderData.step1UserId = step1UserId
               if (step2UserId) orderData.step2UserId = step2UserId
-              if (step1FaName) {
-                orderData.step1FaName = step1FaName
-                orderData.step2FaName = step1FaName
+              if (step1FaNameId) {
+                orderData.step1FaNameId = step1FaNameId
+                orderData.step2FaNameId = step1FaNameId
               }
             }
           } else {
@@ -649,36 +649,36 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
               const assignedUserId = selectedDuplicateAssigneeId!
               if (selectedProcessType?.name === 'Step1') {
                 orderData.step1UserId = assignedUserId
-                if (step1FaName) orderData.step1FaName = step1FaName
+                if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
               }
               if (selectedProcessType?.name === 'Step2') {
                 orderData.step2UserId = assignedUserId
-                if (step2FaName) orderData.step2FaName = step2FaName
+                if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
               }
               if (selectedProcessType?.name === 'Single Seat') {
                 orderData.step1UserId = assignedUserId
                 orderData.step2UserId = assignedUserId
-                if (step1FaName) {
-                  orderData.step1FaName = step1FaName
-                  orderData.step2FaName = step1FaName
+                if (step1FaNameId) {
+                  orderData.step1FaNameId = step1FaNameId
+                  orderData.step2FaNameId = step1FaNameId
                 }
               }
             } else {
               // Normal new order — use step user IDs from dropdown (mandatory)
               if (selectedProcessType?.name === 'Step1') {
                 orderData.step1UserId = step1UserId!
-                if (step1FaName) orderData.step1FaName = step1FaName
+                if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
               }
               if (selectedProcessType?.name === 'Step2') {
                 orderData.step2UserId = step2UserId!
-                if (step2FaName) orderData.step2FaName = step2FaName
+                if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
               }
               if (selectedProcessType?.name === 'Single Seat') {
                 orderData.step1UserId = step1UserId!
                 orderData.step2UserId = step1UserId!
-                if (step1FaName) {
-                  orderData.step1FaName = step1FaName
-                  orderData.step2FaName = step1FaName
+                if (step1FaNameId) {
+                  orderData.step1FaNameId = step1FaNameId
+                  orderData.step2FaNameId = step1FaNameId
                 }
               }
             }
@@ -687,21 +687,21 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           // Employee entering their own work (new order) - auto-assign to themselves
           if (selectedProcessType?.name === 'Step1') {
             orderData.step1UserId = user!.id
-            if (step1FaName) orderData.step1FaName = step1FaName
+            if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
           }
           
           if (selectedProcessType?.name === 'Step2') {
             orderData.step2UserId = user!.id
-            if (step2FaName) orderData.step2FaName = step2FaName
+            if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
           }
           
           if (selectedProcessType?.name === 'Single Seat') {
             // Single seat - assign both steps to themselves
             orderData.step1UserId = user!.id
             orderData.step2UserId = user!.id
-            if (step1FaName) {
-              orderData.step1FaName = step1FaName
-              orderData.step2FaName = step1FaName
+            if (step1FaNameId) {
+              orderData.step1FaNameId = step1FaNameId
+              orderData.step2FaNameId = step1FaNameId
             }
           }
         }
@@ -918,19 +918,19 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     if (isEditMode && !canAssignToOthers) {
       // Examiner editing - validate based on edit permissions
       if (canEditStep1 && (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat')) {
-        if (!step1FaName || !step1FaName.trim()) return false
+        if (!step1FaNameId) return false
       }
       if (canEditStep2) {
-        if (!step2FaName || !step2FaName.trim()) return false
+        if (!step2FaNameId) return false
       }
     } else {
       // Create mode or admin - validate based on process type
       if (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat') {
-        if (!step1FaName || !step1FaName.trim()) return false
+        if (!step1FaNameId) return false
       }
       
       if (currentProcessType?.name === 'Step2') {
-        if (!step2FaName || !step2FaName.trim()) return false
+        if (!step2FaNameId) return false
       }
     }
     
@@ -940,7 +940,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
     fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
-    step1FaName, step2FaName, step1UserId, step2UserId, isDuplicateEntry, selectedDuplicateAssigneeId
+    step1FaNameId, step2FaNameId, step1UserId, step2UserId, isDuplicateEntry, selectedDuplicateAssigneeId
   ])
 
   return (
@@ -1278,18 +1278,17 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           <div className="mb-3">
                             <Label className="text-xs font-medium text-gray-700 mb-1.5 block">FA Name *</Label>
                             <Select
-                              value={step1FaName || undefined}
-                              onValueChange={(value) => setStep1FaName(value)}
+                              value={step1FaNameId ? step1FaNameId.toString() : undefined}
+                              onValueChange={(value) => setStep1FaNameId(parseInt(value))}
                             >
                               <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
                                 <SelectValue placeholder={loadingFaNames ? "Loading..." : "Select FA name"} />
                               </SelectTrigger>
                               <SelectContent>
                                 {Array.isArray(faNames) && faNames.map((fn) => {
-                                  // Safety: backend returns 'name' property, frontend expects 'faName'
                                   const displayName = fn.faName || fn.name || String(fn.id)
                                   return (
-                                    <SelectItem key={fn.id} value={displayName}>
+                                    <SelectItem key={fn.id} value={fn.id.toString()}>
                                       {displayName}
                                     </SelectItem>
                                   )
@@ -1344,18 +1343,17 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           <div className="mb-3">
                             <Label className="text-xs font-medium text-gray-700 mb-1.5 block">FA Name *</Label>
                             <Select
-                              value={step2FaName || undefined}
-                              onValueChange={(value) => setStep2FaName(value)}
+                              value={step2FaNameId ? step2FaNameId.toString() : undefined}
+                              onValueChange={(value) => setStep2FaNameId(parseInt(value))}
                             >
                               <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
                                 <SelectValue placeholder={loadingFaNames ? "Loading..." : "Select FA name"} />
                               </SelectTrigger>
                               <SelectContent>
                                 {Array.isArray(faNames) && faNames.map((fn) => {
-                                  // Safety: backend returns 'name' property, frontend expects 'faName'
                                   const displayName = fn.faName || fn.name || String(fn.id)
                                   return (
-                                    <SelectItem key={fn.id} value={displayName}>
+                                    <SelectItem key={fn.id} value={fn.id.toString()}>
                                       {displayName}
                                     </SelectItem>
                                   )

@@ -63,6 +63,7 @@ class StepInfo(BaseModel):
     user_id: Optional[int] = Field(None, alias="userId")
     user_name: Optional[str] = Field(None, alias="userName")
     fa_name: Optional[str] = Field(None, alias="faName")
+    fa_name_id: Optional[int] = Field(None, alias="faNameId")
 
     class Config:
         populate_by_name = True

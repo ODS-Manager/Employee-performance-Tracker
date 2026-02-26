@@ -63,11 +63,13 @@ def serialize_step_info(order, step_num: int) -> Optional[dict]:
         user = order.step1_user if hasattr(order, 'step1_user') else None
         fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
         fa_name = fa_name_obj.name if fa_name_obj else None
+        fa_name_id = order.step1_fa_name_id
     else:
         user_id = order.step2_user_id
         user = order.step2_user if hasattr(order, 'step2_user') else None
         fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
         fa_name = fa_name_obj.name if fa_name_obj else None
+        fa_name_id = order.step2_fa_name_id
     
     if not user_id:
         return None
@@ -75,7 +77,8 @@ def serialize_step_info(order, step_num: int) -> Optional[dict]:
     return {
         "userId": user_id,
         "userName": user.user_name if user else None,
-        "faName": fa_name
+        "faName": fa_name,
+        "faNameId": fa_name_id
     }
 
 
