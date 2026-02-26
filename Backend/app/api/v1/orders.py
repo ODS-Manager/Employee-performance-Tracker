@@ -975,7 +975,7 @@ async def update_order(
     update_data = order_data.model_dump(exclude_unset=True)
     
     # Define field categories
-    order_detail_fields = ['entry_date', 'transaction_type_id', 'process_type_id', 
+    order_detail_fields = ['file_number', 'entry_date', 'transaction_type_id', 'process_type_id', 
                           'order_status_id', 'division_id', 'state', 'county', 
                           'product_type', 'team_id', 'billing_status']
     step1_fields = ['step1_user_id', 'step1_fa_name_id']
@@ -1169,6 +1169,13 @@ async def delete_order(
     
     if order.deleted_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Order is already deleted")
+    
+    # Cannot delete orders after billing is done
+    if order.billing_status == 'done':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete order after billing is done"
+        )
     
     # Check organization access for admin
     if current_user.user_role.lower() == ROLE_ADMIN:

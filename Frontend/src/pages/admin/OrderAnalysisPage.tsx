@@ -18,7 +18,8 @@ import {
   Search, 
   RefreshCw,
   Eye,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react'
 import { ordersApi, teamsApi, referenceApi, metricsApi } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -70,6 +71,10 @@ export const OrderAnalysisPage = () => {
   const [selectedOrders, setSelectedOrders] = useState<number[]>([])
   const [orderDetailId, setOrderDetailId] = useState<number | null>(null)
   const [orderDetailDialogOpen, setOrderDetailDialogOpen] = useState(false)
+
+  // Delete state
+  const [deleteOrderId, setDeleteOrderId] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Fetch dashboard stats
   const { data: stats } = useQuery({
@@ -307,6 +312,21 @@ export const OrderAnalysisPage = () => {
       return
     }
     bulkBillingMutation.mutate({ orderIds: selectedOrders, status })
+  }
+
+  const handleDeleteOrder = async (orderId: number) => {
+    setDeleting(true)
+    try {
+      await ordersApi.delete(orderId)
+      toast.success('Order deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      setDeleteOrderId(null)
+    } catch (error: any) {
+      const msg = error.response?.data?.detail || 'Failed to delete order'
+      toast.error(msg)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -683,6 +703,17 @@ export const OrderAnalysisPage = () => {
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
+                              {(user?.userRole === 'admin' || user?.userRole === 'superadmin') && order.billingStatus !== 'done' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeleteOrderId(order.id)}
+                                  title="Delete Order"
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Dialog 
                                 open={orderDetailDialogOpen} 
                                 onOpenChange={(open) => {
@@ -814,6 +845,30 @@ export const OrderAnalysisPage = () => {
           </CardContent>
         </Card>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOrderId !== null} onOpenChange={(open) => { if (!open) setDeleteOrderId(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this order? This action can be reversed by an admin (restore).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteOrderId(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteOrderId && handleDeleteOrder(deleteOrderId)}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

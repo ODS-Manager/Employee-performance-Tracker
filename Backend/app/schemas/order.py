@@ -33,6 +33,7 @@ class OrderCreate(OrderBase):
 
 
 class OrderUpdate(BaseModel):
+    file_number: Optional[str] = Field(None, max_length=100, alias="fileNumber")
     entry_date: Optional[date] = Field(None, alias="entryDate")
     transaction_type_id: Optional[int] = Field(None, alias="transactionTypeId")
     process_type_id: Optional[int] = Field(None, alias="processTypeId")

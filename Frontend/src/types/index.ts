@@ -386,6 +386,7 @@ export interface OrderCreate {
 }
 
 export interface OrderUpdate {
+  fileNumber?: string
   entryDate?: string
   transactionTypeId?: number
   processTypeId?: number

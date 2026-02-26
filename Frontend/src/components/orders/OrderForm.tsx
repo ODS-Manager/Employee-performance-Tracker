@@ -161,6 +161,34 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     queryFn: referenceApi.getDivisions,
   })
 
+  // Fetch all team members for step user assignment (admin/team lead)
+  const { data: teamMembersData, isLoading: loadingTeamMembers } = useQuery({
+    queryKey: ['teamMembers', selectedTeamId],
+    queryFn: () => usersApi.list({ teamId: selectedTeamId!, isActive: true }),
+    enabled: !!selectedTeamId && canAssignToOthers,
+  })
+
+  const teamMemberOptions = useMemo(() => {
+    const members = (teamMembersData?.items || []).map((u) => ({
+      id: u.id,
+      label: u.userName,
+    }))
+
+    if (!user) {
+      return members
+    }
+
+    const withYouLabel = members.map((opt) => (
+      opt.id === user.id ? { ...opt, label: `${opt.label} (You)` } : opt
+    ))
+
+    if (!withYouLabel.some((opt) => opt.id === user.id)) {
+      return [{ id: user.id, label: `${user.userName} (You)` }, ...withYouLabel]
+    }
+
+    return withYouLabel
+  }, [teamMembersData?.items, user])
+
   // Fetch active examiners for duplicate order assignment
   const { data: duplicateAssigneesData, isLoading: loadingDuplicateAssignees } = useQuery({
     queryKey: ['duplicateAssignees', selectedTeamId],
@@ -469,6 +497,17 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       newErrors.push('Examiner is required for duplicate order entry')
     }
     
+    // Validate step user assignment for admin/team lead (mandatory)
+    if (canAssignToOthers && !isDuplicateEntry) {
+      const currentPT = processTypes?.find(p => p.id === selectedProcessTypeId)
+      if (currentPT?.name === 'Step1' || currentPT?.name === 'Single Seat') {
+        if (!step1UserId) newErrors.push('Assign To user is required for Step 1')
+      }
+      if (currentPT?.name === 'Step2') {
+        if (!step2UserId) newErrors.push('Assign To user is required for Step 2')
+      }
+    }
+    
     // NOTE: We don't validate duplicate file numbers on the frontend anymore.
     // The backend will return appropriate error messages as toast notifications.
     
@@ -543,8 +582,6 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         toast.error('Select an examiner for duplicate order entry')
         return
       }
-
-      const assignedUserId = duplicateEntryForSubmit ? selectedDuplicateAssigneeId! : user!.id
       
       // For examiners editing existing orders, only send step-related fields
       // This prevents sending order details that they can't modify
@@ -586,8 +623,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         // Determine step user assignment
         if (canAssignToOthers) {
           if (isEditMode && order) {
-            // Admin/Team Lead EDITING existing order — preserve original step users
-            // Use step user IDs from form state (loaded from order), not the current admin's ID
+            // Admin/Team Lead EDITING existing order — use step user IDs from form state (editable via dropdown)
             if (selectedProcessType?.name === 'Step1') {
               if (step1UserId) orderData.step1UserId = step1UserId
               if (step1FaName) orderData.step1FaName = step1FaName
@@ -607,24 +643,43 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
               }
             }
           } else {
-            // Admin/Team Lead CREATING new order — assign to selected examiner or self
-            if (selectedProcessType?.name === 'Step1') {
-              orderData.step1UserId = assignedUserId
-              if (step1FaName) orderData.step1FaName = step1FaName
-            }
-            
-            if (selectedProcessType?.name === 'Step2') {
-              orderData.step2UserId = assignedUserId
-              if (step2FaName) orderData.step2FaName = step2FaName
-            }
-            
-            if (selectedProcessType?.name === 'Single Seat') {
-              // For single seat, both step1 and step2 use the same assigned user
-              orderData.step1UserId = assignedUserId
-              orderData.step2UserId = assignedUserId
-              if (step1FaName) {
-                orderData.step1FaName = step1FaName
-                orderData.step2FaName = step1FaName
+            // Admin/Team Lead CREATING new order
+            if (duplicateEntryForSubmit) {
+              // Duplicate entry — use the duplicate assignee dropdown
+              const assignedUserId = selectedDuplicateAssigneeId!
+              if (selectedProcessType?.name === 'Step1') {
+                orderData.step1UserId = assignedUserId
+                if (step1FaName) orderData.step1FaName = step1FaName
+              }
+              if (selectedProcessType?.name === 'Step2') {
+                orderData.step2UserId = assignedUserId
+                if (step2FaName) orderData.step2FaName = step2FaName
+              }
+              if (selectedProcessType?.name === 'Single Seat') {
+                orderData.step1UserId = assignedUserId
+                orderData.step2UserId = assignedUserId
+                if (step1FaName) {
+                  orderData.step1FaName = step1FaName
+                  orderData.step2FaName = step1FaName
+                }
+              }
+            } else {
+              // Normal new order — use step user IDs from dropdown (mandatory)
+              if (selectedProcessType?.name === 'Step1') {
+                orderData.step1UserId = step1UserId!
+                if (step1FaName) orderData.step1FaName = step1FaName
+              }
+              if (selectedProcessType?.name === 'Step2') {
+                orderData.step2UserId = step2UserId!
+                if (step2FaName) orderData.step2FaName = step2FaName
+              }
+              if (selectedProcessType?.name === 'Single Seat') {
+                orderData.step1UserId = step1UserId!
+                orderData.step2UserId = step1UserId!
+                if (step1FaName) {
+                  orderData.step1FaName = step1FaName
+                  orderData.step2FaName = step1FaName
+                }
               }
             }
           }
@@ -849,6 +904,16 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     const currentProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
     
+    // Step user assignment is mandatory for admin/team lead
+    if (canAssignToOthers && !isDuplicateEntry) {
+      if (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat') {
+        if (!step1UserId) return false
+      }
+      if (currentProcessType?.name === 'Step2') {
+        if (!step2UserId) return false
+      }
+    }
+    
     // Step validation based on process type and user role
     if (isEditMode && !canAssignToOthers) {
       // Examiner editing - validate based on edit permissions
@@ -875,7 +940,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
     fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
-    step1FaName, step2FaName, isDuplicateEntry, selectedDuplicateAssigneeId
+    step1FaName, step2FaName, step1UserId, step2UserId, isDuplicateEntry, selectedDuplicateAssigneeId
   ])
 
   return (
@@ -993,8 +1058,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           setSelectedDuplicateAssigneeId(null)
                         }}
                         onBlur={handleFileNumberBlur}
-                        disabled={isEditMode || teamNotSelected}
-                        className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(isEditMode || teamNotSelected) ? 'bg-gray-50' : ''}`}
+                        disabled={(isEditMode && !canAssignToOthers) || teamNotSelected}
+                        className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${((isEditMode && !canAssignToOthers) || teamNotSelected) ? 'bg-gray-50' : ''}`}
                       />
                       {isCheckingFileNumber && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
@@ -1177,6 +1242,37 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           {selectedProcessType?.name === 'Single Seat' ? 'Single Seat' : 'Step 1'}
                         </div>
 
+                        {/* Assign To dropdown - admin/team lead only */}
+                        {canAssignToOthers && !isDuplicateEntry && (
+                          <div className="mb-3">
+                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Assign To *</Label>
+                            <Select
+                              value={step1UserId ? step1UserId.toString() : ''}
+                              onValueChange={(value) => {
+                                const userId = parseInt(value)
+                                setStep1UserId(userId)
+                                // For Single Seat, sync step2 user
+                                if (selectedProcessType?.name === 'Single Seat') {
+                                  setStep2UserId(userId)
+                                }
+                              }}
+                              disabled={loadingTeamMembers}
+                            >
+                              <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                                <SelectValue placeholder={loadingTeamMembers ? "Loading..." : "Select team member"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamMemberOptions.map((member) => (
+                                  <SelectItem key={member.id} value={member.id.toString()}>{member.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {teamMemberOptions.length === 0 && !loadingTeamMembers && (
+                              <p className="text-[11px] text-red-600 mt-1">No team members available.</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* FA Name Selection - everyone needs this */}
                         {(canAssignToOthers || canEditStep1) && (
                           <div className="mb-3">
@@ -1218,6 +1314,30 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                     {showStep2Section && selectedProcessType?.name !== 'Single Seat' && (
                       <div className="border border-gray-200 rounded-md p-3.5 bg-gray-50">
                         <div className="text-xs font-semibold text-gray-800 mb-3">Step 2</div>
+
+                        {/* Assign To dropdown - admin/team lead only */}
+                        {canAssignToOthers && !isDuplicateEntry && (
+                          <div className="mb-3">
+                            <Label className="text-xs font-medium text-gray-700 mb-1.5 block">Assign To *</Label>
+                            <Select
+                              value={step2UserId ? step2UserId.toString() : ''}
+                              onValueChange={(value) => setStep2UserId(parseInt(value))}
+                              disabled={loadingTeamMembers}
+                            >
+                              <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                                <SelectValue placeholder={loadingTeamMembers ? "Loading..." : "Select team member"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamMemberOptions.map((member) => (
+                                  <SelectItem key={member.id} value={member.id.toString()}>{member.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {teamMemberOptions.length === 0 && !loadingTeamMembers && (
+                              <p className="text-[11px] text-red-600 mt-1">No team members available.</p>
+                            )}
+                          </div>
+                        )}
 
                         {/* FA Name Selection - everyone needs this */}
                         {(canAssignToOthers || canEditStep2) && (
