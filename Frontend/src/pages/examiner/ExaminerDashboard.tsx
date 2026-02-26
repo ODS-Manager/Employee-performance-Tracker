@@ -1037,6 +1037,7 @@ export const ExaminerDashboard = () => {
                                 ) : null}
                               </DialogContent>
                             </Dialog>
+                            {order.billingStatus !== 'done' && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1046,6 +1047,7 @@ export const ExaminerDashboard = () => {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

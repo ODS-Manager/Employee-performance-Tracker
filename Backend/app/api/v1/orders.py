@@ -841,7 +841,8 @@ def get_edit_permissions(order: Order, user: User) -> dict:
     Determine what a user can edit on an order.
     
     Rules:
-    - Superadmin/Admin/Team Lead: Can edit everything
+    - Billing done: No one can edit (hard lock for all roles)
+    - Superadmin/Admin/Team Lead: Can edit everything (while billing is pending)
     - Employee:
       - Single Seat orders: Only the assigned user can edit (no one else)
       - Step1/Step2 orders: Steps are INDEPENDENT
@@ -849,6 +850,16 @@ def get_edit_permissions(order: Order, user: User) -> dict:
         - Can edit Step 2 if: they did it OR it's not done yet
         - Cannot edit someone else's completed step
     """
+    # Hard lock: once billing is done, no one can edit
+    if order.billing_status == 'done':
+        return {
+            "canEdit": False,
+            "canEditStep1": False,
+            "canEditStep2": False,
+            "canEditOrderDetails": False,
+            "reason": "Order billing is completed — editing is locked"
+        }
+    
     process_type_name = order.process_type.name if order.process_type else None
     
     # Admin/Team Lead have full access
@@ -944,6 +955,13 @@ async def update_order(
     # Check soft delete
     if order.deleted_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot update deleted order")
+    
+    # Hard lock: billing-done orders cannot be edited by anyone
+    if order.billing_status == 'done':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Order billing is completed — editing is locked"
+        )
     
     # Get edit permissions for this user
     edit_perms = get_edit_permissions(order, current_user)

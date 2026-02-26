@@ -673,7 +673,7 @@ export const OrderAnalysisPage = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              {user?.userRole?.toLowerCase() !== 'superadmin' && (
+                              {user?.userRole?.toLowerCase() !== 'superadmin' && order.billingStatus !== 'done' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

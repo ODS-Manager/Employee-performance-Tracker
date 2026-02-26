@@ -28,11 +28,13 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
+  const isEditLocked = isEditMode && editPermissions?.canEdit === false
   
   // Determine what this user can edit in edit mode
-  const canEditOrderDetails = !isEditMode || (editPermissions?.canEditOrderDetails ?? true)
-  const canEditStep1 = !isEditMode || (editPermissions?.canEditStep1 ?? true)
-  const canEditStep2 = !isEditMode || (editPermissions?.canEditStep2 ?? true)
+  // When edit is locked (e.g., billing done), all fields are read-only
+  const canEditOrderDetails = !isEditLocked && (!isEditMode || (editPermissions?.canEditOrderDetails ?? true))
+  const canEditStep1 = !isEditLocked && (!isEditMode || (editPermissions?.canEditStep1 ?? true))
+  const canEditStep2 = !isEditLocked && (!isEditMode || (editPermissions?.canEditStep2 ?? true))
   
   // Form state
   const [fileNumber, setFileNumber] = useState('')
@@ -514,6 +516,12 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Prevent submission when editing is locked (e.g., billing done)
+    if (isEditLocked) {
+      toast.error('This order cannot be edited — ' + (editPermissions?.reason || 'editing is locked'))
+      return
+    }
+    
     if (!validateForm()) return
     
     setSubmitting(true)
@@ -577,24 +585,47 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         
         // Determine step user assignment
         if (canAssignToOthers) {
-          // Admin/Team Lead - for duplicate entries assign to selected examiner/user; otherwise self
-          if (selectedProcessType?.name === 'Step1') {
-            orderData.step1UserId = assignedUserId
-            if (step1FaName) orderData.step1FaName = step1FaName
-          }
-          
-          if (selectedProcessType?.name === 'Step2') {
-            orderData.step2UserId = assignedUserId
-            if (step2FaName) orderData.step2FaName = step2FaName
-          }
-          
-          if (selectedProcessType?.name === 'Single Seat') {
-            // For single seat, both step1 and step2 use the same assigned user
-            orderData.step1UserId = assignedUserId
-            orderData.step2UserId = assignedUserId
-            if (step1FaName) {
-              orderData.step1FaName = step1FaName
-              orderData.step2FaName = step1FaName
+          if (isEditMode && order) {
+            // Admin/Team Lead EDITING existing order — preserve original step users
+            // Use step user IDs from form state (loaded from order), not the current admin's ID
+            if (selectedProcessType?.name === 'Step1') {
+              if (step1UserId) orderData.step1UserId = step1UserId
+              if (step1FaName) orderData.step1FaName = step1FaName
+            }
+            
+            if (selectedProcessType?.name === 'Step2') {
+              if (step2UserId) orderData.step2UserId = step2UserId
+              if (step2FaName) orderData.step2FaName = step2FaName
+            }
+            
+            if (selectedProcessType?.name === 'Single Seat') {
+              if (step1UserId) orderData.step1UserId = step1UserId
+              if (step2UserId) orderData.step2UserId = step2UserId
+              if (step1FaName) {
+                orderData.step1FaName = step1FaName
+                orderData.step2FaName = step1FaName
+              }
+            }
+          } else {
+            // Admin/Team Lead CREATING new order — assign to selected examiner or self
+            if (selectedProcessType?.name === 'Step1') {
+              orderData.step1UserId = assignedUserId
+              if (step1FaName) orderData.step1FaName = step1FaName
+            }
+            
+            if (selectedProcessType?.name === 'Step2') {
+              orderData.step2UserId = assignedUserId
+              if (step2FaName) orderData.step2FaName = step2FaName
+            }
+            
+            if (selectedProcessType?.name === 'Single Seat') {
+              // For single seat, both step1 and step2 use the same assigned user
+              orderData.step1UserId = assignedUserId
+              orderData.step2UserId = assignedUserId
+              if (step1FaName) {
+                orderData.step1FaName = step1FaName
+                orderData.step2FaName = step1FaName
+              }
             }
           }
         } else {
@@ -864,13 +895,26 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
               
               <div className="flex-1 space-y-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {/* Edit Permissions Banner */}
-                {isEditMode && editPermissions && !canAssignToOthers && (
-                  <div className={`rounded-md p-2.5 ${editPermissions.canEdit ? 'bg-blue-50 border border-blue-200' : 'bg-gray-100 border border-gray-300'}`}>
+                {isEditMode && editPermissions && !editPermissions.canEdit && (
+                  <div className="rounded-md p-2.5 bg-red-50 border border-red-200">
+                    <div className="flex items-start gap-2">
+                      <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-600" />
+                      <div>
+                        <p className="font-medium text-xs text-red-800">
+                          View Only
+                        </p>
+                        <p className="text-xs text-red-600 mt-0.5">{editPermissions.reason}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {isEditMode && editPermissions && editPermissions.canEdit && !canAssignToOthers && (
+                  <div className="rounded-md p-2.5 bg-blue-50 border border-blue-200">
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" />
                       <div>
                         <p className="font-medium text-xs text-gray-800">
-                          {editPermissions.canEdit ? 'Edit Mode' : 'View Only'}
+                          Edit Mode
                         </p>
                         <p className="text-xs text-gray-600 mt-0.5">{editPermissions.reason}</p>
                       </div>
@@ -1230,6 +1274,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
 
           {/* Save Button */}
           <div className="mt-4 flex-shrink-0">
+            {isEditMode && editPermissions && !editPermissions.canEdit ? (
+              <div className="w-full h-11 flex items-center justify-center text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md">
+                Editing is locked — {editPermissions.reason}
+              </div>
+            ) : (
             <Button 
               type="submit" 
               disabled={submitting || !isFormValid} 
@@ -1247,6 +1296,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                 </>
               )}
             </Button>
+            )}
           </div>
         </form>
       )}

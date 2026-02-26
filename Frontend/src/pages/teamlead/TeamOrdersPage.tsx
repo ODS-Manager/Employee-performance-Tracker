@@ -743,6 +743,7 @@ export const TeamOrdersPage = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {order.billingStatus !== 'done' && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -750,6 +751,7 @@ export const TeamOrdersPage = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
