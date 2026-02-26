@@ -176,7 +176,7 @@ export const TeamLeadNav = () => {
               </Select>
               
               {/* Primary CTA */}
-              <Link to="/employee/new-order" className="ml-2">
+              <Link to="/examiner/new-order" className="ml-2">
                 <Button size="sm" className="bg-green-600 hover:bg-green-700 whitespace-nowrap h-8">
                   <Plus className="w-4 h-4 mr-2" />
                   New Order

@@ -544,7 +544,7 @@ export const TeamLeadDashboard = () => {
               <div className="text-center py-12 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No orders yet this month</p>
-                <Button className="mt-4" variant="outline" onClick={() => navigate('/employee/new-order')}>
+                <Button className="mt-4" variant="outline" onClick={() => navigate('/examiner/new-order')}>
                   <Plus className="mr-2 h-4 w-4" />
                   Create New Order
                 </Button>

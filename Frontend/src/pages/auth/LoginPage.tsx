@@ -30,7 +30,7 @@ export const LoginPage: React.FC = () => {
     } else if (userRole === 'team_lead') {
       return '/teamlead/dashboard'
     } else {
-      return '/employee/dashboard'
+      return '/examiner/dashboard'
     }
   }
 
