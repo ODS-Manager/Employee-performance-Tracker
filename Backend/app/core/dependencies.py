@@ -194,6 +194,73 @@ def verify_org_access(org_id: int, user: User = Depends(get_current_active_user)
     return user
 
 
+def is_team_lead_of(user_id: int, team_id: int, db: Session) -> bool:
+    """
+    Check if a user is a lead of a specific team.
+    Checks both Team.team_lead_id (primary lead) and UserTeam.role='lead' (secondary leads).
+    Supports multiple team leads per team.
+    """
+    from app.models.team import Team
+    from app.models.user_team import UserTeam
+    
+    # Check primary lead via Team.team_lead_id
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if team and team.team_lead_id == user_id:
+        return True
+    
+    # Check secondary leads via UserTeam.role='lead'
+    lead_membership = db.query(UserTeam).filter(
+        UserTeam.user_id == user_id,
+        UserTeam.team_id == team_id,
+        UserTeam.role == "lead",
+        UserTeam.is_active == True
+    ).first()
+    
+    return lead_membership is not None
+
+
+def get_allowed_team_role(user_role: str) -> Optional[str]:
+    """
+    Derive the allowed team role based on the user's system role.
+    Examiners can only be 'member'. Returns None if no restriction applies.
+    """
+    user_role_lower = user_role.lower() if user_role else ""
+    if user_role_lower == ROLE_EXAMINER:
+        return "member"
+    return None  # No restriction for team_lead, admin, superadmin
+
+
+def validate_team_role(user_role: str, requested_role: str) -> str:
+    """
+    Validate and return the appropriate team role based on the user's system role.
+    
+    - Examiners can only be 'member' (forced, regardless of requested_role)
+    - Team leads can be 'member' or 'lead'
+    - Only 'member' and 'lead' are valid team roles
+    
+    Returns the validated role string.
+    Raises HTTPException if the role is invalid.
+    """
+    # Whitelist valid team roles
+    valid_roles = ["member", "lead"]
+    if requested_role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid team role '{requested_role}'. Must be 'member' or 'lead'"
+        )
+    
+    user_role_lower = user_role.lower() if user_role else ""
+    
+    # Examiners can only be members
+    if user_role_lower == ROLE_EXAMINER and requested_role == "lead":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Examiners cannot be assigned the 'lead' team role. Only users with 'team_lead' system role can be team leads"
+        )
+    
+    return requested_role
+
+
 def check_team_access(user: User, team_id: int, db: Session) -> bool:
     """Check if user has access to a specific team"""
     from app.models.team import Team
@@ -212,10 +279,9 @@ def check_team_access(user: User, team_id: int, db: Session) -> bool:
             return True
         return False
     
-    # Team lead has access to teams they lead
+    # Team lead has access to teams they lead (via both Team.team_lead_id and UserTeam.role='lead')
     if user_role_lower == ROLE_TEAM_LEAD:
-        team = db.query(Team).filter(Team.id == team_id).first()
-        if team and team.team_lead_id == user.id:
+        if is_team_lead_of(user.id, team_id, db):
             return True
     
     # Check if user is a member of the team
@@ -245,13 +311,26 @@ def get_user_teams(user: User, db: Session) -> List[int]:
         teams = db.query(Team.id).filter(Team.org_id == user.org_id).all()
         return [t.id for t in teams]
     
-    # Team lead has access to teams they lead (where team_lead_id = user.id)
+    # Team lead has access to teams they lead
+    # Check both Team.team_lead_id (primary) and UserTeam.role='lead' (secondary)
     if user_role_lower == ROLE_TEAM_LEAD:
-        teams = db.query(Team.id).filter(
+        # Teams where user is primary lead
+        primary_teams = db.query(Team.id).filter(
             Team.team_lead_id == user.id,
             Team.is_active == True
         ).all()
-        return [t.id for t in teams]
+        primary_ids = {t.id for t in primary_teams}
+        
+        # Teams where user has lead role in user_teams
+        lead_memberships = db.query(UserTeam.team_id).filter(
+            UserTeam.user_id == user.id,
+            UserTeam.role == "lead",
+            UserTeam.is_active == True
+        ).all()
+        lead_ids = {m.team_id for m in lead_memberships}
+        
+        # Combine both sets
+        return list(primary_ids | lead_ids)
     
     # Examiners have access to teams they're members of
     memberships = db.query(UserTeam.team_id).filter(

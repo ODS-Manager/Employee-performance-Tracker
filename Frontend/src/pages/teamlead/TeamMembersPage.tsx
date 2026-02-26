@@ -612,15 +612,21 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newRole">New Role</Label>
-                    <Select value={newRole} onValueChange={setNewRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select new role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="lead">Team Lead</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {memberToChangeRole?.userRole === 'examiner' ? (
+                      <p className="text-sm text-slate-600 py-2">
+                        Examiners can only have the <strong>Member</strong> role
+                      </p>
+                    ) : (
+                      <Select value={newRole} onValueChange={setNewRole}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select new role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="lead">Team Lead</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>

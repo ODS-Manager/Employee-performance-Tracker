@@ -17,6 +17,7 @@ from app.core.dependencies import (
     require_team_lead,
     check_org_access,
     get_user_teams,
+    validate_team_role,
     ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.core.security import get_password_hash, verify_password
@@ -783,6 +784,9 @@ async def add_user_to_team(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User and team must belong to the same organization"
         )
+    
+    # Validate and auto-correct team role based on user's system role
+    role = validate_team_role(user, role)
     
     # Check if membership already exists
     existing = db.query(UserTeam).filter(

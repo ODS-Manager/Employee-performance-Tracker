@@ -95,7 +95,6 @@ export const ExaminerDetailPage = () => {
   
   // Form states for add to team
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
-  const [selectedTeamRole, setSelectedTeamRole] = useState<string>('member')
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -251,12 +250,11 @@ export const ExaminerDetailPage = () => {
       await usersApi.addToTeam(parseInt(userId), {
         userId: parseInt(userId),
         teamId: selectedTeamId,
-        role: selectedTeamRole
+        role: 'member'  // Examiners can only be members
       })
       toast.success('Added to team successfully!')
       setAddToTeamDialogOpen(false)
       setSelectedTeamId(null)
-      setSelectedTeamRole('member')
       fetchExaminerData()
     } catch (error: any) {
       const errorMsg = getErrorMessage(error)
@@ -871,15 +869,9 @@ export const ExaminerDetailPage = () => {
             
             <div className="space-y-2">
               <Label>Team Role</Label>
-              <Select value={selectedTeamRole} onValueChange={setSelectedTeamRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-sm text-slate-600 py-2">
+                Role will be set to <strong>Member</strong> (examiners can only be members)
+              </p>
             </div>
           </div>
 
@@ -887,7 +879,6 @@ export const ExaminerDetailPage = () => {
             <Button variant="outline" onClick={() => {
               setAddToTeamDialogOpen(false)
               setSelectedTeamId(null)
-              setSelectedTeamRole('member')
               setError('')
             }}>
               Cancel

@@ -143,7 +143,10 @@ export const TeamMembersPage = () => {
     setIsSubmitting(true)
     
     try {
-      await teamsApi.addMember(parseInt(teamId), selectedUserId, selectedRole)
+      // Enforce: examiners can only be members
+      const selectedUser = availableUsers.find(u => u.id === selectedUserId);
+      const effectiveRole = selectedUser?.userRole === 'examiner' ? 'member' : selectedRole;
+      await teamsApi.addMember(parseInt(teamId), selectedUserId, effectiveRole)
       toast.success('Member added successfully!')
       setAddMemberDialogOpen(false)
       setSelectedUserId(null)
@@ -546,18 +549,33 @@ export const TeamMembersPage = () => {
             {/* Role Selection */}
             <div className="space-y-2">
               <Label>Team Role</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500">
-                Team leads have additional visibility into team performance
-              </p>
+              {(() => {
+                const selectedUser = availableUsers.find(u => u.id === selectedUserId);
+                const isExaminer = selectedUser?.userRole === 'examiner';
+                if (isExaminer) {
+                  return (
+                    <p className="text-sm text-slate-600 py-2">
+                      Role will be set to <strong>Member</strong> (examiners can only be members)
+                    </p>
+                  );
+                }
+                return (
+                  <>
+                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="lead">Lead</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      Team leads have additional visibility into team performance
+                    </p>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -600,15 +618,21 @@ export const TeamMembersPage = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>New Role</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                </SelectContent>
-              </Select>
+              {selectedMember?.userRole === 'examiner' ? (
+                <p className="text-sm text-slate-600 py-2">
+                  Examiners can only have the <strong>Member</strong> role
+                </p>
+              ) : (
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="lead">Lead</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 

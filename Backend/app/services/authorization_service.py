@@ -13,7 +13,8 @@ from app.core.dependencies import (
     ROLE_ADMIN,
     ROLE_TEAM_LEAD,
     ROLE_EXAMINER,
-    get_user_teams
+    get_user_teams,
+    is_team_lead_of
 )
 
 
@@ -107,7 +108,8 @@ class AuthorizationService:
                 )
             return False
         
-        if team.team_lead_id != current_user.id:
+        # Check both Team.team_lead_id and UserTeam.role='lead'
+        if not is_team_lead_of(current_user.id, team_id, db):
             if raise_exception:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

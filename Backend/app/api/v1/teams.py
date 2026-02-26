@@ -10,7 +10,7 @@ from datetime import datetime
 from app.database import get_db
 from app.core.dependencies import (
     get_current_active_user, require_admin, require_team_lead, require_team_lead_or_admin,
-    check_org_access, check_team_access, get_user_teams,
+    check_org_access, check_team_access, get_user_teams, is_team_lead_of, validate_team_role,
     ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 from app.models.user import User
@@ -341,8 +341,8 @@ async def get_team(
     # Same organization users have access (check for None)
     elif current_user.org_id is not None and team.org_id == current_user.org_id:
         has_access = True
-    # Team lead of this team has access (via Team.team_lead_id)
-    elif team.team_lead_id == current_user.id:
+    # Team lead of this team has access (via Team.team_lead_id or UserTeam.role='lead')
+    elif is_team_lead_of(current_user.id, team_id, db):
         has_access = True
     # Check if user is a member of the team (any role)
     elif db.query(UserTeam).filter(
@@ -397,14 +397,57 @@ async def update_team(
                 detail="Cannot update teams from other organizations"
             )
     
-    # Update basic fields only - simplified version for production stability
-    # Use by_alias=False to get snake_case field names that match the database model
+    # Update basic fields - Use by_alias=False to get snake_case field names that match the database model
     update_data = team_data.model_dump(exclude_unset=True, exclude={'states', 'products', 'fa_names'}, by_alias=False)
     
-    # Apply updates to basic team fields only (no complex team lead logic for now)
+    # Handle team_lead_id change separately to sync UserTeam records
+    new_team_lead_id = update_data.pop('team_lead_id', None)
+    
+    # Apply updates to basic team fields
     for field, value in update_data.items():
-        if hasattr(team, field) and field != 'team_lead_id':  # Skip team lead changes for now
+        if hasattr(team, field):
             setattr(team, field, value)
+    
+    # Handle team lead change if a new team_lead_id was provided
+    if new_team_lead_id is not None and new_team_lead_id != team.team_lead_id:
+        # Verify the new lead exists and is a team_lead
+        new_lead_user = db.query(User).filter(User.id == new_team_lead_id).first()
+        if not new_lead_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="New team lead user not found"
+            )
+        if new_lead_user.user_role.lower() == ROLE_EXAMINER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Examiners cannot be assigned as team lead"
+            )
+        
+        # Update Team.team_lead_id
+        team.team_lead_id = new_team_lead_id
+        
+        # Ensure the new lead has a UserTeam record with role='lead'
+        new_lead_membership = db.query(UserTeam).filter(
+            UserTeam.user_id == new_team_lead_id,
+            UserTeam.team_id == team_id
+        ).first()
+        
+        if new_lead_membership:
+            # Update existing membership to lead role and ensure active
+            new_lead_membership.role = "lead"
+            new_lead_membership.is_active = True
+            new_lead_membership.left_at = None
+            new_lead_membership.modified_at = datetime.utcnow()
+        else:
+            # Create new membership with lead role
+            new_membership = UserTeam(
+                user_id=new_team_lead_id,
+                team_id=team_id,
+                role="lead",
+                joined_at=datetime.utcnow(),
+                is_active=True
+            )
+            db.add(new_membership)
     
     # Update timestamp and commit
     team.modified_at = datetime.utcnow()
@@ -757,6 +800,10 @@ async def add_team_member(
             detail="User not found"
         )
     
+    # Validate team role against user's system role
+    # Examiners can only be 'member', team leads can be 'member' or 'lead'
+    role = validate_team_role(user.user_role, role)
+    
     # Check access based on role
     if current_user.user_role.lower() == ROLE_ADMIN:
         if team.org_id != current_user.org_id or user.org_id != current_user.org_id:
@@ -826,7 +873,7 @@ async def remove_team_member(
     team = db.query(Team).filter(Team.id == team_id).first()
     if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team lead can only manage members in teams they lead
-        if team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage members in teams you lead"
@@ -868,11 +915,22 @@ async def update_team_member_role(
             detail="User is not a member of this team"
         )
     
+    # Fetch the target user to validate role against their system role
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Validate team role against user's system role
+    role = validate_team_role(target_user.user_role, role)
+    
     # Check access based on role
     team = db.query(Team).filter(Team.id == team_id).first()
     if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Team lead can only manage members in teams they lead
-        if team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage members in teams you lead"
@@ -888,8 +946,7 @@ async def update_team_member_role(
     user_team.modified_at = datetime.utcnow()
     db.commit()
     
-    user = db.query(User).filter(User.id == user_id).first()
-    return serialize_team_member(user, user_team)
+    return serialize_team_member(target_user, user_team)
 
 
 @router.get("/{team_id}/fa-names")
