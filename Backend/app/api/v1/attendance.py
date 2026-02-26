@@ -23,6 +23,8 @@ from app.core.dependencies import (
     get_current_active_user,
     require_team_lead_or_admin,
     require_admin,
+    is_team_lead_of,
+    get_user_teams,
     ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 
@@ -43,10 +45,8 @@ def mark_attendance(
     
     # Authorization check for team leads
     if current_user.user_role == "team_lead":
-        # Check if current user is lead of the team
-        from app.models.team import Team
-        team = db.query(Team).filter(Team.id == data.team_id).first()
-        if not team or team.team_lead_id != current_user.id:
+        # Check if current user is lead of the team (via Team.team_lead_id or UserTeam.role='lead')
+        if not is_team_lead_of(current_user.id, data.team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only mark attendance for your own team"
@@ -76,9 +76,7 @@ def mark_attendance_bulk(
     
     # Authorization check for team leads
     if current_user.user_role == "team_lead":
-        from app.models.team import Team
-        team = db.query(Team).filter(Team.id == data.team_id).first()
-        if not team or team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, data.team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only mark attendance for your own team"
@@ -107,9 +105,7 @@ def get_daily_roster(
     
     # Authorization check for team leads
     if current_user.user_role == "team_lead":
-        from app.models.team import Team
-        team = db.query(Team).filter(Team.id == team_id).first()
-        if not team or team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only view roster for your own team"
@@ -142,16 +138,14 @@ def get_examiner_attendance(
     if current_user.user_role == "team_lead":
         # Check if user is in team lead's team
         from app.models.user_team import UserTeam
-        from app.models.team import Team
         
-        # Get teams led by current user
-        led_teams = db.query(Team).filter(Team.team_lead_id == current_user.id).all()
-        led_team_ids = [t.id for t in led_teams]
+        # Get all teams led by current user (via both Team.team_lead_id and UserTeam.role='lead')
+        led_team_ids = get_user_teams(current_user, db)
         
         # Check if target user is in any of these teams
         membership = db.query(UserTeam).filter(
             UserTeam.user_id == user_id,
-            UserTeam.team_id.in_(led_team_ids)
+            UserTeam.team_id.in_(led_team_ids) if led_team_ids else False
         ).first()
         
         if not membership:
@@ -178,9 +172,7 @@ def get_team_attendance_report(
     
     # Authorization check for team leads
     if current_user.user_role == "team_lead":
-        from app.models.team import Team
-        team = db.query(Team).filter(Team.id == team_id).first()
-        if not team or team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only generate reports for your own team"
@@ -207,9 +199,7 @@ def update_attendance(
     
     # Authorization check for team leads
     if current_user.user_role == "team_lead":
-        from app.models.team import Team
-        team = db.query(Team).filter(Team.id == record.team_id).first()
-        if not team or team.team_lead_id != current_user.id:
+        if not is_team_lead_of(current_user.id, record.team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only update attendance for your own team"

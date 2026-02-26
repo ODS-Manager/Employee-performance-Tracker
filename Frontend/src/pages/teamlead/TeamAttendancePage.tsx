@@ -37,10 +37,10 @@ export const TeamAttendancePage: React.FC = () => {
   const loadTeams = async () => {
     setLoading(true)
     try {
-      // Get teams where current user is team lead
+      // Get teams where current user is team lead (backend already filters by lead status)
       const response = await teamsApi.myTeams()
       const userTeams = response.items.filter(
-        (team) => team.teamLeadId === user?.id && team.isActive
+        (team) => team.isActive
       )
       setTeams(userTeams)
 

@@ -49,7 +49,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     try {
       const response = await teamsApi.myTeams()
       const userTeams = response.items.filter(
-        (team) => team.teamLeadId === user?.id && team.isActive
+        (team) => team.isActive
       )
       setTeams(userTeams)
 
