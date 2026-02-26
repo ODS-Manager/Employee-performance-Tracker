@@ -19,6 +19,7 @@ import { Input } from '../../components/ui/input'
 import { Button } from '../../components/ui/button'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import {
   Select,
   SelectContent,
@@ -45,7 +46,7 @@ import {
 import { 
   TrendingUp, 
   Award,
-  Settings,
+
   LogOut,
   Loader2,
   Users,
@@ -271,6 +272,7 @@ export const TeamProductivityPage = () => {
             </div>
             
             <div className="flex items-center gap-4">
+              <GlobalFilters showOrgFilter={false} />
               <HeaderRefreshButton />
 
               <Badge variant="outline" className="px-3 py-1">
@@ -295,11 +297,6 @@ export const TeamProductivityPage = () => {
                       <p className="text-xs text-muted-foreground">@{user?.userName}</p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />

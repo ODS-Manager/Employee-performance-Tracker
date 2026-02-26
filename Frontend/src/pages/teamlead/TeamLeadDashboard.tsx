@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '../../components/ui/select'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { ChangePasswordDialog } from '../../components/common/ChangePasswordDialog'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { 
@@ -43,7 +44,7 @@ import {
   BarChart3,
   Filter,
   ClipboardCheck,
-  Settings,
+
   Lock
 } from 'lucide-react'
 import odsLogo from '../../assets/ods-logo.png'
@@ -224,6 +225,8 @@ export const TeamLeadDashboard = () => {
                 </Badge>
               )}
 
+              <GlobalFilters showOrgFilter={false} />
+
               <HeaderRefreshButton />
                
               <Badge variant="outline" className="px-3 py-1">
@@ -252,10 +255,6 @@ export const TeamLeadDashboard = () => {
                   <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
                     <Lock className="mr-2 h-4 w-4" />
                     Change Password
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">

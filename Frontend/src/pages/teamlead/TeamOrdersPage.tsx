@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
+import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { teamsApi, ordersApi, referenceApi } from '../../services/api'
 import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { OrderSimple, ProcessType, Division, OrderStatus } from '../../types'
@@ -12,6 +13,7 @@ import { Badge } from '../../components/ui/badge'
 import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -37,7 +39,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Settings,
+
   LogOut,
   Loader2,
   Users,
@@ -64,6 +66,7 @@ export const TeamOrdersPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { selectedTeamId, setSelectedTeamId } = useTeamLeadFilterStore()
+  const { filterMonth, filterYear } = useDashboardFilterStore()
   
   const isAdminOrSuperadmin = user?.userRole === 'admin' || user?.userRole === 'superadmin'
 
@@ -80,15 +83,25 @@ export const TeamOrdersPage = () => {
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all')
   const [faNameFilter, setFaNameFilter] = useState<string>('all')
   
-  // Date range - default to current month
-  const today = new Date()
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-  const [startDate, setStartDate] = useState<string>(firstDayOfMonth.toISOString().split('T')[0])
-  const [endDate, setEndDate] = useState<string>(lastDayOfMonth.toISOString().split('T')[0])
+  // Date range - derived from global filters, with optional local overrides
+  const [startDateOverride, setStartDateOverride] = useState<string>('')
+  const [endDateOverride, setEndDateOverride] = useState<string>('')
+  
+  // Compute effective dates from global filter or local override
+  const startDate = startDateOverride || `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+  const endDate = endDateOverride || (() => {
+    const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
+    return `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
+  })()
   
   // Show/hide filter panel
   const [showFilters, setShowFilters] = useState<boolean>(true)
+
+  // Clear local date overrides when global filters change
+  useEffect(() => {
+    setStartDateOverride('')
+    setEndDateOverride('')
+  }, [filterMonth, filterYear])
 
   // Redirect if not team lead
   if (!user || user.userRole !== 'team_lead') {
@@ -219,9 +232,6 @@ export const TeamOrdersPage = () => {
 
   // Reset all filters
   const resetFilters = () => {
-    const now = new Date()
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     setStatusFilter('all')
     setBillingFilter('all')
     setStateFilter('all')
@@ -229,8 +239,8 @@ export const TeamOrdersPage = () => {
     setDivisionFilter('all')
     setOrderStatusFilter('all')
     setFaNameFilter('all')
-    setStartDate(firstDay.toISOString().split('T')[0])
-    setEndDate(lastDay.toISOString().split('T')[0])
+    setStartDateOverride('')
+    setEndDateOverride('')
   }
 
   // Export to Excel with full order details
@@ -398,6 +408,8 @@ export const TeamOrdersPage = () => {
                 </Badge>
               )}
               
+              <GlobalFilters showOrgFilter={false} />
+
               <Button onClick={() => navigate('/examiner/new-order')}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Order
@@ -427,11 +439,6 @@ export const TeamOrdersPage = () => {
                       <p className="text-xs text-muted-foreground">@{user?.userName}</p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
@@ -576,7 +583,7 @@ export const TeamOrdersPage = () => {
                           id="startDate"
                           type="date"
                           value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
+                          onChange={(e) => setStartDateOverride(e.target.value)}
                           className="h-9"
                         />
                       </div>
@@ -590,7 +597,7 @@ export const TeamOrdersPage = () => {
                           id="endDate"
                           type="date"
                           value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
+                          onChange={(e) => setEndDateOverride(e.target.value)}
                           className="h-9"
                         />
                       </div>

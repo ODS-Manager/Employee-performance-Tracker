@@ -72,7 +72,7 @@ export const ExaminerReportsPage = () => {
     } else {
       fetchData()
     }
-  }, [user, navigate, location.key])
+  }, [user, navigate, location.key, filterMonth, filterYear, filterOrgId])
 
   const fetchData = async () => {
     try {

@@ -13,6 +13,7 @@ import { Badge } from '../../components/ui/badge'
 import { Avatar, AvatarFallback } from '../../components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Label } from '../../components/ui/label'
 import {
@@ -53,7 +54,7 @@ import {
   UserCheck,
   UserX,
   Shield,
-  Settings,
+
   LogOut,
   Loader2,
   MapPin,
@@ -151,6 +152,8 @@ export const TeamMembersPage = () => {
                 </div>
               )}
 
+              <GlobalFilters showOrgFilter={false} />
+
               <HeaderRefreshButton />
 
 
@@ -177,11 +180,6 @@ export const TeamMembersPage = () => {
                       <p className="text-xs text-muted-foreground">@{user?.userName}</p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />

@@ -13,9 +13,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '../../components/ui/dropdown-menu'
-import { Download, Users, Loader2, Shield, Settings, LogOut, Calendar as CalendarIcon } from 'lucide-react'
+import { Download, Users, Loader2, Shield, LogOut, Calendar as CalendarIcon } from 'lucide-react'
 import odsLogo from '../../assets/ods-logo.png'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
+import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
@@ -205,6 +206,8 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                 Export CSV
               </Button>
 
+              <GlobalFilters showOrgFilter={false} />
+
               <HeaderRefreshButton />
                
               {/* Team Lead Badge */}
@@ -231,11 +234,6 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                       <p className="text-xs text-muted-foreground">@{user?.userName}</p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />

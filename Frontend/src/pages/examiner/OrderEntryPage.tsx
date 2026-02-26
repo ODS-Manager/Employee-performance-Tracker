@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger 
 } from '../../components/ui/dropdown-menu'
 import { 
-  Settings,
+
   LogOut,
   ArrowLeft,
   Activity,
@@ -112,10 +112,6 @@ export const OrderEntryPage = () => {
                   <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
                     <Lock className="mr-2 h-4 w-4" />
                     Change Password
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">

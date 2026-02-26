@@ -67,6 +67,13 @@ export const OrderAnalysisPage = () => {
   const [page, setPage] = useState(1)
   const pageSize = 20
 
+  // Compute effective date range from global filters when no explicit date range is set
+  const effectiveStartDate = startDateFilter || `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+  const effectiveEndDate = endDateFilter || (() => {
+    const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
+    return `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
+  })()
+
   // Selected orders for bulk actions
   const [selectedOrders, setSelectedOrders] = useState<number[]>([])
   const [orderDetailId, setOrderDetailId] = useState<number | null>(null)
@@ -89,7 +96,7 @@ export const OrderAnalysisPage = () => {
 
   // Fetch orders
   const { data: ordersData, isLoading: loadingOrders, refetch: refetchOrders } = useQuery({
-    queryKey: ['orders', page, searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, startDateFilter, endDateFilter, user?.orgId],
+    queryKey: ['orders', page, searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, effectiveStartDate, effectiveEndDate, filterMonth, filterYear, user?.orgId],
     queryFn: () => ordersApi.list({
       orgId: user?.orgId || undefined,
       search: searchQuery || undefined,
@@ -97,8 +104,8 @@ export const OrderAnalysisPage = () => {
       orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
       billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
       state: stateFilter || undefined,
-      startDate: startDateFilter || undefined,
-      endDate: endDateFilter || undefined,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
       page,
       pageSize,
     }),
@@ -106,7 +113,7 @@ export const OrderAnalysisPage = () => {
 
   // Fetch ALL orders for stats calculation (no pagination)
   const { data: allOrdersData } = useQuery({
-    queryKey: ['orders', 'all-for-stats', searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, startDateFilter, endDateFilter, user?.orgId],
+    queryKey: ['orders', 'all-for-stats', searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, effectiveStartDate, effectiveEndDate, filterMonth, filterYear, user?.orgId],
     queryFn: () => ordersApi.list({
       orgId: user?.orgId || undefined,
       search: searchQuery || undefined,
@@ -114,8 +121,8 @@ export const OrderAnalysisPage = () => {
       orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
       billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
       state: stateFilter || undefined,
-      startDate: startDateFilter || undefined,
-      endDate: endDateFilter || undefined,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
       page: 1,
       pageSize: 10000, // Large number to get all orders for stats
     }),
@@ -206,6 +213,8 @@ export const OrderAnalysisPage = () => {
     productFilter,
     processTypeFilter,
     transactionTypeFilter,
+    filterMonth,
+    filterYear,
   ])
 
   // Filter orders by search query and client-side filters (for current page display)
