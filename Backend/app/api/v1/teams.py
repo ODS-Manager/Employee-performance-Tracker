@@ -980,8 +980,8 @@ async def get_team_fa_names(
     return {
         "items": [
             {
-                "id": fn.id,
-                "faName": fn.fa_name.name,  # Access the .name property of the FAName relationship
+                "id": fn.fa_name_id,  # Must be the master fa_names.id, not the junction table PK
+                "faName": fn.fa_name.name,
                 "teamId": fn.team_id
             }
             for fn in fa_names

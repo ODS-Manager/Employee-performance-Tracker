@@ -19,6 +19,7 @@ from app.models.order_history import OrderHistory
 from app.models.team import Team
 from app.models.user_team import UserTeam
 from app.models.reference import OrderStatusType
+from app.models.fa_name import FAName
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services.cache_service import cache
 
@@ -359,11 +360,11 @@ async def list_orders(
             )
         )
     if fa_name:
-        # Filter by FA name (either step1 or step2)
+        # Filter by FA name string (either step1 or step2) via the fa_names relationship
         query = query.filter(
             or_(
-                Order.step1_fa_name == fa_name,
-                Order.step2_fa_name == fa_name
+                Order.step1_fa_name.has(FAName.name == fa_name),
+                Order.step2_fa_name.has(FAName.name == fa_name)
             )
         )
     if start_date:
