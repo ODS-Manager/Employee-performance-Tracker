@@ -9,10 +9,22 @@ Business Logic:
 - Examiner's total target = SUM of targets from all teams for that week
 - Productivity = Total Score (all teams) / Total Target (sum from all teams) × 100
 
+Attendance-Driven Target:
+- Working week is Mon–Fri (5 days). Weekends are never counted.
+- Daily target = weekly_target / 5
+- Expected target = number of days the examiner was marked PRESENT (Mon–Fri) × daily_target
+- Absent, leave, and unmarked days do NOT accumulate target
+- This means if an examiner is absent on Tuesday, that day's target is simply dropped
+
 Example:
+- Weekly target = 10  →  daily target = 2
+- Mon: present (2), Tue: absent (0), Wed: present (2)  →  expected target = 4
+- Orders completed = 3  →  Productivity = 3/4 × 100 = 75%
+
+Multi-team:
 - Examiner X in Team A: target = 20 (set by Team A lead)
 - Examiner X in Team B: target = 15 (set by Team B lead)
-- Examiner X total target = 20 + 15 = 35
+- Examiner X total weekly target = 35  →  daily target = 35 / 5 = 7
 """
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportArgumentType=false
@@ -53,6 +65,39 @@ class ProductivityService:
     def __init__(self, db: Session):
         self.db = db
     
+    def get_present_weekdays_in_range(
+        self,
+        user_id: int,
+        start_date: date,
+        end_date: date
+    ) -> int:
+        """
+        Count Mon–Fri days within [start_date, end_date] on which the examiner
+        has an attendance record with status = 'present'.
+
+        Weekends (Saturday=5, Sunday=6 in Python's weekday()) are always excluded.
+        Absent, leave, and unmarked days are NOT counted.
+
+        Returns:
+            Integer count of present weekdays.
+        """
+        from app.models.attendance import AttendanceRecord
+
+        records = self.db.query(AttendanceRecord).filter(
+            AttendanceRecord.user_id == user_id,
+            AttendanceRecord.status == 'present',
+            AttendanceRecord.date >= start_date,
+            AttendanceRecord.date <= end_date
+        ).all()
+
+        count = 0
+        for record in records:
+            # weekday(): Mon=0 … Fri=4, Sat=5, Sun=6
+            if record.date.weekday() <= 4:  # type: ignore[union-attr]
+                count += 1
+
+        return count
+
     def get_week_boundaries(self, reference_date: date) -> Tuple[date, date]:
         """
         Get the Sunday-Saturday week boundaries for a given date.
@@ -92,14 +137,23 @@ class ProductivityService:
         end_date: date
     ) -> Tuple[float, Optional[int], List[Dict]]:
         """
-        Calculate total expected target for a date range by summing weekly targets.
-        For weeks without explicit targets, carry forward the last known target per team.
-        
-        Target is per examiner PER TEAM - we sum targets from all teams.
-        
+        Calculate total expected target for a date range using attendance-driven logic.
+
+        Formula:
+            daily_target       = weekly_target / 5   (Mon–Fri working week)
+            expected_target    = present_weekdays × daily_target
+
+        Where present_weekdays = days within the overlap of [week_start, week_end] and
+        [start_date, end_date] on which the examiner was marked 'present' on a Mon–Fri.
+
+        Absent, leave, unmarked, and weekend days contribute 0 to the expected target.
+        For weeks without explicit targets, the last known target is carried forward per team.
+
+        Target is per examiner PER TEAM — we sum targets from all teams.
+
         Returns:
             Tuple of (total_target, weekly_target_used, weekly_breakdown)
-            - total_target: Sum of targets for all weeks and all teams in range
+            - total_target: Sum of attendance-driven targets for all weeks and all teams
             - weekly_target_used: The total weekly target value (sum from all teams)
             - weekly_breakdown: List of week details with targets per team
         """
@@ -154,54 +208,70 @@ class ProductivityService:
                     week_total_target += team_target
             
             if week_total_target > 0:
-                # Calculate days of this week that fall within the range
+                # Clamp the week overlap to the requested date range
                 overlap_start = max(week_start, start_date)
                 overlap_end = min(week_end, end_date)
-                days_in_range = (overlap_end - overlap_start).days + 1
-                
-                # Proportional target for partial weeks
-                weekly_proportion = days_in_range / 7.0
-                proportional_target = float(week_total_target) * weekly_proportion
-                total_target += proportional_target
+
+                # Count Mon–Fri days the examiner was present within this overlap
+                present_weekdays = self.get_present_weekdays_in_range(
+                    user_id=user_id,
+                    start_date=overlap_start,
+                    end_date=overlap_end
+                )
+
+                # daily_target = weekly_target / 5 working days
+                daily_target = week_total_target / 5.0
+                attendance_driven_target = present_weekdays * daily_target
+                total_target += attendance_driven_target
                 
                 weekly_breakdown.append({
                     "weekStart": week_start.isoformat(),
                     "weekEnd": week_end.isoformat(),
                     "totalTarget": week_total_target,
+                    "dailyTarget": round(daily_target, 2),
                     "teamTargets": team_targets_for_week,
-                    "daysInRange": days_in_range,
-                    "proportionalTarget": round(proportional_target, 2)
+                    "presentWeekdays": present_weekdays,
+                    "attendanceDrivenTarget": round(attendance_driven_target, 2)
                 })
             else:
                 weekly_breakdown.append({
                     "weekStart": week_start.isoformat(),
                     "weekEnd": week_end.isoformat(),
                     "totalTarget": None,
+                    "dailyTarget": 0,
                     "teamTargets": [],
-                    "daysInRange": 0,
-                    "proportionalTarget": 0
+                    "presentWeekdays": 0,
+                    "attendanceDrivenTarget": 0
                 })
         
-        # Calculate the current week's total target for display
+        # The current week's total target for display (sum across all teams)
         current_week_total = sum(last_known_per_team.values()) if last_known_per_team else None
         
         return total_target, current_week_total, weekly_breakdown
     
     def get_working_days_in_month(self, year: int, month: int) -> int:
         """
-        Calculate working days in a month (ALL days - company works 7 days/week)
-        Returns total count of days in the month
+        Calculate working days (Mon–Fri) in a given month.
+        Weekends are excluded.
         """
         import calendar
-        last_day = calendar.monthrange(year, month)[1]
-        return last_day
+        _, last_day = calendar.monthrange(year, month)
+        start = date(year, month, 1)
+        end = date(year, month, last_day)
+        return self.get_working_days_in_range(start, end)
     
     def get_working_days_in_range(self, start_date: date, end_date: date) -> int:
         """
-        Calculate working days between two dates (ALL days - company works 7 days/week)
+        Calculate working days (Mon–Fri) between two dates, inclusive.
+        Weekends (Saturday=5, Sunday=6) are excluded.
         """
-        delta = end_date - start_date
-        return delta.days + 1  # +1 to include both start and end dates
+        count = 0
+        current = start_date
+        while current <= end_date:
+            if current.weekday() <= 4:  # Mon=0 … Fri=4
+                count += 1
+            current += timedelta(days=1)
+        return count
     
     def get_examiner_team_score(
         self,
@@ -378,10 +448,10 @@ class ProductivityService:
         # Calculate working days (up to today, not future dates)
         working_days = self.get_working_days_in_range(start_date, actual_end_date)
         
-        # Get expected target from weekly targets (single target per examiner)
-        # range_target is retained for reporting, weekly_target_used is the
-        # actual weekly target (sum from all teams) used for productivity.
-        _range_target, weekly_target_used, weekly_breakdown = self.get_weekly_target_for_range(
+        # Get expected target from weekly targets.
+        # attendance_driven_target = present weekdays × (weekly_target / 5)
+        # weekly_target_used      = the full weekly target (sum from all teams, for display)
+        attendance_driven_target, weekly_target_used, weekly_breakdown = self.get_weekly_target_for_range(
             user_id=user_id,
             start_date=start_date,
             end_date=actual_end_date
@@ -389,8 +459,8 @@ class ProductivityService:
         
         has_weekly_target = weekly_target_used is not None
         
-        # expectedTarget should be the full weekly target
-        expected_target = weekly_target_used if weekly_target_used is not None else 0
+        # expected_target for display = attendance-driven total (present days × daily_target)
+        expected_target = attendance_driven_target
         
         # Calculate attendance using manual attendance records
         # Use AttendanceService to get attendance summary
@@ -406,8 +476,9 @@ class ProductivityService:
         days_leave = attendance_summary.days_leave
         attendance_percentage = attendance_summary.attendance_percent
         
-        # Calculate productivity percentage using weekly target (not proportional)
-        # If no target is set, productivity is None (not 0)
+        # Calculate productivity percentage:
+        # Productivity % = total_score / (present_weekdays × daily_target) × 100
+        # If no target is configured, productivity is None (not 0)
         productivity_percent = None
         if expected_target > 0:
             productivity_percent = round((total_score / expected_target) * 100, 2)
@@ -415,11 +486,14 @@ class ProductivityService:
         return {
             "userId": user_id,
             "userName": user.user_name,
-            "userName": user.user_name,
             "examinerId": user.examiner_id,
             "teamsIncluded": user_team_ids,
+            # weeklyTarget: full weekly target (sum across all teams) — for reference
             "weeklyTarget": weekly_target_used,
-            "expectedTarget": expected_target,
+            # dailyTarget: weekly_target / 5 working days
+            "dailyTarget": round(weekly_target_used / 5.0, 2) if weekly_target_used else None,
+            # expectedTarget: attendance-driven = present weekdays × daily_target
+            "expectedTarget": round(expected_target, 2),
             "period": {
                 "startDate": start_date.isoformat(),
                 "endDate": actual_end_date.isoformat(),
@@ -599,27 +673,41 @@ class ProductivityService:
         single_seat_multiplier = float(team.single_seat_score) if team.single_seat_score else 1.0
         
         for membership in team_members:
-            user_id = int(membership.id)  # type: ignore
-            step1_only_count = step1_count_map.get(user_id, 0)
-            step2_only_count = step2_count_map.get(user_id, 0)
-            single_seat_count = single_seat_count_map.get(user_id, 0)
+            uid = int(membership.id)  # type: ignore
+            step1_only_count = step1_count_map.get(uid, 0)
+            step2_only_count = step2_count_map.get(uid, 0)
+            single_seat_count = single_seat_count_map.get(uid, 0)
 
             step1_score = step1_only_count * step1_multiplier
             step2_score = step2_only_count * step2_multiplier
             single_seat_score = single_seat_count * single_seat_multiplier
             team_score = step1_score + step2_score + single_seat_score
 
-            target_for_team = latest_target_by_user.get(user_id, 0.0)
-            
+            # Weekly target for this examiner on this team (latest known, carry-forward)
+            weekly_target_for_team = latest_target_by_user.get(uid, 0.0)
+
+            # Attendance-driven expected target:
+            # daily_target = weekly_target / 5 working days (Mon–Fri)
+            # expected     = present weekdays × daily_target
+            if weekly_target_for_team > 0:
+                present_weekdays = self.get_present_weekdays_in_range(
+                    user_id=uid,
+                    start_date=start_date,
+                    end_date=actual_end_date
+                )
+                daily_target = weekly_target_for_team / 5.0
+                examiner_expected = present_weekdays * daily_target
+            else:
+                examiner_expected = 0.0
+
             # Calculate productivity % for this examiner in this team
             examiner_productivity = None
-            if target_for_team > 0:
-                examiner_productivity = round((team_score / target_for_team) * 100, 2)
+            if examiner_expected > 0:
+                examiner_productivity = round((team_score / examiner_expected) * 100, 2)
             
             if include_examiners:
                 examiner_data = {
-                    "userId": user_id,
-                    "userName": membership.user_name,
+                    "userId": uid,
                     "userName": membership.user_name,
                     "examinerId": membership.examiner_id,
                     "completions": {
@@ -634,7 +722,10 @@ class ProductivityService:
                         "singleSeatScore": single_seat_score,
                         "totalScore": team_score,
                     },
-                    "expectedTarget": target_for_team,
+                    # weeklyTarget: full weekly target for reference
+                    "weeklyTarget": weekly_target_for_team if weekly_target_for_team > 0 else None,
+                    # expectedTarget: attendance-driven (present weekdays × daily_target)
+                    "expectedTarget": round(examiner_expected, 2),
                     "productivityPercent": examiner_productivity,
                     "teamId": team_id,
                     "teamName": team.name
@@ -643,7 +734,7 @@ class ProductivityService:
                 examiner_scores.append(examiner_data)
 
             total_team_score += team_score
-            total_expected += target_for_team
+            total_expected += examiner_expected
         
         # Determine team target: use monthly_target if set, otherwise sum of examiner targets
         team_target: float = float(team.monthly_target) if team.monthly_target else total_expected

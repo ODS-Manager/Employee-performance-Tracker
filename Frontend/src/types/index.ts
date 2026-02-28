@@ -607,7 +607,8 @@ export interface ExaminerProductivity {
   examinerId?: string
   teamsIncluded: number[]
   weeklyTarget: number | null  // null if no target set
-  expectedTarget: number
+  dailyTarget: number | null   // weeklyTarget / 5 working days
+  expectedTarget: number       // attendance-driven: present weekdays × dailyTarget
   period: ProductivityPeriod
   attendance?: {
     daysPresent: number
@@ -627,9 +628,11 @@ export interface ExaminerProductivity {
   weeklyBreakdown?: Array<{
     weekStart: string
     weekEnd: string
-    target: number | null
-    daysInRange: number
-    proportionalTarget: number
+    totalTarget: number | null
+    dailyTarget: number
+    teamTargets: Array<{ teamId: number; target: number }>
+    presentWeekdays: number
+    attendanceDrivenTarget: number
   }>
   hasWeeklyTarget: boolean
 }
