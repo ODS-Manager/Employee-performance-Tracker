@@ -882,15 +882,29 @@ def get_edit_permissions(order: Order, user: User) -> dict:
     step1_done = order.step1_user_id is not None
     step2_done = order.step2_user_id is not None
     
-    # Single Seat - only the assigned user can edit
+    # Single Seat - permission depends on whether one or two examiners worked on it
     if process_type_name == "Single Seat":
-        if is_step1_user:  # step1_user_id == step2_user_id for Single Seat
+        sole_examiner = (
+            order.step1_user_id is not None and
+            order.step1_user_id == order.step2_user_id
+        )
+        if sole_examiner and is_step1_user:
+            # This examiner is the only one who worked on it — full edit access
             return {
                 "canEdit": True,
                 "canEditStep1": True,
                 "canEditStep2": True,
+                "canEditOrderDetails": True,
+                "reason": "You are the sole examiner on this order"
+            }
+        elif not sole_examiner and (is_step1_user or is_step2_user):
+            # Two different examiners worked on this order — FA name only for their step
+            return {
+                "canEdit": True,
+                "canEditStep1": is_step1_user,
+                "canEditStep2": is_step2_user,
                 "canEditOrderDetails": False,
-                "reason": "You completed this Single Seat order"
+                "reason": "You can update your FA name only"
             }
         else:
             return {
@@ -901,13 +915,23 @@ def get_edit_permissions(order: Order, user: User) -> dict:
                 "reason": "Single Seat order completed by another examiner"
             }
     
-    # Step1/Step2 process types - STEPS ARE INDEPENDENT
-    # Can edit a step if: user did it themselves OR it's not done yet
-    can_edit_step1 = is_step1_user or (not step1_done)
-    can_edit_step2 = is_step2_user or (not step2_done)
-    
+    # Step1/Step2 process types - permission is scoped to the order's process type
+    # A Step1-type order: examiner can edit Step1 only (they did it or it's unclaimed)
+    # A Step2-type order: examiner can edit Step2 only (they did it or it's unclaimed)
+    # Cross-step editing is not allowed — process type determines which step an examiner works on
+    if process_type_name == "Step1":
+        can_edit_step1 = is_step1_user or (not step1_done)
+        can_edit_step2 = False
+    elif process_type_name == "Step2":
+        can_edit_step1 = False
+        can_edit_step2 = is_step2_user or (not step2_done)
+    else:
+        # Unknown process type — fall back to conservative access
+        can_edit_step1 = is_step1_user
+        can_edit_step2 = is_step2_user
+
     can_edit = can_edit_step1 or can_edit_step2
-    
+
     reasons = []
     if can_edit_step1:
         if is_step1_user:
@@ -919,12 +943,17 @@ def get_edit_permissions(order: Order, user: User) -> dict:
             reasons.append("You completed Step 2")
         elif not step2_done:
             reasons.append("Step 2 is available")
-    
+
     if not can_edit:
-        reason = "Both steps completed by other examiners"
+        if process_type_name == "Step1":
+            reason = "Step 1 was completed by another examiner"
+        elif process_type_name == "Step2":
+            reason = "Step 2 was completed by another examiner"
+        else:
+            reason = "No edit access"
     else:
         reason = "; ".join(reasons) if reasons else "No edit access"
-    
+
     return {
         "canEdit": can_edit,
         "canEditStep1": can_edit_step1,

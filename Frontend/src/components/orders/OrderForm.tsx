@@ -493,8 +493,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     if (!selectedProcessTypeId) newErrors.push('Process type is required')
     if (!selectedDivisionId) newErrors.push('Division is required')
     
-    // Order status is only required for admins
-    if (canAssignToOthers && !selectedOrderStatusId) newErrors.push('Order status is required')
+    // Order status is required for admins, and also for examiners who can edit order details
+    if ((canAssignToOthers || canEditOrderDetails) && !selectedOrderStatusId) newErrors.push('Order status is required')
     if (!isEditMode && canAssignToOthers && isDuplicateEntry && !selectedDuplicateAssigneeId) {
       newErrors.push('Examiner is required for duplicate order entry')
     }
@@ -592,19 +592,53 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       let orderData: OrderCreate | OrderUpdate
       
       if (isEmployeeEditingExisting) {
-        // Employee editing existing order - only send step fields they CAN edit
-        orderData = {} as OrderUpdate
-        
-        // Send Step 1 data if employee can edit it and has entered data
-        if (canEditStep1) {
-          orderData.step1UserId = user!.id
-          if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
-        }
-        
-        // Send Step 2 data if employee can edit it and has entered data
-        if (canEditStep2) {
-          orderData.step2UserId = user!.id
-          if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
+        // Employee editing existing order
+        if (canEditOrderDetails) {
+          // Sole Single Seat examiner — can edit everything, send all fields like admin
+          orderData = {
+            fileNumber: fileNumber.trim(),
+            entryDate,
+            transactionTypeId: selectedTransactionTypeId!,
+            processTypeId: selectedProcessTypeId!,
+            orderStatusId: selectedOrderStatusId!,
+            divisionId: selectedDivisionId!,
+            state: selectedState,
+            county: county.trim(),
+            productType: selectedProductType,
+            teamId: selectedTeamId!,
+            orgId: effectiveOrgId || user?.orgId || 0,
+          }
+          // Also set step fields — mirror step1FaNameId to step2FaNameId for Single Seat
+          if (canEditStep1) {
+            orderData.step1UserId = user!.id
+            if (step1FaNameId) {
+              orderData.step1FaNameId = step1FaNameId
+              orderData.step2FaNameId = step1FaNameId  // Single Seat: same FA name for both
+            }
+          }
+          if (canEditStep2) {
+            orderData.step2UserId = user!.id
+          }
+        } else {
+          // Shared Single Seat or Step1/Step2 — only send step fields they CAN edit
+          orderData = {} as OrderUpdate
+
+          // Send Step 1 data if employee can edit it
+          if (canEditStep1) {
+            orderData.step1UserId = user!.id
+            if (step1FaNameId) orderData.step1FaNameId = step1FaNameId
+          }
+
+          // Send Step 2 data if employee can edit it
+          if (canEditStep2) {
+            orderData.step2UserId = user!.id
+            // Single Seat uses step1FaNameId for both steps (same FA Name picker)
+            if (selectedProcessType?.name === 'Single Seat') {
+              if (step1FaNameId) orderData.step2FaNameId = step1FaNameId
+            } else {
+              if (step2FaNameId) orderData.step2FaNameId = step2FaNameId
+            }
+          }
         }
       } else {
         // Admin/Team Lead OR new order creation - send all fields
@@ -924,7 +958,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       if (canEditStep1 && (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat')) {
         if (!step1FaNameId) return false
       }
-      if (canEditStep2) {
+      // For Step2 orders only (not Single Seat — Single Seat uses step1FaNameId for both)
+      if (canEditStep2 && currentProcessType?.name === 'Step2') {
         if (!step2FaNameId) return false
       }
     } else {
