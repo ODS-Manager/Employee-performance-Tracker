@@ -4,7 +4,7 @@ Business logic for manual attendance marking by team leads
 """
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from fastapi import HTTPException
 from calendar import monthrange
@@ -313,8 +313,13 @@ class AttendanceService:
                 attendancePercent=0.0
             )
         
-        # Calculate working days (only up to today, don't include future days)
-        working_days = (effective_end_date - start_date).days + 1 if effective_end_date >= start_date else 0
+        # Calculate working days (Mon–Fri only, up to today, don't include future days)
+        working_days = 0
+        current = start_date
+        while current <= effective_end_date:
+            if current.weekday() <= 4:  # Mon=0 … Fri=4
+                working_days += 1
+            current += timedelta(days=1)
         
         # Query attendance records (only up to today)
         records = self.db.query(AttendanceRecord).filter(
@@ -323,10 +328,10 @@ class AttendanceService:
             AttendanceRecord.date <= effective_end_date
         ).all()
         
-        # Count by status
-        days_present = sum(1 for r in records if r.status == 'present')
-        days_leave = sum(1 for r in records if r.status == 'leave')
-        # Default to absent for unmarked days (only past/today, not future)
+        # Count by status — weekends are excluded from all counts
+        days_present = sum(1 for r in records if r.status == 'present' and r.date.weekday() <= 4)
+        days_leave = sum(1 for r in records if r.status == 'leave' and r.date.weekday() <= 4)
+        # Default to absent for unmarked weekdays (only past/today, not future)
         days_absent = working_days - days_present - days_leave
         
         # Calculate percentage (present days / total days)

@@ -4,7 +4,7 @@ import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
-import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as CalendarIcon, CheckCircle2, XCircle, Clock, Coffee } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as CalendarIcon, CheckCircle2, XCircle, Coffee } from 'lucide-react'
 import { attendanceApi } from '../../services/api'
 import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
 import { format, startOfMonth, endOfMonth, addDays, subDays, isSameMonth } from 'date-fns'
@@ -189,13 +189,6 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
             Leave
           </Badge>
         )
-      case AttendanceStatus.HALF_DAY:
-        return (
-          <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
-            <Clock className="h-3 w-3 mr-1" />
-            Half Day
-          </Badge>
-        )
       default:
         return (
           <Badge variant="outline" className="text-gray-500">
@@ -373,7 +366,6 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                             <SelectItem value={AttendanceStatus.PRESENT}>Present</SelectItem>
                             <SelectItem value={AttendanceStatus.ABSENT}>Absent</SelectItem>
                             <SelectItem value={AttendanceStatus.LEAVE}>Leave</SelectItem>
-                            <SelectItem value={AttendanceStatus.HALF_DAY}>Half Day</SelectItem>
                           </SelectContent>
                         </Select>
                       </td>
@@ -407,15 +399,6 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                             title="Mark Leave"
                           >
                             <Coffee className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => updateEmployeeStatus(employee.userId, AttendanceStatus.HALF_DAY)}
-                            className="h-8 w-8 p-0"
-                            title="Mark Half Day"
-                          >
-                            <Clock className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>
