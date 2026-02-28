@@ -244,6 +244,7 @@ export const ExaminerDashboard = () => {
         step2OnlyCount: 0,
         bothStepsCount: 0,
         workingDaysCount: 0,
+        daysPresent: 0,
         weeklyTarget: 0,
         expectedMarks: 0,
         productivityPercent: null as number | null,
@@ -257,6 +258,7 @@ export const ExaminerDashboard = () => {
       step2OnlyCount: productivityData.completions.step2Only,
       bothStepsCount: productivityData.completions.singleSeat,
       workingDaysCount: productivityData.period.workingDays,
+      daysPresent: productivityData.attendance?.daysPresent ?? 0,
       weeklyTarget: productivityData.weeklyTarget ?? productivityData.expectedTarget,
       expectedMarks: productivityData.expectedTarget,
       productivityPercent: productivityData.productivityPercent,
@@ -568,7 +570,7 @@ export const ExaminerDashboard = () => {
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3 w-3 text-amber-600" />
-                      <span className="text-gray-600">{formattedProductivityData.workingDaysCount} days</span>
+                      <span className="text-gray-600">{formattedProductivityData.daysPresent} days present</span>
                     </div>
                   </div>
                 </div>
