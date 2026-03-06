@@ -76,7 +76,7 @@ export const ExaminerDashboard = () => {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   // Productivity date range filter state (separate from orders date filters)
-  // Defaults to current week (Sunday–Saturday)
+  // Defaults to current week (Monday–Friday)
   const [productivityFromDate, setProductivityFromDate] = useState<string>('')
   const [productivityToDate, setProductivityToDate] = useState<string>('')
   const [activeProductivityQuick, setActiveProductivityQuick] = useState<'current_week' | 'previous_week' | 'current_month' | 'previous_month' | 'custom'>('current_week')
@@ -89,25 +89,39 @@ export const ExaminerDashboard = () => {
     return `${year}-${month}-${day}`
   }
 
-  // Calculate week boundaries (Sunday to Saturday) for a given week offset
+  // Calculate Mon–Fri boundaries for a given week offset (0 = current, -1 = previous)
   const getWeekBoundaries = (weekOffset: 0 | -1) => {
     const today = new Date()
-    const dayOfWeek = today.getDay() // 0 = Sunday
-    const currentSunday = new Date(today)
-    currentSunday.setDate(today.getDate() - dayOfWeek + weekOffset * 7)
-    currentSunday.setHours(0, 0, 0, 0)
-    const currentSaturday = new Date(currentSunday)
-    currentSaturday.setDate(currentSunday.getDate() + 6)
-    return { start: formatDateLocal(currentSunday), end: formatDateLocal(currentSaturday) }
+    const dayOfWeek = today.getDay() // 0=Sun, 1=Mon … 6=Sat
+    // Find this week's Monday (day 1); if today is Sunday treat it as the previous Mon
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(today)
+    monday.setDate(today.getDate() + daysToMonday + weekOffset * 7)
+    monday.setHours(0, 0, 0, 0)
+    const friday = new Date(monday)
+    friday.setDate(monday.getDate() + 4)
+    return { start: formatDateLocal(monday), end: formatDateLocal(friday) }
   }
 
-  // Calculate month boundaries for a given month offset (0 = current, -1 = previous)
+  // Calculate Mon–Fri-aware month boundaries for a given month offset (0 = current, -1 = previous)
+  // Start = first Monday on or after the 1st; End = last Friday on or before the last day
   const getMonthBoundaries = (monthOffset: 0 | -1) => {
     const today = new Date()
     const year = today.getFullYear()
     const month = today.getMonth() + monthOffset // 0-indexed
+
+    // First weekday on or after the 1st
     const firstDay = new Date(year, month, 1)
+    const firstDow = firstDay.getDay() // 0=Sun … 6=Sat
+    if (firstDow === 0) firstDay.setDate(2)        // Sun → Mon
+    else if (firstDow === 6) firstDay.setDate(3)   // Sat → Mon
+
+    // Last weekday on or before the last day
     const lastDay = new Date(year, month + 1, 0)
+    const lastDow = lastDay.getDay()
+    if (lastDow === 0) lastDay.setDate(lastDay.getDate() - 2)  // Sun → Fri
+    else if (lastDow === 6) lastDay.setDate(lastDay.getDate() - 1) // Sat → Fri
+
     return { start: formatDateLocal(firstDay), end: formatDateLocal(lastDay) }
   }
 
