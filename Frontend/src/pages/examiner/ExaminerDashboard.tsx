@@ -73,10 +73,14 @@ export const ExaminerDashboard = () => {
   const [toDate, setToDate] = useState<string>('')
   const [orderDetailId, setOrderDetailId] = useState<number | null>(null)
 
-  // Productivity week filter state (separate from main date filters)
-  const [productivityWeek, setProductivityWeek] = useState<'current' | 'previous'>('current')
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-  
+
+  // Productivity date range filter state (separate from orders date filters)
+  // Defaults to current week (Sunday–Saturday)
+  const [productivityFromDate, setProductivityFromDate] = useState<string>('')
+  const [productivityToDate, setProductivityToDate] = useState<string>('')
+  const [activeProductivityQuick, setActiveProductivityQuick] = useState<'current' | 'previous' | 'custom'>('current')
+
   // Helper function to format date as YYYY-MM-DD in local timezone
   const formatDateLocal = (date: Date): string => {
     const year = date.getFullYear()
@@ -85,41 +89,48 @@ export const ExaminerDashboard = () => {
     return `${year}-${month}-${day}`
   }
 
-  // Calculate week boundaries for productivity (Sunday to Saturday)
-  const productivityWeekDates = useMemo(() => {
+  // Calculate week boundaries (Sunday to Saturday) for a given week offset
+  const getWeekBoundaries = (weekOffset: 0 | -1) => {
     const today = new Date()
     const dayOfWeek = today.getDay() // 0 = Sunday
-    
-    // Calculate current week's Sunday
     const currentSunday = new Date(today)
-    currentSunday.setDate(today.getDate() - dayOfWeek)
+    currentSunday.setDate(today.getDate() - dayOfWeek + weekOffset * 7)
     currentSunday.setHours(0, 0, 0, 0)
-    
-    // Calculate current week's Saturday
     const currentSaturday = new Date(currentSunday)
     currentSaturday.setDate(currentSunday.getDate() + 6)
-    
-    // Calculate previous week's Sunday and Saturday
-    const previousSunday = new Date(currentSunday)
-    previousSunday.setDate(currentSunday.getDate() - 7)
-    
-    const previousSaturday = new Date(previousSunday)
-    previousSaturday.setDate(previousSunday.getDate() + 6)
-    
-    if (productivityWeek === 'current') {
-      return {
-        startDate: formatDateLocal(currentSunday),
-        endDate: formatDateLocal(currentSaturday),
-        label: 'Current Week'
-      }
-    } else {
-      return {
-        startDate: formatDateLocal(previousSunday),
-        endDate: formatDateLocal(previousSaturday),
-        label: 'Previous Week'
-      }
-    }
-  }, [productivityWeek])
+    return { start: formatDateLocal(currentSunday), end: formatDateLocal(currentSaturday) }
+  }
+
+  // Initialise to current week on mount
+  const { start: initStart, end: initEnd } = useMemo(() => getWeekBoundaries(0), [])
+
+  // Resolved dates used for the API query (fall back to current week defaults)
+  const productivityWeekDates = useMemo(() => {
+    const start = productivityFromDate || initStart
+    const end = productivityToDate || initEnd
+    return { startDate: start, endDate: end }
+  }, [productivityFromDate, productivityToDate, initStart, initEnd])
+
+  // Quick-action helpers
+  const applyCurrentWeek = () => {
+    const { start, end } = getWeekBoundaries(0)
+    setProductivityFromDate(start)
+    setProductivityToDate(end)
+    setActiveProductivityQuick('current')
+  }
+
+  const applyPreviousWeek = () => {
+    const { start, end } = getWeekBoundaries(-1)
+    setProductivityFromDate(start)
+    setProductivityToDate(end)
+    setActiveProductivityQuick('previous')
+  }
+
+  // Initialise to current week on first render
+  useEffect(() => {
+    applyCurrentWeek()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Use React Query for caching recent orders with filters
   // Now fetches user's orders (where they worked on step1 OR step2)
@@ -484,34 +495,70 @@ export const ExaminerDashboard = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {/* Week Filter */}
-                  <Select value={productivityWeek} onValueChange={(value: 'current' | 'previous') => setProductivityWeek(value)}>
-                    <SelectTrigger className="h-7 w-[130px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="current">Current Week</SelectItem>
-                      <SelectItem value="previous">Previous Week</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="text-right">
-                    {loadingProductivity ? (
-                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                    ) : formattedProductivityData.productivityPercent !== null ? (
-                      <div className="text-2xl font-bold text-blue-600">
-                        {formattedProductivityData.productivityPercent.toFixed(1)}%
-                      </div>
-                    ) : (
-                      <div className="text-lg font-medium text-gray-500">
-                        N/A
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2">
+                  {loadingProductivity ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  ) : formattedProductivityData.productivityPercent !== null ? (
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formattedProductivityData.productivityPercent.toFixed(1)}%
+                    </div>
+                  ) : (
+                    <div className="text-lg font-medium text-gray-500">
+                      N/A
+                    </div>
+                  )}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
+              {/* Productivity Date Range Filter */}
+              <div className="mb-3 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant={activeProductivityQuick === 'current' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-3"
+                    onClick={applyCurrentWeek}
+                  >
+                    Current Week
+                  </Button>
+                  <Button
+                    variant={activeProductivityQuick === 'previous' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-3"
+                    onClick={applyPreviousWeek}
+                  >
+                    Previous Week
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 flex-1">
+                    <span className="text-xs text-gray-500 whitespace-nowrap">From</span>
+                    <Input
+                      type="date"
+                      value={productivityFromDate}
+                      onChange={(e) => {
+                        setProductivityFromDate(e.target.value)
+                        setActiveProductivityQuick('custom')
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 flex-1">
+                    <span className="text-xs text-gray-500 whitespace-nowrap">To</span>
+                    <Input
+                      type="date"
+                      value={productivityToDate}
+                      onChange={(e) => {
+                        setProductivityToDate(e.target.value)
+                        setActiveProductivityQuick('custom')
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {loadingProductivity ? (
                 <div className="space-y-3 animate-pulse">
                   <div className="w-full bg-gray-200 rounded-full h-2"></div>
