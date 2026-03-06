@@ -79,7 +79,7 @@ export const ExaminerDashboard = () => {
   // Defaults to current week (Sunday–Saturday)
   const [productivityFromDate, setProductivityFromDate] = useState<string>('')
   const [productivityToDate, setProductivityToDate] = useState<string>('')
-  const [activeProductivityQuick, setActiveProductivityQuick] = useState<'current' | 'previous' | 'custom'>('current')
+  const [activeProductivityQuick, setActiveProductivityQuick] = useState<'current_week' | 'previous_week' | 'current_month' | 'previous_month' | 'custom'>('current_week')
 
   // Helper function to format date as YYYY-MM-DD in local timezone
   const formatDateLocal = (date: Date): string => {
@@ -101,6 +101,16 @@ export const ExaminerDashboard = () => {
     return { start: formatDateLocal(currentSunday), end: formatDateLocal(currentSaturday) }
   }
 
+  // Calculate month boundaries for a given month offset (0 = current, -1 = previous)
+  const getMonthBoundaries = (monthOffset: 0 | -1) => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = today.getMonth() + monthOffset // 0-indexed
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    return { start: formatDateLocal(firstDay), end: formatDateLocal(lastDay) }
+  }
+
   // Initialise to current week on mount
   const { start: initStart, end: initEnd } = useMemo(() => getWeekBoundaries(0), [])
 
@@ -116,14 +126,28 @@ export const ExaminerDashboard = () => {
     const { start, end } = getWeekBoundaries(0)
     setProductivityFromDate(start)
     setProductivityToDate(end)
-    setActiveProductivityQuick('current')
+    setActiveProductivityQuick('current_week')
   }
 
   const applyPreviousWeek = () => {
     const { start, end } = getWeekBoundaries(-1)
     setProductivityFromDate(start)
     setProductivityToDate(end)
-    setActiveProductivityQuick('previous')
+    setActiveProductivityQuick('previous_week')
+  }
+
+  const applyCurrentMonth = () => {
+    const { start, end } = getMonthBoundaries(0)
+    setProductivityFromDate(start)
+    setProductivityToDate(end)
+    setActiveProductivityQuick('current_month')
+  }
+
+  const applyPreviousMonth = () => {
+    const { start, end } = getMonthBoundaries(-1)
+    setProductivityFromDate(start)
+    setProductivityToDate(end)
+    setActiveProductivityQuick('previous_month')
   }
 
   // Initialise to current week on first render
@@ -524,24 +548,28 @@ export const ExaminerDashboard = () => {
 
               {/* Productivity Date Range Filter — lives in header */}
               <div className="mt-3 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant={activeProductivityQuick === 'current' ? 'default' : 'outline'}
-                    size="sm"
-                    className="h-7 text-xs px-3"
-                    onClick={applyCurrentWeek}
-                  >
-                    Current Week
-                  </Button>
-                  <Button
-                    variant={activeProductivityQuick === 'previous' ? 'default' : 'outline'}
-                    size="sm"
-                    className="h-7 text-xs px-3"
-                    onClick={applyPreviousWeek}
-                  >
-                    Previous Week
-                  </Button>
-                </div>
+                <Select
+                  value={activeProductivityQuick}
+                  onValueChange={(value: typeof activeProductivityQuick) => {
+                    if (value === 'current_week') applyCurrentWeek()
+                    else if (value === 'previous_week') applyPreviousWeek()
+                    else if (value === 'current_month') applyCurrentMonth()
+                    else if (value === 'previous_month') applyPreviousMonth()
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current_week" className="text-xs">Current Week</SelectItem>
+                    <SelectItem value="previous_week" className="text-xs">Previous Week</SelectItem>
+                    <SelectItem value="current_month" className="text-xs">Current Month</SelectItem>
+                    <SelectItem value="previous_month" className="text-xs">Previous Month</SelectItem>
+                    {activeProductivityQuick === 'custom' && (
+                      <SelectItem value="custom" className="text-xs">Custom Range</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 flex-1">
                     <span className="text-xs text-gray-500 whitespace-nowrap">From</span>
