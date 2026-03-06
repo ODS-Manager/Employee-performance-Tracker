@@ -286,7 +286,10 @@ export const ExaminerDashboard = () => {
         avgCceQuality: 0,
         totalAudits: 0,
         totalFilesReviewed: 0,
+        ofeCount: 0,
+        filesWithError: 0,
         totalErrors: 0,
+        filesWithCceError: 0,
         hasData: false
       }
     }
@@ -298,14 +301,20 @@ export const ExaminerDashboard = () => {
     let totalOfeQuality = 0
     let totalCceQuality = 0
     let totalFilesReviewed = 0
+    let ofeCount = 0
+    let filesWithError = 0
     let totalErrors = 0
+    let filesWithCceError = 0
 
     audits.forEach(audit => {
       totalFbQuality += Number(audit.fbQuality)
       totalOfeQuality += Number(audit.ofeQuality)
       totalCceQuality += Number(audit.cceQuality)
-      totalFilesReviewed += audit.totalFilesReviewed
-      totalErrors += audit.totalErrors
+      totalFilesReviewed += audit.totalFilesReviewed ?? 0
+      ofeCount += audit.ofeCount ?? 0
+      filesWithError += audit.filesWithError ?? 0
+      totalErrors += audit.totalErrors ?? 0
+      filesWithCceError += audit.filesWithCceError ?? 0
     })
 
     return {
@@ -314,7 +323,10 @@ export const ExaminerDashboard = () => {
       avgCceQuality: (totalCceQuality / totalAudits) * 100,
       totalAudits,
       totalFilesReviewed,
+      ofeCount,
+      filesWithError,
       totalErrors,
+      filesWithCceError,
       hasData: true
     }
   }, [qualityAuditsData])
@@ -509,10 +521,9 @@ export const ExaminerDashboard = () => {
                   )}
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {/* Productivity Date Range Filter */}
-              <div className="mb-3 space-y-2">
+
+              {/* Productivity Date Range Filter — lives in header */}
+              <div className="mt-3 space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant={activeProductivityQuick === 'current' ? 'default' : 'outline'}
@@ -558,7 +569,8 @@ export const ExaminerDashboard = () => {
                   </div>
                 </div>
               </div>
-
+            </CardHeader>
+            <CardContent className="pt-0">
               {loadingProductivity ? (
                 <div className="space-y-3 animate-pulse">
                   <div className="w-full bg-gray-200 rounded-full h-2"></div>
@@ -672,19 +684,31 @@ export const ExaminerDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Quality Stats - Compact */}
-                  <div className="flex items-center justify-between text-xs pt-2 border-t">
-                    <div className="text-center">
-                      <p className="text-gray-500">Audits</p>
+                  {/* Quality Stats - Full Detail */}
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+                    <div className="p-2 bg-gray-50 rounded text-center">
+                      <p className="text-xs text-gray-500">Audits</p>
                       <p className="text-sm font-bold text-gray-900">{qualityMetrics.totalAudits}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-gray-500">Files</p>
+                    <div className="p-2 bg-gray-50 rounded text-center">
+                      <p className="text-xs text-gray-500">Files Reviewed</p>
                       <p className="text-sm font-bold text-gray-900">{qualityMetrics.totalFilesReviewed}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-gray-500">Errors</p>
-                      <p className="text-sm font-bold text-gray-900">{qualityMetrics.totalErrors}</p>
+                    <div className="p-2 bg-blue-50 rounded text-center">
+                      <p className="text-xs text-blue-600">OFE Count</p>
+                      <p className="text-sm font-bold text-blue-800">{qualityMetrics.ofeCount}</p>
+                    </div>
+                    <div className="p-2 bg-orange-50 rounded text-center">
+                      <p className="text-xs text-orange-600">Files w/ Error</p>
+                      <p className="text-sm font-bold text-orange-800">{qualityMetrics.filesWithError}</p>
+                    </div>
+                    <div className="p-2 bg-red-50 rounded text-center">
+                      <p className="text-xs text-red-600">Total Errors</p>
+                      <p className="text-sm font-bold text-red-800">{qualityMetrics.totalErrors}</p>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded text-center">
+                      <p className="text-xs text-purple-600">CCE Errors</p>
+                      <p className="text-sm font-bold text-purple-800">{qualityMetrics.filesWithCceError}</p>
                     </div>
                   </div>
                 </div>
