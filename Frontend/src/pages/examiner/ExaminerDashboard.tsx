@@ -996,7 +996,13 @@ export const ExaminerDashboard = () => {
                             <TableCell className="text-sm py-3">{order.state}</TableCell>
                             <TableCell className="py-3">
                               <Badge variant="outline" className="text-xs px-2 py-0.5">
-                                {order.processTypeName || '-'}
+                                {order.step1UserId === user?.id && order.step2UserId === user?.id
+                                  ? 'Both Steps'
+                                  : order.step2UserId === user?.id
+                                  ? 'Step 2'
+                                  : order.step1UserId === user?.id
+                                  ? 'Step 1'
+                                  : order.processTypeName || '-'}
                               </Badge>
                             </TableCell>
                             <TableCell className="py-3">
