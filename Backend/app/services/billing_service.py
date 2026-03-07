@@ -597,7 +597,12 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
                 if matches_team:
                     if team_name not in team_product_data:
                         team_product_data[team_name] = {}
-                    team_product_data[team_name][product] = detail.total_count
+                    team_product_data[team_name][product] = {
+                        'single_seat': detail.single_seat_count,
+                        'step1': detail.only_step1_count,
+                        'step2': detail.only_step2_count,
+                        'total': detail.total_count
+                    }
     
     # Get all unique product types and teams
     all_products = sorted(set(
@@ -622,74 +627,135 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     
     # Header row
     header_row = 1
-    ws.cell(row=header_row, column=1).value = "Team Name"
-    ws.cell(row=header_row, column=1).fill = header_fill
-    ws.cell(row=header_row, column=1).font = header_font
-    ws.cell(row=header_row, column=1).alignment = center_align
-    ws.cell(row=header_row, column=1).border = border
+    headers = ["Team Name", "Product Type", "Process Type", "Count"]
+    for col_idx, header_text in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col_idx)
+        cell.value = header_text
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = border
     
-    ws.cell(row=header_row, column=2).value = "Product Type"
-    ws.cell(row=header_row, column=2).fill = header_fill
-    ws.cell(row=header_row, column=2).font = header_font
-    ws.cell(row=header_row, column=2).alignment = center_align
-    ws.cell(row=header_row, column=2).border = border
-    
-    ws.cell(row=header_row, column=3).value = "Total"
-    ws.cell(row=header_row, column=3).fill = header_fill
-    ws.cell(row=header_row, column=3).font = header_font
-    ws.cell(row=header_row, column=3).alignment = center_align
-    ws.cell(row=header_row, column=3).border = border
-    
-    # Write data rows
+    # Write data rows - 3 sub-rows per product type
     current_row = header_row + 1
-    total_files = 0
+    grand_total_single_seat = 0
+    grand_total_step1 = 0
+    grand_total_step2 = 0
     
     for team_name in sorted_teams:
         products = team_product_data[team_name]
-        # Sort products alphabetically
         sorted_products = sorted(products.keys())
+        team_first_row = True
         
-        for idx, product in enumerate(sorted_products):
-            count = products[product]
+        for product in sorted_products:
+            counts = products[product]
+            grand_total_single_seat += counts['single_seat']
+            grand_total_step1 += counts['step1']
+            grand_total_step2 += counts['step2']
             
-            # Team name only on first row of each team
-            if idx == 0:
-                ws.cell(row=current_row, column=1).value = team_name
-            else:
-                ws.cell(row=current_row, column=1).value = ""
+            sub_rows = [
+                ('Single Seat', counts['single_seat']),
+                ('Step 1', counts['step1']),
+                ('Step 2', counts['step2']),
+            ]
             
-            ws.cell(row=current_row, column=2).value = product
-            ws.cell(row=current_row, column=3).value = count
-            
-            # Apply borders and alignment
-            for col in range(1, 4):
-                cell = ws.cell(row=current_row, column=col)
-                cell.border = border
-                if col == 3:  # Total column
-                    cell.alignment = center_align
-            
-            total_files += count
-            current_row += 1
+            for sub_idx, (process_label, count) in enumerate(sub_rows):
+                # Team name only on first sub-row of the first product of each team
+                if team_first_row and sub_idx == 0:
+                    ws.cell(row=current_row, column=1).value = team_name
+                    ws.cell(row=current_row, column=1).font = Font(bold=True)
+                    team_first_row = False
+                else:
+                    ws.cell(row=current_row, column=1).value = ""
+                
+                # Product name only on first sub-row of each product
+                if sub_idx == 0:
+                    ws.cell(row=current_row, column=2).value = product
+                    ws.cell(row=current_row, column=2).font = Font(bold=False)
+                else:
+                    ws.cell(row=current_row, column=2).value = ""
+                
+                ws.cell(row=current_row, column=3).value = process_label
+                ws.cell(row=current_row, column=4).value = count
+                
+                # Apply borders and alignment
+                for col in range(1, 5):
+                    cell = ws.cell(row=current_row, column=col)
+                    cell.border = border
+                    if col == 4:  # Count column
+                        cell.alignment = center_align
+                
+                current_row += 1
     
-    # Total row
+    # Grand total rows
+    total_fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+    
+    # Single Seat total
     ws.cell(row=current_row, column=1).value = "GRAND TOTAL"
     ws.cell(row=current_row, column=1).font = Font(bold=True)
     ws.cell(row=current_row, column=2).value = ""
-    ws.cell(row=current_row, column=3).value = total_files
-    
-    # Apply styling to total row
-    for col in range(1, 4):
+    ws.cell(row=current_row, column=3).value = "Single Seat"
+    ws.cell(row=current_row, column=3).font = Font(bold=True)
+    ws.cell(row=current_row, column=4).value = grand_total_single_seat
+    for col in range(1, 5):
         cell = ws.cell(row=current_row, column=col)
-        cell.fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+        cell.fill = total_fill
         cell.font = Font(bold=True)
         cell.border = border
-        if col == 3:
+        if col == 4:
+            cell.alignment = center_align
+    current_row += 1
+    
+    # Step 1 total
+    ws.cell(row=current_row, column=1).value = ""
+    ws.cell(row=current_row, column=2).value = ""
+    ws.cell(row=current_row, column=3).value = "Step 1"
+    ws.cell(row=current_row, column=3).font = Font(bold=True)
+    ws.cell(row=current_row, column=4).value = grand_total_step1
+    for col in range(1, 5):
+        cell = ws.cell(row=current_row, column=col)
+        cell.fill = total_fill
+        cell.font = Font(bold=True)
+        cell.border = border
+        if col == 4:
+            cell.alignment = center_align
+    current_row += 1
+    
+    # Step 2 total
+    ws.cell(row=current_row, column=1).value = ""
+    ws.cell(row=current_row, column=2).value = ""
+    ws.cell(row=current_row, column=3).value = "Step 2"
+    ws.cell(row=current_row, column=3).font = Font(bold=True)
+    ws.cell(row=current_row, column=4).value = grand_total_step2
+    for col in range(1, 5):
+        cell = ws.cell(row=current_row, column=col)
+        cell.fill = total_fill
+        cell.font = Font(bold=True)
+        cell.border = border
+        if col == 4:
+            cell.alignment = center_align
+    current_row += 1
+    
+    # Overall total row
+    total_files = grand_total_single_seat + grand_total_step1 + grand_total_step2
+    overall_fill = PatternFill(start_color="D6DCE4", end_color="D6DCE4", fill_type="solid")
+    ws.cell(row=current_row, column=1).value = "TOTAL"
+    ws.cell(row=current_row, column=2).value = ""
+    ws.cell(row=current_row, column=3).value = ""
+    ws.cell(row=current_row, column=4).value = total_files
+    for col in range(1, 5):
+        cell = ws.cell(row=current_row, column=col)
+        cell.fill = overall_fill
+        cell.font = Font(bold=True, size=12)
+        cell.border = border
+        if col == 4:
             cell.alignment = center_align
     
     # Adjust column widths
     ws.column_dimensions['A'].width = 25  # Team Name
-    ws.column_dimensions['B'].width = 30  # Product Type
-    ws.column_dimensions['C'].width = 12  # Total
+    ws.column_dimensions['B'].width = 25  # Product Type
+    ws.column_dimensions['C'].width = 15  # Process Type
+    ws.column_dimensions['D'].width = 12  # Count
     
     # Save to BytesIO
     excel_file = BytesIO()

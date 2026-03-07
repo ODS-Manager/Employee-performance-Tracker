@@ -89,7 +89,9 @@ export const BillingPage = () => {
         setOrganizations(orgsRes.items || [])
         // Note: We no longer set a default org - it's controlled by global filter
       }
-      const reportsRes = await billingApi.list()
+      const params: any = {}
+      if (selectedOrgId) params.orgId = selectedOrgId
+      const reportsRes = await billingApi.list(params)
       setReports(reportsRes.items || [])
     } catch (error) {
       console.error('Failed to fetch initial data:', error)
@@ -105,6 +107,7 @@ export const BillingPage = () => {
       if (listFilterStartDate) params.startDate = listFilterStartDate
       if (listFilterEndDate) params.endDate = listFilterEndDate
       if (filterStatus) params.status = filterStatus
+      if (selectedOrgId) params.orgId = selectedOrgId
 
       const response = await billingApi.list(params)
       setReports(response.items || [])
@@ -427,7 +430,13 @@ export const BillingPage = () => {
                     'Georgia', 'Vietnam Team'
                   ]
 
-                  const teamData: Record<string, Array<{ product: string; count: number }>> = {}
+                  const teamData: Record<string, Array<{
+                    product: string
+                    singleSeatCount: number
+                    onlyStep1Count: number
+                    onlyStep2Count: number
+                    totalCount: number
+                  }>> = {}
                   
                   // Define team-to-product mapping based on your requirements
                   const teamProductMapping: Record<string, string[]> = {
@@ -471,7 +480,10 @@ export const BillingPage = () => {
                           }
                           teamData[teamName].push({
                             product: productRemainder,
-                            count: detail.totalCount
+                            singleSeatCount: detail.singleSeatCount,
+                            onlyStep1Count: detail.onlyStep1Count,
+                            onlyStep2Count: detail.onlyStep2Count,
+                            totalCount: detail.totalCount
                           })
                         }
                       }
@@ -486,6 +498,18 @@ export const BillingPage = () => {
 
                   sortedTeams.forEach(team => {
                     teamData[team].sort((a, b) => a.product.localeCompare(b.product))
+                  })
+
+                  // Calculate grand totals
+                  let grandTotalSingleSeat = 0
+                  let grandTotalStep1 = 0
+                  let grandTotalStep2 = 0
+                  sortedTeams.forEach(team => {
+                    teamData[team].forEach(p => {
+                      grandTotalSingleSeat += p.singleSeatCount
+                      grandTotalStep1 += p.onlyStep1Count
+                      grandTotalStep2 += p.onlyStep2Count
+                    })
                   })
 
                   return (
@@ -515,25 +539,70 @@ export const BillingPage = () => {
                           <TableRow>
                             <TableHead>Team Name</TableHead>
                             <TableHead>Product Type</TableHead>
-                            <TableHead className="text-center">Total</TableHead>
+                            <TableHead>Process Type</TableHead>
+                            <TableHead className="text-center">Count</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {sortedTeams.map((teamName) => (
-                            teamData[teamName].map((product, idx) => (
-                              <TableRow key={`${teamName}-${product.product}`}>
-                                <TableCell className={idx === 0 ? 'font-medium' : ''}>
-                                  {idx === 0 ? teamName : ''}
-                                </TableCell>
-                                <TableCell>{product.product}</TableCell>
-                                <TableCell className="text-center font-semibold">
-                                  {product.count}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          ))}
-                          <TableRow className="bg-slate-50 font-semibold">
+                          {sortedTeams.map((teamName) => {
+                            const products = teamData[teamName]
+                            let teamRowRendered = false
+
+                            return products.map((product) => {
+                              const subRows = [
+                                { label: 'Single Seat', count: product.singleSeatCount },
+                                { label: 'Step 1', count: product.onlyStep1Count },
+                                { label: 'Step 2', count: product.onlyStep2Count },
+                              ]
+
+                              return subRows.map((sub, subIdx) => {
+                                const showTeamName = !teamRowRendered
+                                const showProductName = subIdx === 0
+                                if (showTeamName) teamRowRendered = true
+
+                                return (
+                                  <TableRow
+                                    key={`${teamName}-${product.product}-${sub.label}`}
+                                    className={subIdx === 2 ? 'border-b-2 border-slate-200' : ''}
+                                  >
+                                    <TableCell className={showTeamName ? 'font-medium' : ''}>
+                                      {showTeamName ? teamName : ''}
+                                    </TableCell>
+                                    <TableCell className={showProductName ? 'font-medium' : ''}>
+                                      {showProductName ? product.product : ''}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {sub.label}
+                                    </TableCell>
+                                    <TableCell className="text-center font-semibold">
+                                      {sub.count}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })
+                            })
+                          })}
+                          <TableRow className="bg-slate-100 font-semibold border-t-2">
                             <TableCell>GRAND TOTAL</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-sm">Single Seat</TableCell>
+                            <TableCell className="text-center">{grandTotalSingleSeat}</TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-100 font-semibold">
+                            <TableCell></TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-sm">Step 1</TableCell>
+                            <TableCell className="text-center">{grandTotalStep1}</TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-100 font-semibold">
+                            <TableCell></TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-sm">Step 2</TableCell>
+                            <TableCell className="text-center">{grandTotalStep2}</TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-50 font-bold border-t-2">
+                            <TableCell>TOTAL</TableCell>
+                            <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-center">{preview.totalFiles}</TableCell>
                           </TableRow>

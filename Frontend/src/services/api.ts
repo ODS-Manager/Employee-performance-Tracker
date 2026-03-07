@@ -957,8 +957,15 @@ export const billingApi = {
     billingMonth?: number
     billingYear?: number
     status?: string
+    orgId?: number
   }): Promise<BillingReportListResponse> => {
-    const response = await api.get('/billing', { params })
+    const queryParams: Record<string, unknown> = {}
+    if (params?.teamId !== undefined) queryParams.team_id = params.teamId
+    if (params?.billingMonth !== undefined) queryParams.billing_month = params.billingMonth
+    if (params?.billingYear !== undefined) queryParams.billing_year = params.billingYear
+    if (params?.status !== undefined) queryParams.status = params.status
+    if (params?.orgId !== undefined) queryParams.org_id = params.orgId
+    const response = await api.get('/billing', { params: queryParams })
     return response.data
   },
 
