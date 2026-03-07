@@ -154,18 +154,11 @@ def preview_billing_data(
     start_date = request.start_date
     end_date = request.end_date
     
-    # Get all active teams in the organization
+    # Get all active teams in the organization (eager-load their products from team_products table)
     teams = db.query(Team).filter(
         Team.org_id == org_id,
         Team.is_active == True
     ).order_by(Team.name).all()
-    
-    # Get all unique product types from the organization's orders
-    product_types = db.query(Order.product_type).filter(
-        Order.org_id == org_id,
-        Order.deleted_at.is_(None)
-    ).distinct().all()
-    product_types = sorted([pt[0] for pt in product_types if pt[0]])
     
     # Query ALL pending orders with Completed status in the organization for this period
     # ONLY include Completed orders (order_status_id = 1) for billing
@@ -178,24 +171,28 @@ def preview_billing_data(
         Order.deleted_at.is_(None)
     ).all()
     
-    # Initialize billing_data with ALL teams and ALL product types (with 0 counts)
+    # Initialize billing_data using each team's configured products from team_products table
     billing_data: Dict[str, Dict[str, int]] = {}
     
+    # Build a team_id -> team lookup for order processing
+    team_lookup: Dict[int, Team] = {team.id: team for team in teams}
+    
     for team in teams:
-        for product_type in product_types:
-            formatted_product = format_product_type(team.name, product_type)
+        # Use the team's configured products from the team_products table (source of truth)
+        for team_product in team.products:
+            formatted_product = format_product_type(team.name, team_product.product_type)
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': product_type
+                'product_type': team_product.product_type
             }
     
     # Now count actual orders
     for order in orders:
-        # Get team name
-        team = db.query(Team).filter(Team.id == order.team_id).first()
+        # Get team from lookup (avoid extra DB queries)
+        team = team_lookup.get(order.team_id)
         if not team:
             continue
         
@@ -203,7 +200,7 @@ def preview_billing_data(
         formatted_product = format_product_type(team.name, order.product_type)
         
         if formatted_product not in billing_data:
-            # This shouldn't happen since we initialized all combinations
+            # Order has a product type not configured in team_products — still include it
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
@@ -274,18 +271,11 @@ def create_billing_report(
     start_date = data.start_date
     end_date = data.end_date
     
-    # Get all active teams in the organization
+    # Get all active teams in the organization (eager-load their products from team_products table)
     teams = db.query(Team).filter(
         Team.org_id == org_id,
         Team.is_active == True
     ).order_by(Team.name).all()
-    
-    # Get all unique product types from the organization's orders
-    product_types = db.query(Order.product_type).filter(
-        Order.org_id == org_id,
-        Order.deleted_at.is_(None)
-    ).distinct().all()
-    product_types = sorted([pt[0] for pt in product_types if pt[0]])
     
     # Query pending orders with Completed status for this period
     # ONLY include Completed orders (order_status_id = 1) for billing
@@ -310,24 +300,28 @@ def create_billing_report(
     db.add(report)
     db.flush()  # Get report.id
     
-    # Initialize billing_data with ALL teams and ALL product types (with 0 counts)
+    # Initialize billing_data using each team's configured products from team_products table
     billing_data: Dict[str, Dict[str, int]] = {}
     
+    # Build a team_id -> team lookup for order processing
+    team_lookup: Dict[int, Team] = {team.id: team for team in teams}
+    
     for team in teams:
-        for product_type in product_types:
-            formatted_product = format_product_type(team.name, product_type)
+        # Use the team's configured products from the team_products table (source of truth)
+        for team_product in team.products:
+            formatted_product = format_product_type(team.name, team_product.product_type)
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': product_type
+                'product_type': team_product.product_type
             }
     
     # Now count actual orders
     for order in orders:
-        # Get team name
-        team = db.query(Team).filter(Team.id == order.team_id).first()
+        # Get team from lookup (avoid extra DB queries)
+        team = team_lookup.get(order.team_id)
         if not team:
             continue
         
@@ -335,7 +329,7 @@ def create_billing_report(
         formatted_product = format_product_type(team.name, order.product_type)
         
         if formatted_product not in billing_data:
-            # This shouldn't happen since we initialized all combinations
+            # Order has a product type not configured in team_products — still include it
             billing_data[formatted_product] = {
                 'single_seat': 0,
                 'only_step1': 0,
@@ -535,48 +529,17 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     # Extract team and product from formatted product_type (e.g., "WA Full Search" -> team="Washington", product="Full Search")
     team_product_data = {}
     
-    # Map codes to full names
-    team_name_map = {
-        'AZ': 'Arizona',
-        'CA': 'California',
-        'CO': 'Colorado',
-        'FI': 'FIF',
-        'FL': 'Florida',
-        'GA': 'Georgia',
-        'GI': 'GI Clearing',
-        'GU': 'Guam',
-        'MI': 'Michigan',
-        'NS': 'National Streamline',
-        'OH': 'Ohio',
-        'OR': 'Oregon',
-        'PA': 'Pennsylvania',
-        'RS': 'Regional Streamline',
-        'SC': 'SCB & PD',
-        'TX': 'Texas',
-        'UT': 'Utah',
-        'VN': 'Vietnam Team',
-        'WA': 'Washington'
-    }
+    # Build reverse mapping from short code to full team name using the org's actual teams
+    # This avoids any hardcoded team_name_map
+    org_teams = db.query(Team).filter(
+        Team.org_id == report.org_id
+    ).all()
     
-    # Define team-to-product mapping to filter products for each team
-    team_product_mapping = {
-        'Florida': ['Full Search', 'Update', 'Date Down', 'Amend Title', 'Screening', 'M&B'],
-        'California': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'GI Clearing': ['GI Clearing'],
-        'Washington': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Michigan': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Colorado': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Utah': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Oregon': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Regional Streamline': ['RS Clear', 'RS Review', 'RS Search', 'RS No C2G'],
-        'National Streamline': ['NS Clear', 'NS Review', 'NS Search', 'NS No C2G'],
-        'FIF': ['FAST', 'Traditional'],
-        'SCB & PD': ['Schedule B', 'Product Delivery'],
-        'Arizona': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Texas': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-        'Pennsylvania': ['Search and Exam', 'Vendor Search'],
-        'Ohio': ['Full Search', 'Vendor Exam', 'Screening', 'Update']
-    }
+    # Build short_code -> team_name mapping dynamically from actual teams
+    team_name_map = {}
+    for t in org_teams:
+        short = get_team_short_name(t.name)
+        team_name_map[short] = t.name
     
     for detail in report.details:
         # Extract team code and product from product_type
@@ -586,23 +549,14 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
             product = parts[1].strip()
             team_name = team_name_map.get(team_code, team_code)
             
-            # Only include products that belong to this team
-            if team_name in team_product_mapping:
-                # Check if this product matches any expected products for this team
-                matches_team = any(
-                    expected_product in product or product in expected_product
-                    for expected_product in team_product_mapping[team_name]
-                )
-                
-                if matches_team:
-                    if team_name not in team_product_data:
-                        team_product_data[team_name] = {}
-                    team_product_data[team_name][product] = {
-                        'single_seat': detail.single_seat_count,
-                        'step1': detail.only_step1_count,
-                        'step2': detail.only_step2_count,
-                        'total': detail.total_count
-                    }
+            if team_name not in team_product_data:
+                team_product_data[team_name] = {}
+            team_product_data[team_name][product] = {
+                'single_seat': detail.single_seat_count,
+                'step1': detail.only_step1_count,
+                'step2': detail.only_step2_count,
+                'total': detail.total_count
+            }
     
     # Get all unique product types and teams
     all_products = sorted(set(
@@ -611,13 +565,8 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
         for product in products.keys()
     ))
     
-    # Define team order
-    team_order = [
-        'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan', 
-        'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline', 
-        'FIF', 'SCB & PD', 'Arizona', 'Texas', 'Pennsylvania', 'Ohio', 'Guam',
-        'Georgia', 'Vietnam Team'
-    ]
+    # Sort teams by org team order (as they appear in the database), then alphabetically for any extras
+    team_order = [t.name for t in org_teams]
     
     # Sort teams by the defined order
     sorted_teams = sorted(

@@ -437,56 +437,25 @@ export const BillingPage = () => {
                     onlyStep2Count: number
                     totalCount: number
                   }>> = {}
-                  
-                  // Define team-to-product mapping based on your requirements
-                  const teamProductMapping: Record<string, string[]> = {
-                    'Florida': ['Full Search', 'Update', 'Date Down', 'Amend Title', 'Screening', 'M&B'],
-                    'California': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'GI Clearing': ['GI Clearing'],
-                    'Washington': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Michigan': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Colorado': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Utah': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Oregon': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Regional Streamline': ['RS Clear', 'RS Review', 'RS Search', 'RS No C2G'],
-                    'National Streamline': ['NS Clear', 'NS Review', 'NS Search', 'NS No C2G'],
-                    'FIF': ['FAST', 'Traditional'],
-                    'SCB & PD': ['Schedule B', 'Product Delivery'],
-                    'Arizona': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Texas': ['Full Search', 'Update', 'Date Down', 'Amend Title'],
-                    'Pennsylvania': ['Search and Exam', 'Vendor Search'],
-                    'Ohio': ['Full Search', 'Vendor Exam', 'Screening', 'Update']
-                  }
 
                   preview.details.forEach((detail) => {
-                    // Try to extract team code from product type
+                    // Extract team code from product type (e.g., "WA Full Search" -> code="WA", product="Full Search")
                     const parts = detail.productType.split(' ')
                     if (parts.length >= 1) {
                       const teamCode = parts[0]
                       const productRemainder = detail.productType.substring(teamCode.length + 1).trim()
                       const teamName = teamNameMap[teamCode] || teamCode
 
-                      // Only add if this product type belongs to this team
-                      if (teamProductMapping[teamName]) {
-                        // Check if the product matches any of the expected products for this team
-                        const matchesTeam = teamProductMapping[teamName].some(expectedProduct => 
-                          productRemainder.includes(expectedProduct) || 
-                          detail.productType.includes(expectedProduct)
-                        )
-                        
-                        if (matchesTeam) {
-                          if (!teamData[teamName]) {
-                            teamData[teamName] = []
-                          }
-                          teamData[teamName].push({
-                            product: productRemainder,
-                            singleSeatCount: detail.singleSeatCount,
-                            onlyStep1Count: detail.onlyStep1Count,
-                            onlyStep2Count: detail.onlyStep2Count,
-                            totalCount: detail.totalCount
-                          })
-                        }
+                      if (!teamData[teamName]) {
+                        teamData[teamName] = []
                       }
+                      teamData[teamName].push({
+                        product: productRemainder,
+                        singleSeatCount: detail.singleSeatCount,
+                        onlyStep1Count: detail.onlyStep1Count,
+                        onlyStep2Count: detail.onlyStep2Count,
+                        totalCount: detail.totalCount
+                      })
                     }
                   })
 
