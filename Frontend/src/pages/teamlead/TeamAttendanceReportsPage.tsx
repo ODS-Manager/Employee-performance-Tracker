@@ -4,25 +4,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Avatar, AvatarFallback } from '../../components/ui/avatar'
+import { Input } from '../../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu'
-import { Download, Users, Loader2, Shield, LogOut, Calendar as CalendarIcon } from 'lucide-react'
+import { Download, Users, Loader2, Shield, LogOut, Calendar as CalendarIcon, Filter } from 'lucide-react'
 import odsLogo from '../../assets/ods-logo.png'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
-import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
 import { useAuthStore } from '../../store/authStore'
 import { getInitials, handleLogoutFlow } from '../../utils/helpers'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 import toast from 'react-hot-toast'
 
 export const TeamAttendanceReportsPage: React.FC = () => {
@@ -30,30 +30,33 @@ export const TeamAttendanceReportsPage: React.FC = () => {
   const { user, logout } = useAuthStore()
   const [teams, setTeams] = useState<TeamSimple[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
-  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'))
   const [report, setReport] = useState<TeamAttendanceReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingReport, setLoadingReport] = useState(false)
+
+  // Date range state — defaults to current week (Mon–Fri)
+  const today = new Date()
+  const defaultFrom = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const defaultTo = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const [fromDate, setFromDate] = useState<string>(defaultFrom)
+  const [toDate, setToDate] = useState<string>(defaultTo)
 
   useEffect(() => {
     loadTeams()
   }, [])
 
   useEffect(() => {
-    if (selectedTeamId) {
+    if (selectedTeamId && fromDate && toDate) {
       loadReport()
     }
-  }, [selectedTeamId, selectedMonth])
+  }, [selectedTeamId, fromDate, toDate])
 
   const loadTeams = async () => {
     setLoading(true)
     try {
       const response = await teamsApi.myTeams()
-      const userTeams = response.items.filter(
-        (team) => team.isActive
-      )
+      const userTeams = response.items.filter((team) => team.isActive)
       setTeams(userTeams)
-
       if (userTeams.length === 1) {
         setSelectedTeamId(userTeams[0].id)
       }
@@ -66,14 +69,10 @@ export const TeamAttendanceReportsPage: React.FC = () => {
   }
 
   const loadReport = async () => {
-    if (!selectedTeamId) return
-
+    if (!selectedTeamId || !fromDate || !toDate) return
     setLoadingReport(true)
     try {
-      const startDate = format(startOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd')
-      const endDate = format(endOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd')
-      
-      const data = await attendanceApi.getTeamAttendanceReport(selectedTeamId, startDate, endDate)
+      const data = await attendanceApi.getTeamAttendanceReport(selectedTeamId, fromDate, toDate)
       setReport(data)
     } catch (error: any) {
       console.error('Failed to load report:', error)
@@ -83,12 +82,29 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     }
   }
 
+  // Quick date range presets
+  const applyCurrentWeek = () => {
+    setFromDate(format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+    setToDate(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+  }
+
+  const applyPreviousWeek = () => {
+    const prevWeekDay = subWeeks(today, 1)
+    setFromDate(format(startOfWeek(prevWeekDay, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+    setToDate(format(endOfWeek(prevWeekDay, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+  }
+
+  const applyCurrentMonth = () => {
+    setFromDate(format(startOfMonth(today), 'yyyy-MM-dd'))
+    setToDate(format(endOfMonth(today), 'yyyy-MM-dd'))
+  }
+
   const handleExportCSV = () => {
     if (!report) return
 
-    const headers = ['Employee ID', 'Employee Name', 'Working Days', 'Days Present', 'Days Absent', 'Days Leave', 'Attendance %']
-    const rows = report.employees.map(emp => [
-      emp.examinerId || 'N/A',
+    const examiners = report.examiners || []
+    const headers = ['Employee Name', 'Working Days', 'Days Present', 'Days Absent', 'Days Leave', 'Attendance %']
+    const rows = examiners.map(emp => [
       emp.userName || 'N/A',
       emp.workingDays,
       emp.daysPresent,
@@ -98,6 +114,9 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     ])
 
     const csvContent = [
+      `Team: ${report.teamName}`,
+      `Period: ${fromDate} to ${toDate}`,
+      '',
       headers.join(','),
       ...rows.map(row => row.join(','))
     ].join('\n')
@@ -106,7 +125,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `attendance-report-${report.teamName}-${selectedMonth}.csv`
+    a.download = `attendance-report-${report.teamName}-${fromDate}-to-${toDate}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
     toast.success('Report exported successfully')
@@ -117,15 +136,6 @@ export const TeamAttendanceReportsPage: React.FC = () => {
   }
 
   const selectedTeam = teams.find((t) => t.id === selectedTeamId)
-
-  // Generate month options (current month and past 11 months)
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const date = subMonths(new Date(), i)
-    return {
-      value: format(date, 'yyyy-MM'),
-      label: format(date, 'MMMM yyyy')
-    }
-  })
 
   if (loading) {
     return (
@@ -142,6 +152,8 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     )
   }
 
+  const examiners = report?.examiners || []
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -153,39 +165,16 @@ export const TeamAttendanceReportsPage: React.FC = () => {
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
                 <p className="text-sm text-slate-600">
-                  {selectedTeam ? selectedTeam.name : teams.length > 1 ? 'Select a team to view reports' : 'View attendance statistics'}
+                  {selectedTeam
+                    ? selectedTeam.name
+                    : teams.length > 1
+                    ? 'Select a team to view reports'
+                    : 'View attendance statistics'}
                 </p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-4">
-              {/* Team Filter - Show if multiple teams */}
-              {teams.length > 1 && (
-                <Select
-                  value={selectedTeamId?.toString() || ''}
-                  onValueChange={(value) => setSelectedTeamId(parseInt(value))}
-                >
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Select a team..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id.toString()}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
 
-              {/* Team Badge - Show if single team */}
-              {teams.length === 1 && selectedTeam && (
-                <Badge variant="outline" className="px-3 py-1">
-                  <Users className="w-3 h-3 mr-1" />
-                  {selectedTeam.name}
-                </Badge>
-              )}
-
+            <div className="flex items-center gap-3">
               {/* Mark Attendance Button */}
               <Button
                 variant="outline"
@@ -199,23 +188,21 @@ export const TeamAttendanceReportsPage: React.FC = () => {
               {/* Export Button */}
               <Button
                 onClick={handleExportCSV}
-                disabled={!report}
+                disabled={!report || examiners.length === 0}
                 className="flex items-center gap-2"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
               </Button>
 
-              <GlobalFilters showOrgFilter={false} />
-
               <HeaderRefreshButton />
-               
+
               {/* Team Lead Badge */}
               <Badge variant="outline" className="px-3 py-1">
                 <Shield className="w-3 h-3 mr-1" />
                 Team Lead
               </Badge>
-              
+
               {/* User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -254,14 +241,17 @@ export const TeamAttendanceReportsPage: React.FC = () => {
         <div className="space-y-6">
           {/* Filters */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-600">Filter Options</CardTitle>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-500" />
+                <CardTitle className="text-sm font-medium text-slate-600">Filter Options</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Team Selection */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block text-slate-700">Select Team</label>
+                <div className="lg:col-span-1">
+                  <label className="text-sm font-medium mb-2 block text-slate-700">Team</label>
                   <Select
                     value={selectedTeamId?.toString() || ''}
                     onValueChange={(value) => setSelectedTeamId(parseInt(value))}
@@ -279,24 +269,40 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                   </Select>
                 </div>
 
-                {/* Month Selection */}
+                {/* From Date */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block text-slate-700">Select Month</label>
-                  <Select
-                    value={selectedMonth}
-                    onValueChange={setSelectedMonth}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {monthOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium mb-2 block text-slate-700">From Date</label>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                  />
+                </div>
+
+                {/* To Date */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block text-slate-700">To Date</label>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Quick Presets */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block text-slate-700">Quick Select</label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={applyCurrentWeek} className="text-xs">
+                      This Week
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={applyPreviousWeek} className="text-xs">
+                      Last Week
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={applyCurrentMonth} className="text-xs">
+                      This Month
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -328,59 +334,45 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-slate-900">
-                      {report.teamSummary.employee_count}
+                      {report.teamSummary?.examiner_count ?? examiners.length}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      In team
-                    </p>
+                    <p className="text-xs text-slate-500 mt-1">In team</p>
                   </CardContent>
                 </Card>
 
                 <Card className="hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-600">
-                      Total Present
-                    </CardTitle>
+                    <CardTitle className="text-sm font-medium text-slate-600">Total Present</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-slate-900">
-                      {report.teamSummary.total_present}
+                    <div className="text-3xl font-bold text-green-600">
+                      {report.teamSummary?.total_present ?? 0}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Days marked
-                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Days marked present</p>
                   </CardContent>
                 </Card>
 
                 <Card className="hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-600">
-                      Total Absent
-                    </CardTitle>
+                    <CardTitle className="text-sm font-medium text-slate-600">Total Absent</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-slate-900">
-                      {report.teamSummary.total_absent}
+                    <div className="text-3xl font-bold text-red-600">
+                      {report.teamSummary?.total_absent ?? 0}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Days unmarked/absent
-                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Days unmarked / absent</p>
                   </CardContent>
                 </Card>
 
                 <Card className="hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-600">
-                      Total Leave
-                    </CardTitle>
+                    <CardTitle className="text-sm font-medium text-slate-600">Total Leave</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-slate-900">
-                      {report.teamSummary.total_leave}
+                    <div className="text-3xl font-bold text-amber-600">
+                      {report.teamSummary?.total_leave ?? 0}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Days on leave
-                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Days on leave</p>
                   </CardContent>
                 </Card>
               </div>
@@ -388,9 +380,14 @@ export const TeamAttendanceReportsPage: React.FC = () => {
               {/* Employee Attendance Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium text-slate-600">
-                    Employee Attendance Details
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium text-slate-600">
+                      Employee Attendance Details
+                    </CardTitle>
+                    <span className="text-xs text-slate-400">
+                      {fromDate} — {toDate}
+                    </span>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -406,9 +403,9 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {report.employees.map((employee, index) => (
+                        {examiners.map((examiner, index) => (
                           <tr
-                            key={employee.userId}
+                            key={examiner.userId ?? index}
                             className={`border-b last:border-b-0 hover:bg-slate-50 transition-colors ${
                               index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
                             }`}
@@ -416,35 +413,41 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                             <td className="p-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center font-medium text-slate-700 text-sm">
-                                  {employee.userName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                  {examiner.userName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
                                 </div>
                                 <div>
-                                  <div className="font-medium text-sm text-slate-900">{employee.userName}</div>
-                                  <div className="text-xs text-slate-500">
-                                    ID: {employee.examinerId}
-                                  </div>
+                                  <div className="font-medium text-sm text-slate-900">{examiner.userName || '-'}</div>
+                                  {examiner.examinerId && (
+                                    <div className="text-xs text-slate-500">ID: {examiner.examinerId}</div>
+                                  )}
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4 text-center font-medium text-slate-900">{employee.workingDays}</td>
+                            <td className="p-4 text-center font-medium text-slate-900">{examiner.workingDays}</td>
                             <td className="p-4 text-center">
-                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-medium text-sm">
-                                {employee.daysPresent}
+                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-green-100 text-green-800 font-medium text-sm">
+                                {examiner.daysPresent}
                               </span>
                             </td>
                             <td className="p-4 text-center">
-                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-medium text-sm">
-                                {employee.daysAbsent}
+                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-red-100 text-red-800 font-medium text-sm">
+                                {examiner.daysAbsent}
                               </span>
                             </td>
                             <td className="p-4 text-center">
-                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-medium text-sm">
-                                {employee.daysLeave}
+                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-medium text-sm">
+                                {examiner.daysLeave}
                               </span>
                             </td>
                             <td className="p-4 text-center">
-                              <span className="text-lg font-bold text-slate-900">
-                                {employee.attendancePercent.toFixed(1)}%
+                              <span className={`text-lg font-bold ${
+                                examiner.attendancePercent >= 90
+                                  ? 'text-green-600'
+                                  : examiner.attendancePercent >= 75
+                                  ? 'text-amber-600'
+                                  : 'text-red-600'
+                              }`}>
+                                {examiner.attendancePercent.toFixed(1)}%
                               </span>
                             </td>
                           </tr>
@@ -453,7 +456,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                     </table>
                   </div>
 
-                  {report.employees.length === 0 && (
+                  {examiners.length === 0 && (
                     <div className="py-12 text-center">
                       <Users className="h-12 w-12 mx-auto text-slate-400 mb-4" />
                       <p className="text-slate-600">No attendance data available for this period</p>

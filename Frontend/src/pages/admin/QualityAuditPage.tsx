@@ -705,7 +705,7 @@ export const QualityAuditPage = () => {
                       <TableHead className="text-center">FB Quality</TableHead>
                       <TableHead className="text-center">OFE Quality</TableHead>
                       <TableHead className="text-center">CCE Quality</TableHead>
-                      <TableHead className="text-center">Last Modified Date</TableHead>
+                      <TableHead className="text-center">Updated Date</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
