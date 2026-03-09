@@ -4,6 +4,7 @@ CRUD operations for user management with role-based access control
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 from app.database import get_db
@@ -217,8 +218,8 @@ async def create_user(
                 detail="Cannot create user for inactive organization"
             )
     
-    # Check if user_name already exists
-    existing_user = db.query(User).filter(User.user_name == user_data.user_name).first()
+    # Check if user_name already exists (case-insensitive)
+    existing_user = db.query(User).filter(func.lower(User.user_name) == func.lower(user_data.user_name)).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -425,10 +426,10 @@ async def update_user(
     # Update fields
     update_data = user_data.model_dump(exclude_unset=True)
     
-    # Check for username uniqueness if changing
+    # Check for username uniqueness if changing (case-insensitive)
     if 'user_name' in update_data:
         existing = db.query(User).filter(
-            User.user_name == update_data['user_name'],
+            func.lower(User.user_name) == func.lower(update_data['user_name']),
             User.id != user_id
         ).first()
         if existing:

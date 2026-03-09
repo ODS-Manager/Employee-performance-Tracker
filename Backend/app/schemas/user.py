@@ -2,9 +2,38 @@
 User Schemas
 Pydantic schemas for user management and authentication
 """
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, field_validator
 from typing import Optional, List
 from datetime import datetime
+import re
+
+
+def validate_user_name(value: str) -> str:
+    """
+    Validate and normalize a username:
+    - Strip leading/trailing whitespace
+    - Collapse multiple spaces into one
+    - Allow letters (including capitals), spaces, dots, and hyphens
+    - Capitalize the first letter
+    - Must be at least 2 characters
+    """
+    if not value or not value.strip():
+        raise ValueError("Username cannot be empty")
+    
+    # Strip and collapse multiple spaces into one
+    value = re.sub(r'\s+', ' ', value.strip())
+    
+    if len(value) < 2:
+        raise ValueError("Username must be at least 2 characters")
+    
+    # Allow letters, spaces, dots, hyphens, and digits
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9 .\-]*$', value):
+        raise ValueError("Username must start with a letter and can contain letters, numbers, spaces, dots, and hyphens")
+    
+    # Capitalize the first letter
+    value = value[0].upper() + value[1:]
+    
+    return value
 
 
 # ============ User Schemas ============
@@ -26,6 +55,11 @@ class UserCreate(BaseModel):
     
     model_config = ConfigDict(populate_by_name=True)
 
+    @field_validator('user_name', mode='before')
+    @classmethod
+    def normalize_user_name(cls, v: str) -> str:
+        return validate_user_name(v)
+
 
 class UserUpdate(BaseModel):
     user_name: Optional[str] = Field(None, max_length=100, alias="userName")
@@ -35,6 +69,13 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, alias="isActive")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator('user_name', mode='before')
+    @classmethod
+    def normalize_user_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return validate_user_name(v)
 
 
 class UserResponse(BaseModel):

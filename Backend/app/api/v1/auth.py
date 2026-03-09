@@ -5,7 +5,7 @@ SECURE: Uses httpOnly cookies and CSRF protection
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from datetime import datetime, timedelta
 from typing import Optional
 import uuid
@@ -159,8 +159,8 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
         # Continue with rate limiting disabled if session service fails
         pass
     
-    # Find user by username
-    user = db.query(User).filter(User.user_name == request.user_name).first()
+    # Find user by username (case-insensitive)
+    user = db.query(User).filter(func.lower(User.user_name) == func.lower(request.user_name)).first()
     
     if not user:
         # Record failed attempt
@@ -596,7 +596,7 @@ async def forgot_password(request: ForgotPasswordRequest, req: Request, db: Sess
     """Request password reset"""
     import secrets
     
-    user = db.query(User).filter(User.user_name == request.user_name).first()
+    user = db.query(User).filter(func.lower(User.user_name) == func.lower(request.user_name)).first()
     
     if not user:
         return {"message": "If the username exists, a reset link will be sent"}

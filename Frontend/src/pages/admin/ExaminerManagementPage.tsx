@@ -476,13 +476,27 @@ export const ExaminerManagementPage = () => {
                         <Label htmlFor="userName">Username *</Label>
                         <Input 
                           id="userName" 
-                          placeholder="e.g., john.doe"
+                          placeholder="e.g., John Doe"
                           value={formData.userName} 
-                          onChange={(e) => setFormData({...formData, userName: e.target.value})} 
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            // Allow only letters, numbers, spaces, dots, hyphens
+                            if (val === '' || /^[a-zA-Z][a-zA-Z0-9 .\-]*$/.test(val) || /^[a-zA-Z]$/.test(val)) {
+                              setFormData({...formData, userName: val});
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val.length > 0) {
+                              setFormData({...formData, userName: val.charAt(0).toUpperCase() + val.slice(1)});
+                            }
+                          }}
                           required 
                           disabled={isSubmitting}
                         />
-                        <p className="text-xs text-muted-foreground">Used for login and display</p>
+                        <p className="text-xs text-muted-foreground">
+                          Must start with a letter. Allows letters, numbers, spaces, dots, and hyphens. Min 2 characters.
+                        </p>
                       </div>
                     </div>
                   </div>

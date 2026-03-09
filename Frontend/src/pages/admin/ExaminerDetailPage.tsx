@@ -674,9 +674,24 @@ export const ExaminerDetailPage = () => {
               <Label>Username *</Label>
               <Input
                 value={editForm.userName}
-                onChange={(e) => setEditForm({ ...editForm, userName: e.target.value })}
-                placeholder="Enter username"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  // Allow only letters, numbers, spaces, dots, hyphens
+                  if (val === '' || /^[a-zA-Z][a-zA-Z0-9 .\-]*$/.test(val) || /^[a-zA-Z]$/.test(val)) {
+                    setEditForm({ ...editForm, userName: val });
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = e.target.value.trim();
+                  if (val.length > 0) {
+                    setEditForm({ ...editForm, userName: val.charAt(0).toUpperCase() + val.slice(1) });
+                  }
+                }}
+                placeholder="e.g., John Doe"
               />
+              <p className="text-xs text-muted-foreground">
+                Must start with a letter. Allows letters, numbers, spaces, dots, and hyphens. Min 2 characters.
+              </p>
             </div>
             
             <div className="space-y-2">
