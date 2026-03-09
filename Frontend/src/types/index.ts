@@ -317,6 +317,7 @@ export interface EditPermissions {
   canEditStep1: boolean
   canEditStep2: boolean
   canEditOrderDetails: boolean
+  canEditOrderStatus: boolean
   reason: string
 }
 

@@ -861,6 +861,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
             "canEditStep1": False,
             "canEditStep2": False,
             "canEditOrderDetails": False,
+            "canEditOrderStatus": False,
             "reason": "Order billing is completed — editing is locked"
         }
     
@@ -873,6 +874,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
             "canEditStep1": True,
             "canEditStep2": True,
             "canEditOrderDetails": True,
+            "canEditOrderStatus": True,
             "reason": "Full access"
         }
     
@@ -895,16 +897,19 @@ def get_edit_permissions(order: Order, user: User) -> dict:
                 "canEditStep1": True,
                 "canEditStep2": True,
                 "canEditOrderDetails": True,
+                "canEditOrderStatus": True,
                 "reason": "You are the sole examiner on this order"
             }
         elif not sole_examiner and (is_step1_user or is_step2_user):
             # Two different examiners worked on this order — FA name only for their step
+            # But they can still update the order status (e.g., mark as completed)
             return {
                 "canEdit": True,
                 "canEditStep1": is_step1_user,
                 "canEditStep2": is_step2_user,
                 "canEditOrderDetails": False,
-                "reason": "You can update your FA name only"
+                "canEditOrderStatus": True,
+                "reason": "You can update your FA name and order status"
             }
         else:
             return {
@@ -912,6 +917,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
                 "canEditStep1": False,
                 "canEditStep2": False,
                 "canEditOrderDetails": False,
+                "canEditOrderStatus": False,
                 "reason": "Single Seat order completed by another examiner"
             }
     
@@ -932,6 +938,13 @@ def get_edit_permissions(order: Order, user: User) -> dict:
 
     can_edit = can_edit_step1 or can_edit_step2
 
+    # Examiners assigned to either step can update the order status
+    # (e.g., Step 2 examiner marking the order as completed)
+    can_edit_order_status = is_step1_user or is_step2_user
+
+    # If the examiner can update order status, they should be able to edit the order
+    can_edit = can_edit or can_edit_order_status
+
     reasons = []
     if can_edit_step1:
         if is_step1_user:
@@ -943,6 +956,8 @@ def get_edit_permissions(order: Order, user: User) -> dict:
             reasons.append("You completed Step 2")
         elif not step2_done:
             reasons.append("Step 2 is available")
+    if can_edit_order_status:
+        reasons.append("You can update order status")
 
     if not can_edit:
         if process_type_name == "Step1":
@@ -959,6 +974,7 @@ def get_edit_permissions(order: Order, user: User) -> dict:
         "canEditStep1": can_edit_step1,
         "canEditStep2": can_edit_step2,
         "canEditOrderDetails": False,  # Employees cannot edit order details
+        "canEditOrderStatus": can_edit_order_status,
         "reason": reason
     }
 
@@ -1009,8 +1025,9 @@ async def update_order(
     
     # Define field categories
     order_detail_fields = ['file_number', 'entry_date', 'transaction_type_id', 'process_type_id', 
-                          'order_status_id', 'division_id', 'state', 'county', 
+                          'division_id', 'state', 'county', 
                           'product_type', 'team_id', 'billing_status']
+    order_status_fields = ['order_status_id']
     step1_fields = ['step1_user_id', 'step1_fa_name_id']
     step2_fields = ['step2_user_id', 'step2_fa_name_id']
     
@@ -1032,6 +1049,16 @@ async def update_order(
                     )
                 else:
                     # Value isn't changing, remove from update to skip unnecessary processing
+                    fields_to_remove.append(field)
+            
+            # Check order status field separately — examiners assigned to either step can update it
+            if field in order_status_fields and not edit_perms.get("canEditOrderStatus", False):
+                if value_is_changing:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Cannot modify order status — you are not assigned to this order"
+                    )
+                else:
                     fields_to_remove.append(field)
             
             # Check step1 fields

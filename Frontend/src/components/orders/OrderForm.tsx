@@ -35,6 +35,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const canEditOrderDetails = !isEditLocked && (!isEditMode || (editPermissions?.canEditOrderDetails ?? true))
   const canEditStep1 = !isEditLocked && (!isEditMode || (editPermissions?.canEditStep1 ?? true))
   const canEditStep2 = !isEditLocked && (!isEditMode || (editPermissions?.canEditStep2 ?? true))
+  const canEditOrderStatus = !isEditLocked && (!isEditMode || (editPermissions?.canEditOrderStatus ?? true))
   
   // Form state
   const [fileNumber, setFileNumber] = useState('')
@@ -493,8 +494,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     if (!selectedProcessTypeId) newErrors.push('Process type is required')
     if (!selectedDivisionId) newErrors.push('Division is required')
     
-    // Order status is required for admins, and also for examiners who can edit order details
-    if ((canAssignToOthers || canEditOrderDetails) && !selectedOrderStatusId) newErrors.push('Order status is required')
+    // Order status is required for admins, and also for examiners who can edit order details or order status
+    if ((canAssignToOthers || canEditOrderDetails || canEditOrderStatus) && !selectedOrderStatusId) newErrors.push('Order status is required')
     if (!isEditMode && canAssignToOthers && isDuplicateEntry && !selectedDuplicateAssigneeId) {
       newErrors.push('Examiner is required for duplicate order entry')
     }
@@ -622,6 +623,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         } else {
           // Shared Single Seat or Step1/Step2 — only send step fields they CAN edit
           orderData = {} as OrderUpdate
+
+          // Send order status if employee can update it (e.g., marking as completed)
+          if (canEditOrderStatus && selectedOrderStatusId) {
+            orderData.orderStatusId = selectedOrderStatusId
+          }
 
           // Send Step 1 data if employee can edit it
           if (canEditStep1) {
@@ -1232,9 +1238,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       <Select
                         value={selectedOrderStatusId ? selectedOrderStatusId.toString() : ''}
                         onValueChange={(value) => setSelectedOrderStatusId(parseInt(value))}
-                        disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
+                        disabled={!(canEditOrderDetails || canEditOrderStatus) || teamNotSelected || canAddStep2 || canAddStep1}
                       >
-                        <SelectTrigger className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}>
+                        <SelectTrigger className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!(canEditOrderDetails || canEditOrderStatus) || teamNotSelected || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}>
                           <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select status"} />
                         </SelectTrigger>
                         <SelectContent>
