@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
-import { teamsApi, metricsApi, productivityApi, ordersApi } from '../../services/api'
+import { teamsApi, metricsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
 import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { DashboardStats, TeamProductivity } from '../../types'
 import { Button } from '../../components/ui/button'
@@ -44,7 +44,7 @@ import {
   BarChart3,
   Filter,
   ClipboardCheck,
-
+  Trophy,
   Lock
 } from 'lucide-react'
 import odsLogo from '../../assets/ods-logo.png'
@@ -127,6 +127,73 @@ export const TeamLeadDashboard = () => {
 
   const recentOrders = ordersData?.items || []
 
+  // Quality audits for the team
+  const { data: qualityAuditsData, isLoading: loadingQuality } = useQuery({
+    queryKey: ['quality-audits', 'team', teamId, startDate, endDate],
+    queryFn: () => qualityAuditApi.list({
+      teamId: teamId!,
+      startDate,
+      endDate,
+      pageSize: 200,
+    }),
+    enabled: !!teamId,
+    staleTime: 10 * 60 * 1000,
+  })
+
+  // Consolidated quality metrics across all team members
+  const qualityMetrics = useMemo(() => {
+    if (!qualityAuditsData?.items || qualityAuditsData.items.length === 0) {
+      return {
+        avgFbQuality: 0,
+        avgOfeQuality: 0,
+        avgCceQuality: 0,
+        totalAudits: 0,
+        totalFilesReviewed: 0,
+        ofeCount: 0,
+        filesWithError: 0,
+        totalErrors: 0,
+        filesWithCceError: 0,
+        hasData: false,
+      }
+    }
+
+    const audits = qualityAuditsData.items
+    const totalAudits = audits.length
+
+    let totalFbQuality = 0
+    let totalOfeQuality = 0
+    let totalCceQuality = 0
+    let totalFilesReviewed = 0
+    let ofeCount = 0
+    let filesWithError = 0
+    let totalErrors = 0
+    let filesWithCceError = 0
+
+    audits.forEach(audit => {
+      totalFbQuality += Number(audit.fbQuality)
+      totalOfeQuality += Number(audit.ofeQuality)
+      totalCceQuality += Number(audit.cceQuality)
+      totalFilesReviewed += audit.totalFilesReviewed ?? 0
+      ofeCount += audit.ofeCount ?? 0
+      filesWithError += audit.filesWithError ?? 0
+      totalErrors += audit.totalErrors ?? 0
+      filesWithCceError += audit.filesWithCceError ?? 0
+    })
+
+    return {
+      avgFbQuality: (totalFbQuality / totalAudits) * 100,
+      avgOfeQuality: (totalOfeQuality / totalAudits) * 100,
+      avgCceQuality: (totalCceQuality / totalAudits) * 100,
+      totalAudits,
+      totalFilesReviewed,
+      ofeCount,
+      filesWithError,
+      totalErrors,
+      filesWithCceError,
+      hasData: true,
+    }
+  }, [qualityAuditsData])
+
   const handleLogout = async () => {
     await handleLogoutFlow(logout, navigate)
   }
@@ -166,8 +233,8 @@ export const TeamLeadDashboard = () => {
     },
   ]
 
-  // Top performers from productivity data - sort by score if no productivity %, otherwise by productivity %
-  const topPerformers = teamProductivity?.examiners
+  // Top performer from productivity data - the #1 ranked member
+  const topPerformer = teamProductivity?.examiners
     ?.filter(e => e.scores?.totalScore > 0 || e.productivityPercent !== null)
     ?.sort((a, b) => {
       // If both have productivity %, sort by that
@@ -177,7 +244,7 @@ export const TeamLeadDashboard = () => {
       // Otherwise sort by total score
       return (b.scores?.totalScore ?? 0) - (a.scores?.totalScore ?? 0)
     })
-    .slice(0, 5) || []
+    ?.[0] || null
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -342,6 +409,47 @@ export const TeamLeadDashboard = () => {
                 </CardContent>
               </Card>
             ))}
+
+            {/* Top Performer Card */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600">
+                  Top Performer
+                </CardTitle>
+                <div className="p-2 rounded-lg bg-yellow-50">
+                  <Trophy className="h-5 w-5 text-yellow-600" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingProductivity ? (
+                  <div className="animate-pulse">
+                    <div className="h-5 bg-slate-200 rounded w-24 mb-2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-16"></div>
+                  </div>
+                ) : topPerformer ? (
+                  <div>
+                    <div className="text-lg font-bold text-slate-900 truncate" title={topPerformer.userName}>
+                      {topPerformer.userName}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-muted-foreground">
+                        {topPerformer.productivityPercent !== null
+                          ? `${Math.round(topPerformer.productivityPercent)}% productivity`
+                          : `Score: ${topPerformer.scores.totalScore.toFixed(1)}`}
+                      </span>
+                      <button
+                        onClick={() => navigate('/teamlead/productivity')}
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No data yet</div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -424,70 +532,105 @@ export const TeamLeadDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Top Performers Card */}
+          {/* Quality Performance Consolidated Card */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-yellow-600" />
-                  Top Performers
+                  <Award className="h-5 w-5 text-emerald-600" />
+                  Quality Performance
                 </CardTitle>
-                <CardDescription>This month's best performers</CardDescription>
+                <CardDescription>Team consolidated quality metrics</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/teamlead/team')}>
-                View All
+              <Button variant="ghost" size="sm" onClick={() => navigate('/teamlead/quality-audit')}>
+                View Details
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardHeader>
             <CardContent>
-              {loadingProductivity ? (
+              {loadingQuality ? (
                 <div className="animate-pulse space-y-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-4">
-                      <div className="h-8 w-8 bg-slate-200 rounded-full"></div>
-                      <div className="flex-1 h-4 bg-slate-200 rounded"></div>
-                    </div>
-                  ))}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-16 bg-slate-200 rounded"></div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                      <div key={i} className="h-12 bg-slate-200 rounded"></div>
+                    ))}
+                  </div>
                 </div>
-              ) : topPerformers.length > 0 ? (
-                <div className="space-y-4">
-                  {topPerformers.map((employee, idx) => (
-                    <div key={employee.userId} className="flex items-center gap-4">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
-                        idx === 0 ? 'bg-yellow-100 text-yellow-800' :
-                        idx === 1 ? 'bg-slate-200 text-slate-700' :
-                        idx === 2 ? 'bg-orange-100 text-orange-800' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
-                        {idx + 1}
+              ) : qualityMetrics.hasData ? (
+                <div className="space-y-3">
+                  {/* Quality Scores - Horizontal Layout */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2 bg-emerald-50 rounded text-center">
+                      <p className="text-xs text-emerald-600 font-medium">FB Quality</p>
+                      <p className="text-xl font-bold text-emerald-700">{qualityMetrics.avgFbQuality.toFixed(1)}%</p>
+                      <div className="w-full bg-emerald-200 rounded-full h-1 mt-1">
+                        <div
+                          className="bg-emerald-600 h-1 rounded-full transition-all"
+                          style={{ width: `${Math.min(qualityMetrics.avgFbQuality, 100)}%` }}
+                        />
                       </div>
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback>{getInitials(employee.userName || '')}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{employee.userName || employee.userName}</p>
-                        <p className="text-xs text-muted-foreground">Score: {employee.scores.totalScore.toFixed(1)}</p>
-                      </div>
-                      <Badge 
-                        variant="outline" 
-                        className={`${getProductivityColor(employee.productivityPercent)}`}
-                      >
-                        {employee.productivityPercent !== null ? `${Math.round(employee.productivityPercent)}%` : 'N/A'}
-                      </Badge>
                     </div>
-                  ))}
-                </div>
-              ) : productivityError ? (
-                <div className="text-center py-8">
-                  <div className="text-red-500 mb-2">Failed to load data</div>
-                  <p className="text-sm text-muted-foreground">Please try refreshing</p>
+                    <div className="p-2 bg-blue-50 rounded text-center">
+                      <p className="text-xs text-blue-600 font-medium">OFE Quality</p>
+                      <p className="text-xl font-bold text-blue-700">{qualityMetrics.avgOfeQuality.toFixed(1)}%</p>
+                      <div className="w-full bg-blue-200 rounded-full h-1 mt-1">
+                        <div
+                          className="bg-blue-600 h-1 rounded-full transition-all"
+                          style={{ width: `${Math.min(qualityMetrics.avgOfeQuality, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded text-center">
+                      <p className="text-xs text-purple-600 font-medium">CCE Quality</p>
+                      <p className="text-xl font-bold text-purple-700">{qualityMetrics.avgCceQuality.toFixed(1)}%</p>
+                      <div className="w-full bg-purple-200 rounded-full h-1 mt-1">
+                        <div
+                          className="bg-purple-600 h-1 rounded-full transition-all"
+                          style={{ width: `${Math.min(qualityMetrics.avgCceQuality, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quality Stats - Full Detail */}
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+                    <div className="p-2 bg-gray-50 rounded text-center">
+                      <p className="text-xs text-gray-500">Audits</p>
+                      <p className="text-sm font-bold text-gray-900">{qualityMetrics.totalAudits}</p>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded text-center">
+                      <p className="text-xs text-gray-500">Files Reviewed</p>
+                      <p className="text-sm font-bold text-gray-900">{qualityMetrics.totalFilesReviewed}</p>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded text-center">
+                      <p className="text-xs text-blue-600">OFE Count</p>
+                      <p className="text-sm font-bold text-blue-800">{qualityMetrics.ofeCount}</p>
+                    </div>
+                    <div className="p-2 bg-orange-50 rounded text-center">
+                      <p className="text-xs text-orange-600">Files w/ Error</p>
+                      <p className="text-sm font-bold text-orange-800">{qualityMetrics.filesWithError}</p>
+                    </div>
+                    <div className="p-2 bg-red-50 rounded text-center">
+                      <p className="text-xs text-red-600">Total Errors</p>
+                      <p className="text-sm font-bold text-red-800">{qualityMetrics.totalErrors}</p>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded text-center">
+                      <p className="text-xs text-purple-600">CCE Errors</p>
+                      <p className="text-sm font-bold text-purple-800">{qualityMetrics.filesWithCceError}</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <Award className="h-10 w-10 mx-auto mb-3 text-slate-300" />
-                  <p className="text-muted-foreground mb-2">No performance data yet</p>
+                  <ClipboardCheck className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                  <p className="text-muted-foreground mb-2">No quality data available</p>
                   <p className="text-xs text-slate-400">
-                    Employees need to be assigned to teams and have completed orders
+                    Quality audits will appear here once they are recorded
                   </p>
                 </div>
               )}
