@@ -52,12 +52,13 @@ class BillingReport(Base):
 
 class BillingDetail(Base):
     """
-    Billing detail model - breakdown by state and product type
+    Billing detail model - breakdown by state, product type, and division
     
     Each detail line represents file counts for a specific:
     - Team
     - State 
-    - Product Type combination
+    - Product Type
+    - Division (Direct/Agency) combination
     """
     __tablename__ = "billing_details"
     
@@ -67,6 +68,7 @@ class BillingDetail(Base):
     # Grouping dimensions
     state = Column(String(5), nullable=True)  # Nullable for org-wide reports
     product_type = Column(String(100), nullable=False)
+    division_id = Column(Integer, ForeignKey("divisions.id"), nullable=False)  # Direct/Agency
     
     # File counts - each type counts as 1 for billing
     single_seat_count = Column(Integer, default=0)  # step1_user_id = step2_user_id
@@ -78,9 +80,11 @@ class BillingDetail(Base):
     
     # Relationships
     report = relationship("BillingReport", back_populates="details")
+    division = relationship("Division")
     
     # Indexes
     __table_args__ = (
         Index('idx_billing_details_report', 'report_id'),
         Index('idx_billing_details_state_product', 'state', 'product_type'),
+        Index('idx_billing_details_division', 'division_id'),
     )

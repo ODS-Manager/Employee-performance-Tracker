@@ -62,7 +62,8 @@ def get_team_short_name(team_name: str) -> str:
 def format_product_type(team_name: str, product_type: str) -> str:
     """
     Format product type with team prefix
-    Example: Washington + Full Search -> "WA Direct Full Search"
+    Example: Washington + Full Search -> "WA Full Search"
+    Note: Division is added separately in grouping key
     """
     short_name = get_team_short_name(team_name)
     # Remove any existing state prefix from product type
@@ -107,6 +108,8 @@ def get_billing_reports(
                 id=d.id,
                 state=d.state,
                 productType=d.product_type,
+                divisionId=d.division_id,
+                divisionName="Direct" if d.division_id == 1 else "Agency",
                 singleSeatCount=d.single_seat_count,
                 onlyStep1Count=d.only_step1_count,
                 onlyStep2Count=d.only_step2_count,
@@ -148,7 +151,7 @@ def preview_billing_data(
     """
     Preview billing data before generating report
     Shows what will be included in the billing report
-    Organization-wide, grouped by product type (team + product)
+    Organization-wide, grouped by product type + division (team + product + division)
     """
     # Use the date range from request
     start_date = request.start_date
@@ -172,6 +175,7 @@ def preview_billing_data(
     ).all()
     
     # Initialize billing_data using each team's configured products from team_products table
+    # Key format: "product_type|division_id"
     billing_data: Dict[str, Dict[str, int]] = {}
     
     # Build a team_id -> team lookup for order processing
@@ -181,13 +185,17 @@ def preview_billing_data(
         # Use the team's configured products from the team_products table (source of truth)
         for team_product in team.products:
             formatted_product = format_product_type(team.name, team_product.product_type)
-            billing_data[formatted_product] = {
-                'single_seat': 0,
-                'only_step1': 0,
-                'only_step2': 0,
-                'team_name': team.name,
-                'product_type': team_product.product_type
-            }
+            # Create entries for both Direct (1) and Agency (2) divisions
+            for div_id in [1, 2]:  # Assuming 1=Direct, 2=Agency
+                key = f"{formatted_product}|{div_id}"
+                billing_data[key] = {
+                    'single_seat': 0,
+                    'only_step1': 0,
+                    'only_step2': 0,
+                    'team_name': team.name,
+                    'product_type': team_product.product_type,
+                    'division_id': div_id
+                }
     
     # Now count actual orders
     for order in orders:
@@ -198,32 +206,37 @@ def preview_billing_data(
         
         # Format product type with team prefix
         formatted_product = format_product_type(team.name, order.product_type)
+        key = f"{formatted_product}|{order.division_id}"
         
-        if formatted_product not in billing_data:
+        if key not in billing_data:
             # Order has a product type not configured in team_products — still include it
-            billing_data[formatted_product] = {
+            billing_data[key] = {
                 'single_seat': 0,
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': order.product_type
+                'product_type': order.product_type,
+                'division_id': order.division_id
             }
         
         # Determine order type
         if order.step1_user_id and order.step2_user_id:
-            billing_data[formatted_product]['single_seat'] += 1
+            billing_data[key]['single_seat'] += 1
         elif order.step1_user_id:
-            billing_data[formatted_product]['only_step1'] += 1
+            billing_data[key]['only_step1'] += 1
         elif order.step2_user_id:
-            billing_data[formatted_product]['only_step2'] += 1
+            billing_data[key]['only_step2'] += 1
     
     # Convert to preview details (include all entries, even with 0 counts)
     details = []
-    for product_type, counts in sorted(billing_data.items()):
+    for product_key, counts in sorted(billing_data.items()):
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
+        division_name = "Direct" if counts['division_id'] == 1 else "Agency"
         details.append(
             BillingPreviewDetail(
-                productType=product_type,
+                productType=counts['product_type'],
+                divisionId=counts['division_id'],
+                divisionName=division_name,
                 singleSeatCount=counts['single_seat'],
                 onlyStep1Count=counts['only_step1'],
                 onlyStep2Count=counts['only_step2'],
@@ -251,7 +264,7 @@ def create_billing_report(
     data: BillingReportCreate
 ) -> BillingReportResponse:
     """
-    Create a new organization-wide billing report grouped by product types
+    Create a new organization-wide billing report grouped by product types and divisions
     """
     # Check if report already exists for this period
     existing = db.query(BillingReport).filter(
@@ -301,6 +314,7 @@ def create_billing_report(
     db.flush()  # Get report.id
     
     # Initialize billing_data using each team's configured products from team_products table
+    # Key format: "product_type|division_id"
     billing_data: Dict[str, Dict[str, int]] = {}
     
     # Build a team_id -> team lookup for order processing
@@ -310,13 +324,17 @@ def create_billing_report(
         # Use the team's configured products from the team_products table (source of truth)
         for team_product in team.products:
             formatted_product = format_product_type(team.name, team_product.product_type)
-            billing_data[formatted_product] = {
-                'single_seat': 0,
-                'only_step1': 0,
-                'only_step2': 0,
-                'team_name': team.name,
-                'product_type': team_product.product_type
-            }
+            # Create entries for both Direct (1) and Agency (2) divisions
+            for div_id in [1, 2]:  # Assuming 1=Direct, 2=Agency
+                key = f"{formatted_product}|{div_id}"
+                billing_data[key] = {
+                    'single_seat': 0,
+                    'only_step1': 0,
+                    'only_step2': 0,
+                    'team_name': team.name,
+                    'product_type': team_product.product_type,
+                    'division_id': div_id
+                }
     
     # Now count actual orders
     for order in orders:
@@ -327,32 +345,35 @@ def create_billing_report(
         
         # Format product type with team prefix
         formatted_product = format_product_type(team.name, order.product_type)
+        key = f"{formatted_product}|{order.division_id}"
         
-        if formatted_product not in billing_data:
+        if key not in billing_data:
             # Order has a product type not configured in team_products — still include it
-            billing_data[formatted_product] = {
+            billing_data[key] = {
                 'single_seat': 0,
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': order.product_type
+                'product_type': order.product_type,
+                'division_id': order.division_id
             }
         
         # Determine order type
         if order.step1_user_id and order.step2_user_id:
-            billing_data[formatted_product]['single_seat'] += 1
+            billing_data[key]['single_seat'] += 1
         elif order.step1_user_id:
-            billing_data[formatted_product]['only_step1'] += 1
+            billing_data[key]['only_step1'] += 1
         elif order.step2_user_id:
-            billing_data[formatted_product]['only_step2'] += 1
+            billing_data[key]['only_step2'] += 1
     
     # Create billing details for ALL combinations (including zeros)
-    for product_type, counts in billing_data.items():
+    for product_key, counts in billing_data.items():
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
         detail = BillingDetail(
             report_id=report.id,
             state=None,  # NULL for org-wide reports
-            product_type=product_type,
+            product_type=counts['product_type'],
+            division_id=counts['division_id'],
             single_seat_count=counts['single_seat'],
             only_step1_count=counts['only_step1'],
             only_step2_count=counts['only_step2'],
@@ -394,6 +415,8 @@ def get_billing_report_by_id(db: Session, report_id: int) -> BillingReportRespon
             id=d.id,
             state=d.state,
             productType=d.product_type,
+            divisionId=d.division_id,
+            divisionName="Direct" if d.division_id == 1 else "Agency",
             singleSeatCount=d.single_seat_count,
             onlyStep1Count=d.only_step1_count,
             onlyStep2Count=d.only_step2_count,
@@ -525,7 +548,7 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     )
     center_align = Alignment(horizontal='center', vertical='center')
     
-    # Group details by team and product type
+    # Group details by team, product type, and division
     # Extract team and product from formatted product_type (e.g., "WA Full Search" -> team="Washington", product="Full Search")
     team_product_data = {}
     
@@ -551,12 +574,33 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
             
             if team_name not in team_product_data:
                 team_product_data[team_name] = {}
-            team_product_data[team_name][product] = {
-                'single_seat': detail.single_seat_count,
-                'step1': detail.only_step1_count,
-                'step2': detail.only_step2_count,
-                'total': detail.total_count
-            }
+            
+            # Initialize product entry if not exists
+            if product not in team_product_data[team_name]:
+                team_product_data[team_name][product] = {
+                    'direct_single_seat': 0,
+                    'direct_step1': 0,
+                    'direct_step2': 0,
+                    'agency_single_seat': 0,
+                    'agency_step1': 0,
+                    'agency_step2': 0,
+                    'single_seat': 0,  # For totals
+                    'step1': 0,        # For totals
+                    'step2': 0,        # For totals
+                    'total': 0
+                }
+            
+            # Distribute counts to appropriate division
+            division_prefix = 'direct_' if detail.division_id == 1 else 'agency_'
+            team_product_data[team_name][product][division_prefix + 'single_seat'] = detail.single_seat_count
+            team_product_data[team_name][product][division_prefix + 'step1'] = detail.only_step1_count
+            team_product_data[team_name][product][division_prefix + 'step2'] = detail.only_step2_count
+            
+            # Update totals
+            team_product_data[team_name][product]['single_seat'] += detail.single_seat_count
+            team_product_data[team_name][product]['step1'] += detail.only_step1_count
+            team_product_data[team_name][product]['step2'] += detail.only_step2_count
+            team_product_data[team_name][product]['total'] += detail.total_count
     
     # Get all unique product types and teams
     all_products = sorted(set(
@@ -576,7 +620,7 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     
     # Header row
     header_row = 1
-    headers = ["Team Name", "Product Type", "Process Type", "Count"]
+    headers = ["Team Name", "Product Type", "Division", "Process Type", "Count"]
     for col_idx, header_text in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_idx)
         cell.value = header_text
@@ -585,7 +629,7 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
         cell.alignment = center_align
         cell.border = border
     
-    # Write data rows - 3 sub-rows per product type
+    # Write data rows - 6 sub-rows per product type (3 process types x 2 divisions)
     current_row = header_row + 1
     grand_total_single_seat = 0
     grand_total_step1 = 0
@@ -603,12 +647,15 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
             grand_total_step2 += counts['step2']
             
             sub_rows = [
-                ('Single Seat', counts['single_seat']),
-                ('Step 1', counts['step1']),
-                ('Step 2', counts['step2']),
+                ('Direct', 'Single Seat', counts['direct_single_seat']),
+                ('Direct', 'Step 1', counts['direct_step1']),
+                ('Direct', 'Step 2', counts['direct_step2']),
+                ('Agency', 'Single Seat', counts['agency_single_seat']),
+                ('Agency', 'Step 1', counts['agency_step1']),
+                ('Agency', 'Step 2', counts['agency_step2']),
             ]
             
-            for sub_idx, (process_label, count) in enumerate(sub_rows):
+            for sub_idx, (division_label, process_label, count) in enumerate(sub_rows):
                 # Team name only on first sub-row of the first product of each team
                 if team_first_row and sub_idx == 0:
                     ws.cell(row=current_row, column=1).value = team_name
@@ -624,14 +671,15 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
                 else:
                     ws.cell(row=current_row, column=2).value = ""
                 
-                ws.cell(row=current_row, column=3).value = process_label
-                ws.cell(row=current_row, column=4).value = count
+                ws.cell(row=current_row, column=3).value = division_label
+                ws.cell(row=current_row, column=4).value = process_label
+                ws.cell(row=current_row, column=5).value = count
                 
                 # Apply borders and alignment
-                for col in range(1, 5):
+                for col in range(1, 6):
                     cell = ws.cell(row=current_row, column=col)
                     cell.border = border
-                    if col == 4:  # Count column
+                    if col == 5:  # Count column
                         cell.alignment = center_align
                 
                 current_row += 1
@@ -643,45 +691,48 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     ws.cell(row=current_row, column=1).value = "GRAND TOTAL"
     ws.cell(row=current_row, column=1).font = Font(bold=True)
     ws.cell(row=current_row, column=2).value = ""
-    ws.cell(row=current_row, column=3).value = "Single Seat"
-    ws.cell(row=current_row, column=3).font = Font(bold=True)
-    ws.cell(row=current_row, column=4).value = grand_total_single_seat
-    for col in range(1, 5):
+    ws.cell(row=current_row, column=3).value = ""
+    ws.cell(row=current_row, column=4).value = "Single Seat"
+    ws.cell(row=current_row, column=4).font = Font(bold=True)
+    ws.cell(row=current_row, column=5).value = grand_total_single_seat
+    for col in range(1, 6):
         cell = ws.cell(row=current_row, column=col)
         cell.fill = total_fill
         cell.font = Font(bold=True)
         cell.border = border
-        if col == 4:
+        if col == 5:
             cell.alignment = center_align
     current_row += 1
     
     # Step 1 total
     ws.cell(row=current_row, column=1).value = ""
     ws.cell(row=current_row, column=2).value = ""
-    ws.cell(row=current_row, column=3).value = "Step 1"
-    ws.cell(row=current_row, column=3).font = Font(bold=True)
-    ws.cell(row=current_row, column=4).value = grand_total_step1
-    for col in range(1, 5):
+    ws.cell(row=current_row, column=3).value = ""
+    ws.cell(row=current_row, column=4).value = "Step 1"
+    ws.cell(row=current_row, column=4).font = Font(bold=True)
+    ws.cell(row=current_row, column=5).value = grand_total_step1
+    for col in range(1, 6):
         cell = ws.cell(row=current_row, column=col)
         cell.fill = total_fill
         cell.font = Font(bold=True)
         cell.border = border
-        if col == 4:
+        if col == 5:
             cell.alignment = center_align
     current_row += 1
     
     # Step 2 total
     ws.cell(row=current_row, column=1).value = ""
     ws.cell(row=current_row, column=2).value = ""
-    ws.cell(row=current_row, column=3).value = "Step 2"
-    ws.cell(row=current_row, column=3).font = Font(bold=True)
-    ws.cell(row=current_row, column=4).value = grand_total_step2
-    for col in range(1, 5):
+    ws.cell(row=current_row, column=3).value = ""
+    ws.cell(row=current_row, column=4).value = "Step 2"
+    ws.cell(row=current_row, column=4).font = Font(bold=True)
+    ws.cell(row=current_row, column=5).value = grand_total_step2
+    for col in range(1, 6):
         cell = ws.cell(row=current_row, column=col)
         cell.fill = total_fill
         cell.font = Font(bold=True)
         cell.border = border
-        if col == 4:
+        if col == 5:
             cell.alignment = center_align
     current_row += 1
     
@@ -691,20 +742,22 @@ def export_billing_report_to_excel(db: Session, report_id: int) -> BytesIO:
     ws.cell(row=current_row, column=1).value = "TOTAL"
     ws.cell(row=current_row, column=2).value = ""
     ws.cell(row=current_row, column=3).value = ""
-    ws.cell(row=current_row, column=4).value = total_files
-    for col in range(1, 5):
+    ws.cell(row=current_row, column=4).value = ""
+    ws.cell(row=current_row, column=5).value = total_files
+    for col in range(1, 6):
         cell = ws.cell(row=current_row, column=col)
         cell.fill = overall_fill
         cell.font = Font(bold=True, size=12)
         cell.border = border
-        if col == 4:
+        if col == 5:
             cell.alignment = center_align
     
     # Adjust column widths
     ws.column_dimensions['A'].width = 25  # Team Name
     ws.column_dimensions['B'].width = 25  # Product Type
-    ws.column_dimensions['C'].width = 15  # Process Type
-    ws.column_dimensions['D'].width = 12  # Count
+    ws.column_dimensions['C'].width = 15  # Division
+    ws.column_dimensions['D'].width = 15  # Process Type
+    ws.column_dimensions['E'].width = 12  # Count
     
     # Save to BytesIO
     excel_file = BytesIO()

@@ -136,10 +136,12 @@ export const BillingReportView = () => {
   // Group by team
   const teamData: Record<string, Array<{
     product: string
-    singleSeatCount: number
-    onlyStep1Count: number
-    onlyStep2Count: number
-    totalCount: number
+    directSingleSeat: number
+    directStep1: number
+    directStep2: number
+    agencySingleSeat: number
+    agencyStep1: number
+    agencyStep2: number
   }>> = {}
 
   report.details.forEach((detail) => {
@@ -153,13 +155,32 @@ export const BillingReportView = () => {
       if (!teamData[teamName]) {
         teamData[teamName] = []
       }
-      teamData[teamName].push({
-        product: productRemainder,
-        singleSeatCount: detail.singleSeatCount,
-        onlyStep1Count: detail.onlyStep1Count,
-        onlyStep2Count: detail.onlyStep2Count,
-        totalCount: detail.totalCount
-      })
+      
+      // Find or create product entry
+      let productEntry = teamData[teamName].find(p => p.product === productRemainder)
+      if (!productEntry) {
+        productEntry = {
+          product: productRemainder,
+          directSingleSeat: 0,
+          directStep1: 0,
+          directStep2: 0,
+          agencySingleSeat: 0,
+          agencyStep1: 0,
+          agencyStep2: 0,
+        }
+        teamData[teamName].push(productEntry)
+      }
+      
+      // Populate counts based on division
+      if (detail.divisionName === 'Direct') {
+        productEntry.directSingleSeat = detail.singleSeatCount
+        productEntry.directStep1 = detail.onlyStep1Count
+        productEntry.directStep2 = detail.onlyStep2Count
+      } else if (detail.divisionName === 'Agency') {
+        productEntry.agencySingleSeat = detail.singleSeatCount
+        productEntry.agencyStep1 = detail.onlyStep1Count
+        productEntry.agencyStep2 = detail.onlyStep2Count
+      }
     }
   })
 
@@ -180,9 +201,9 @@ export const BillingReportView = () => {
   let grandTotalStep2 = 0
   sortedTeams.forEach(team => {
     teamData[team].forEach(p => {
-      grandTotalSingleSeat += p.singleSeatCount
-      grandTotalStep1 += p.onlyStep1Count
-      grandTotalStep2 += p.onlyStep2Count
+      grandTotalSingleSeat += p.directSingleSeat + p.agencySingleSeat
+      grandTotalStep1 += p.directStep1 + p.agencyStep1
+      grandTotalStep2 += p.directStep2 + p.agencyStep2
     })
   })
 
@@ -253,8 +274,8 @@ export const BillingReportView = () => {
         {/* Billing Data Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Billing Details by Team and Product Type</CardTitle>
-            <CardDescription>Complete breakdown of all teams and product types with Single Seat, Step 1, and Step 2 counts</CardDescription>
+            <CardTitle>Billing Details by Team, Product Type, and Division</CardTitle>
+            <CardDescription>Complete breakdown of all teams, product types, and divisions with Single Seat, Step 1, and Step 2 counts</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -263,6 +284,7 @@ export const BillingReportView = () => {
                   <TableRow>
                     <TableHead className="w-[200px]">Team Name</TableHead>
                     <TableHead className="w-[200px]">Product Type</TableHead>
+                    <TableHead className="w-[150px]">Division</TableHead>
                     <TableHead className="w-[150px]">Process Type</TableHead>
                     <TableHead className="text-center w-[100px]">Count</TableHead>
                   </TableRow>
@@ -274,9 +296,12 @@ export const BillingReportView = () => {
 
                     return products.map((product) => {
                       const subRows = [
-                        { label: 'Single Seat', count: product.singleSeatCount },
-                        { label: 'Step 1', count: product.onlyStep1Count },
-                        { label: 'Step 2', count: product.onlyStep2Count },
+                        { division: 'Direct', label: 'Single Seat', count: product.directSingleSeat },
+                        { division: 'Direct', label: 'Step 1', count: product.directStep1 },
+                        { division: 'Direct', label: 'Step 2', count: product.directStep2 },
+                        { division: 'Agency', label: 'Single Seat', count: product.agencySingleSeat },
+                        { division: 'Agency', label: 'Step 1', count: product.agencyStep1 },
+                        { division: 'Agency', label: 'Step 2', count: product.agencyStep2 },
                       ]
 
                       return subRows.map((sub, subIdx) => {
@@ -286,14 +311,17 @@ export const BillingReportView = () => {
 
                         return (
                           <TableRow
-                            key={`${teamName}-${product.product}-${sub.label}`}
-                            className={subIdx === 2 ? 'border-b-2 border-slate-200' : ''}
+                            key={`${teamName}-${product.product}-${sub.division}-${sub.label}`}
+                            className={subIdx === 5 ? 'border-b-2 border-slate-200' : ''}
                           >
                             <TableCell className={showTeamName ? 'font-medium align-top' : 'align-top'}>
                               {showTeamName ? teamName : ''}
                             </TableCell>
                             <TableCell className={showProductName ? 'font-medium align-top' : 'align-top'}>
                               {showProductName ? product.product : ''}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {sub.division}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {sub.label}
@@ -309,10 +337,12 @@ export const BillingReportView = () => {
                   <TableRow className="bg-slate-100 font-semibold border-t-2">
                     <TableCell>GRAND TOTAL</TableCell>
                     <TableCell></TableCell>
+                    <TableCell></TableCell>
                     <TableCell className="text-sm">Single Seat</TableCell>
                     <TableCell className="text-center">{grandTotalSingleSeat}</TableCell>
                   </TableRow>
                   <TableRow className="bg-slate-100 font-semibold">
+                    <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-sm">Step 1</TableCell>
@@ -321,11 +351,13 @@ export const BillingReportView = () => {
                   <TableRow className="bg-slate-100 font-semibold">
                     <TableCell></TableCell>
                     <TableCell></TableCell>
+                    <TableCell></TableCell>
                     <TableCell className="text-sm">Step 2</TableCell>
                     <TableCell className="text-center">{grandTotalStep2}</TableCell>
                   </TableRow>
                   <TableRow className="bg-slate-50 font-bold border-t-2">
                     <TableCell>TOTAL</TableCell>
+                    <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-center">{report.totalFiles}</TableCell>

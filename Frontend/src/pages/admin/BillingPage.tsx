@@ -432,30 +432,54 @@ export const BillingPage = () => {
 
                   const teamData: Record<string, Array<{
                     product: string
-                    singleSeatCount: number
-                    onlyStep1Count: number
-                    onlyStep2Count: number
-                    totalCount: number
+                    directSingleSeat: number
+                    directStep1: number
+                    directStep2: number
+                    agencySingleSeat: number
+                    agencyStep1: number
+                    agencyStep2: number
                   }>> = {}
 
                   preview.details.forEach((detail) => {
-                    // Extract team code from product type (e.g., "WA Full Search" -> code="WA", product="Full Search")
                     const parts = detail.productType.split(' ')
-                    if (parts.length >= 1) {
-                      const teamCode = parts[0]
-                      const productRemainder = detail.productType.substring(teamCode.length + 1).trim()
-                      const teamName = teamNameMap[teamCode] || teamCode
+                    const teamCode = parts[0]
+                    const productRemainder = parts.slice(1).join(' ')
 
-                      if (!teamData[teamName]) {
-                        teamData[teamName] = []
-                      }
-                      teamData[teamName].push({
+                    const teamName = teamOrder.find(t => {
+                      const shortCode = t.substring(0, 2).toUpperCase()
+                      return shortCode === teamCode
+                    }) || teamCode
+
+                    if (!teamData[teamName]) {
+                      teamData[teamName] = []
+                    }
+
+                    // Find or create product entry
+                    let productEntry = teamData[teamName].find(p => p.product === productRemainder)
+                    if (!productEntry) {
+                      productEntry = {
                         product: productRemainder,
-                        singleSeatCount: detail.singleSeatCount,
-                        onlyStep1Count: detail.onlyStep1Count,
-                        onlyStep2Count: detail.onlyStep2Count,
-                        totalCount: detail.totalCount
-                      })
+                        directSingleSeat: 0,
+                        directStep1: 0,
+                        directStep2: 0,
+                        agencySingleSeat: 0,
+                        agencyStep1: 0,
+                        agencyStep2: 0,
+                      }
+                      teamData[teamName].push(productEntry)
+                    }
+
+                    // Populate counts based on division
+                    if (detail.divisionName === 'Direct') {
+                      productEntry.directSingleSeat = detail.singleSeatCount
+                      productEntry.directStep1 = detail.onlyStep1Count
+                      productEntry.directStep2 = detail.onlyStep2Count
+                    } else if (detail.divisionName === 'Agency') {
+                      productEntry.agencySingleSeat = detail.singleSeatCount
+                      productEntry.agencyStep1 = detail.onlyStep1Count
+                      productEntry.agencyStep2 = detail.onlyStep2Count
+                    }
+                  })
                     }
                   })
 
@@ -475,9 +499,9 @@ export const BillingPage = () => {
                   let grandTotalStep2 = 0
                   sortedTeams.forEach(team => {
                     teamData[team].forEach(p => {
-                      grandTotalSingleSeat += p.singleSeatCount
-                      grandTotalStep1 += p.onlyStep1Count
-                      grandTotalStep2 += p.onlyStep2Count
+                      grandTotalSingleSeat += p.directSingleSeat + p.agencySingleSeat
+                      grandTotalStep1 += p.directStep1 + p.agencyStep1
+                      grandTotalStep2 += p.directStep2 + p.agencyStep2
                     })
                   })
 
@@ -508,6 +532,7 @@ export const BillingPage = () => {
                           <TableRow>
                             <TableHead>Team Name</TableHead>
                             <TableHead>Product Type</TableHead>
+                            <TableHead>Division</TableHead>
                             <TableHead>Process Type</TableHead>
                             <TableHead className="text-center">Count</TableHead>
                           </TableRow>
@@ -519,9 +544,12 @@ export const BillingPage = () => {
 
                             return products.map((product) => {
                               const subRows = [
-                                { label: 'Single Seat', count: product.singleSeatCount },
-                                { label: 'Step 1', count: product.onlyStep1Count },
-                                { label: 'Step 2', count: product.onlyStep2Count },
+                                { division: 'Direct', label: 'Single Seat', count: product.directSingleSeat || 0 },
+                                { division: 'Direct', label: 'Step 1', count: product.directStep1 || 0 },
+                                { division: 'Direct', label: 'Step 2', count: product.directStep2 || 0 },
+                                { division: 'Agency', label: 'Single Seat', count: product.agencySingleSeat || 0 },
+                                { division: 'Agency', label: 'Step 1', count: product.agencyStep1 || 0 },
+                                { division: 'Agency', label: 'Step 2', count: product.agencyStep2 || 0 },
                               ]
 
                               return subRows.map((sub, subIdx) => {
@@ -531,14 +559,17 @@ export const BillingPage = () => {
 
                                 return (
                                   <TableRow
-                                    key={`${teamName}-${product.product}-${sub.label}`}
-                                    className={subIdx === 2 ? 'border-b-2 border-slate-200' : ''}
+                                    key={`${teamName}-${product.product}-${sub.division}-${sub.label}`}
+                                    className={subIdx === 5 ? 'border-b-2 border-slate-200' : ''}
                                   >
                                     <TableCell className={showTeamName ? 'font-medium' : ''}>
                                       {showTeamName ? teamName : ''}
                                     </TableCell>
                                     <TableCell className={showProductName ? 'font-medium' : ''}>
                                       {showProductName ? product.product : ''}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {sub.division}
                                     </TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                       {sub.label}
@@ -554,10 +585,12 @@ export const BillingPage = () => {
                           <TableRow className="bg-slate-100 font-semibold border-t-2">
                             <TableCell>GRAND TOTAL</TableCell>
                             <TableCell></TableCell>
+                            <TableCell></TableCell>
                             <TableCell className="text-sm">Single Seat</TableCell>
                             <TableCell className="text-center">{grandTotalSingleSeat}</TableCell>
                           </TableRow>
                           <TableRow className="bg-slate-100 font-semibold">
+                            <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-sm">Step 1</TableCell>
@@ -566,11 +599,13 @@ export const BillingPage = () => {
                           <TableRow className="bg-slate-100 font-semibold">
                             <TableCell></TableCell>
                             <TableCell></TableCell>
+                            <TableCell></TableCell>
                             <TableCell className="text-sm">Step 2</TableCell>
                             <TableCell className="text-center">{grandTotalStep2}</TableCell>
                           </TableRow>
                           <TableRow className="bg-slate-50 font-bold border-t-2">
                             <TableCell>TOTAL</TableCell>
+                            <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-center">{preview.totalFiles}</TableCell>

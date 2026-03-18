@@ -9,12 +9,14 @@ from datetime import datetime, date
 
 
 class BillingDetailResponse(BaseModel):
-    """Billing detail for a product type (team + product type combination)"""
+    """Billing detail for a product type (team + product type + division combination)"""
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     
     id: int
     state: Optional[str] = None  # NULL for org-wide reports
-    product_type: str = Field(alias="productType")  # Format: "WA Direct Full Search"
+    product_type: str = Field(alias="productType")  # Format: "WA Full Search"
+    division_id: int = Field(alias="divisionId")  # Direct=1, Agency=2 (reference to divisions table)
+    division_name: Optional[str] = Field(None, alias="divisionName")  # "Direct" or "Agency"
     single_seat_count: int = Field(alias="singleSeatCount")
     only_step1_count: int = Field(alias="onlyStep1Count")
     only_step2_count: int = Field(alias="onlyStep2Count")
@@ -71,8 +73,10 @@ class BillingPreviewRequest(BaseModel):
 
 
 class BillingPreviewDetail(BaseModel):
-    """Preview detail - grouped by product type with team prefix"""
-    product_type: str = Field(alias="productType")  # Format: "WA Direct Full Search"
+    """Preview detail - grouped by product type and division with team prefix"""
+    product_type: str = Field(alias="productType")  # Format: "WA Full Search"
+    division_id: int = Field(alias="divisionId")  # Direct=1, Agency=2
+    division_name: Optional[str] = Field(None, alias="divisionName")  # "Direct" or "Agency"
     single_seat_count: int = Field(alias="singleSeatCount")
     only_step1_count: int = Field(alias="onlyStep1Count")
     only_step2_count: int = Field(alias="onlyStep2Count")
