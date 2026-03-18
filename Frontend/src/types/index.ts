@@ -770,6 +770,8 @@ export interface BillingDetail {
   id: number
   state: string
   productType: string
+  divisionId: number  // 1 = Direct, 2 = Agency
+  divisionName?: string  // "Direct" or "Agency"
   singleSeatCount: number
   onlyStep1Count: number
   onlyStep2Count: number
@@ -813,7 +815,9 @@ export interface BillingPreviewRequest {
 }
 
 export interface BillingPreviewDetail {
-  productType: string  // Format: "WA Direct Full Search"
+  productType: string  // Format: "WA Full Search"
+  divisionId: number  // 1 = Direct, 2 = Agency
+  divisionName?: string  // "Direct" or "Agency"
   singleSeatCount: number
   onlyStep1Count: number
   onlyStep2Count: number

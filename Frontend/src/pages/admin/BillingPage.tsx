@@ -480,8 +480,6 @@ export const BillingPage = () => {
                       productEntry.agencyStep2 = detail.onlyStep2Count
                     }
                   })
-                    }
-                  })
 
                   const sortedTeams = Object.keys(teamData).sort((a, b) => {
                     const aIdx = teamOrder.indexOf(a)
