@@ -769,7 +769,9 @@ export interface QualityAuditFilterParams {
 export interface BillingDetail {
   id: number
   state: string
-  productType: string
+  teamName: string  // Full team name (e.g., "National Streamline", "Florida")
+  productType: string  // Format: "WA Full Search" (with team code prefix)
+  productName: string  // Product name only (e.g., "Full Search", "Amend Title")
   divisionId: number  // 1 = Direct, 2 = Agency
   divisionName?: string  // "Direct" or "Agency"
   singleSeatCount: number
@@ -815,7 +817,9 @@ export interface BillingPreviewRequest {
 }
 
 export interface BillingPreviewDetail {
-  productType: string  // Format: "WA Full Search"
+  teamName: string  // Full team name (e.g., "National Streamline", "Florida")
+  productType: string  // Format: "WA Full Search" (with team code prefix)
+  productName: string  // Product name only (e.g., "Full Search", "Amend Title")
   divisionId: number  // 1 = Direct, 2 = Agency
   divisionName?: string  // "Direct" or "Agency"
   singleSeatCount: number

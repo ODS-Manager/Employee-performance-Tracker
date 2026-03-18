@@ -14,7 +14,9 @@ class BillingDetailResponse(BaseModel):
     
     id: int
     state: Optional[str] = None  # NULL for org-wide reports
-    product_type: str = Field(alias="productType")  # Format: "WA Full Search"
+    team_name: str = Field(alias="teamName")  # Full team name (e.g., "National Streamline", "Florida")
+    product_type: str = Field(alias="productType")  # Format: "WA Full Search" (with team code prefix)
+    product_name: str = Field(alias="productName")  # Product name only (e.g., "Full Search", "Amend Title")
     division_id: int = Field(alias="divisionId")  # Direct=1, Agency=2 (reference to divisions table)
     division_name: Optional[str] = Field(None, alias="divisionName")  # "Direct" or "Agency"
     single_seat_count: int = Field(alias="singleSeatCount")
@@ -74,7 +76,9 @@ class BillingPreviewRequest(BaseModel):
 
 class BillingPreviewDetail(BaseModel):
     """Preview detail - grouped by product type and division with team prefix"""
-    product_type: str = Field(alias="productType")  # Format: "WA Full Search"
+    team_name: str = Field(alias="teamName")  # Full team name (e.g., "National Streamline", "Florida")
+    product_type: str = Field(alias="productType")  # Format: "WA Full Search" (with team code prefix)
+    product_name: str = Field(alias="productName")  # Product name only (e.g., "Full Search", "Amend Title")
     division_id: int = Field(alias="divisionId")  # Direct=1, Agency=2
     division_name: Optional[str] = Field(None, alias="divisionName")  # "Direct" or "Agency"
     single_seat_count: int = Field(alias="singleSeatCount")

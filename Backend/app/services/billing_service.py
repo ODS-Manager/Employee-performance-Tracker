@@ -71,6 +71,32 @@ def format_product_type(team_name: str, product_type: str) -> str:
     return f"{short_name} {product_clean}"
 
 
+def parse_product_type_and_team(product_type_formatted: str, org_teams: List[Team]) -> tuple:
+    """
+    Parse formatted product type (e.g., "NS Clear") and extract team name and product name
+    Returns: (team_name, product_name)
+    
+    Example: "NS Clear" -> ("National Streamline", "Clear")
+    """
+    # Build reverse mapping from short code to full team name
+    team_code_map = {}
+    for team in org_teams:
+        short_code = get_team_short_name(team.name)
+        team_code_map[short_code] = team.name
+    
+    # Split by first space
+    parts = product_type_formatted.split(' ', 1)
+    if len(parts) == 2:
+        team_code = parts[0]
+        product_name = parts[1]
+        team_name = team_code_map.get(team_code, team_code)
+        return team_name, product_name
+    
+    # Fallback if no space found
+    return "Unknown", product_type_formatted
+
+
+
 def get_billing_reports(
     db: Session,
     org_id: Optional[int],
@@ -103,11 +129,16 @@ def get_billing_reports(
     # Convert to response models with details
     result = []
     for report in reports:
+        # Get all teams in the organization for parsing team codes
+        org_teams = db.query(Team).filter(Team.org_id == report.org_id).all()
+        
         details = [
             BillingDetailResponse(
                 id=d.id,
                 state=d.state,
+                teamName=parse_product_type_and_team(d.product_type, org_teams)[0],
                 productType=d.product_type,
+                productName=parse_product_type_and_team(d.product_type, org_teams)[1],
                 divisionId=d.division_id,
                 divisionName="Direct" if d.division_id == 1 else "Agency",
                 singleSeatCount=d.single_seat_count,
@@ -232,9 +263,15 @@ def preview_billing_data(
     for product_key, counts in sorted(billing_data.items()):
         total = counts['single_seat'] + counts['only_step1'] + counts['only_step2']
         division_name = "Direct" if counts['division_id'] == 1 else "Agency"
+        
+        # Parse team name and product name from formatted product type
+        team_name, product_name = parse_product_type_and_team(counts['product_type'], teams)
+        
         details.append(
             BillingPreviewDetail(
+                teamName=team_name,
                 productType=counts['product_type'],
+                productName=product_name,
                 divisionId=counts['division_id'],
                 divisionName=division_name,
                 singleSeatCount=counts['single_seat'],
@@ -410,11 +447,16 @@ def get_billing_report_by_id(db: Session, report_id: int) -> BillingReportRespon
     if not report:
         raise HTTPException(status_code=404, detail="Billing report not found")
     
+    # Get all teams in the organization for parsing team codes
+    org_teams = db.query(Team).filter(Team.org_id == report.org_id).all()
+    
     details = [
         BillingDetailResponse(
             id=d.id,
             state=d.state,
+            teamName=parse_product_type_and_team(d.product_type, org_teams)[0],
             productType=d.product_type,
+            productName=parse_product_type_and_team(d.product_type, org_teams)[1],
             divisionId=d.division_id,
             divisionName="Direct" if d.division_id == 1 else "Agency",
             singleSeatCount=d.single_seat_count,

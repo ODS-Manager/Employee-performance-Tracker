@@ -416,25 +416,20 @@ export const BillingPage = () => {
                     agencyStep2: number
                   }>> = {}
 
-                  preview.details.forEach((detail) => {
-                    const parts = detail.productType.split(' ')
-                    const teamCode = parts[0]
-                    const productRemainder = parts.slice(1).join(' ')
-
-                    const teamName = teamOrder.find(t => {
-                      const shortCode = t.substring(0, 2).toUpperCase()
-                      return shortCode === teamCode
-                    }) || teamCode
+                   preview.details.forEach((detail) => {
+                    // Use teamName directly from API response
+                    const teamName = detail.teamName
+                    const productName = detail.productName
 
                     if (!teamData[teamName]) {
                       teamData[teamName] = []
                     }
 
                     // Find or create product entry
-                    let productEntry = teamData[teamName].find(p => p.product === productRemainder)
+                    let productEntry = teamData[teamName].find(p => p.product === productName)
                     if (!productEntry) {
                       productEntry = {
-                        product: productRemainder,
+                        product: productName,
                         directSingleSeat: 0,
                         directStep1: 0,
                         directStep2: 0,

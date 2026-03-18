@@ -102,31 +102,7 @@ export const BillingReportView = () => {
   }
 
   // Group details by team (extract team from product type)
-  const teamNameMap: Record<string, string> = {
-    'FL': 'Florida',
-    'CA': 'California',
-    'GI': 'GI Clearing',
-    'WA': 'Washington',
-    'MI': 'Michigan',
-    'CO': 'Colorado',
-    'UT': 'Utah',
-    'OR': 'Oregon',
-    'RS': 'Regional Streamline',
-    'NS': 'National Streamline',
-    'FIF': 'FIF',
-    'SC': 'SCB & PD',
-    'SCB': 'SCB & PD',
-    'AZ': 'Arizona',
-    'TX': 'Texas',
-    'PE': 'Pennsylvania',
-    'PA': 'Pennsylvania',
-    'OH': 'Ohio',
-    'GU': 'Guam',
-    'GA': 'Georgia',
-    'VN': 'Vietnam Team'
-  }
-
-  const teamOrder = [
+   const teamOrder = [
     'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan',
     'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline',
     'FIF', 'SCB & PD', 'Arizona', 'Texas', 'Pennsylvania', 'Ohio', 'Guam',
@@ -144,43 +120,39 @@ export const BillingReportView = () => {
     agencyStep2: number
   }>> = {}
 
-  report.details.forEach((detail) => {
-    // Extract team code from product type (e.g., "WA Full Search" -> code="WA", product="Full Search")
-    const parts = detail.productType.split(' ')
-    if (parts.length >= 1) {
-      const teamCode = parts[0]
-      const productRemainder = detail.productType.substring(teamCode.length + 1).trim()
-      const teamName = teamNameMap[teamCode] || teamCode
+   report.details.forEach((detail) => {
+    // Use teamName and productName directly from API response
+    const teamName = detail.teamName
+    const productName = detail.productName
 
-      if (!teamData[teamName]) {
-        teamData[teamName] = []
+    if (!teamData[teamName]) {
+      teamData[teamName] = []
+    }
+    
+    // Find or create product entry
+    let productEntry = teamData[teamName].find(p => p.product === productName)
+    if (!productEntry) {
+      productEntry = {
+        product: productName,
+        directSingleSeat: 0,
+        directStep1: 0,
+        directStep2: 0,
+        agencySingleSeat: 0,
+        agencyStep1: 0,
+        agencyStep2: 0,
       }
-      
-      // Find or create product entry
-      let productEntry = teamData[teamName].find(p => p.product === productRemainder)
-      if (!productEntry) {
-        productEntry = {
-          product: productRemainder,
-          directSingleSeat: 0,
-          directStep1: 0,
-          directStep2: 0,
-          agencySingleSeat: 0,
-          agencyStep1: 0,
-          agencyStep2: 0,
-        }
-        teamData[teamName].push(productEntry)
-      }
-      
-      // Populate counts based on division
-      if (detail.divisionName === 'Direct') {
-        productEntry.directSingleSeat = detail.singleSeatCount
-        productEntry.directStep1 = detail.onlyStep1Count
-        productEntry.directStep2 = detail.onlyStep2Count
-      } else if (detail.divisionName === 'Agency') {
-        productEntry.agencySingleSeat = detail.singleSeatCount
-        productEntry.agencyStep1 = detail.onlyStep1Count
-        productEntry.agencyStep2 = detail.onlyStep2Count
-      }
+      teamData[teamName].push(productEntry)
+    }
+    
+    // Populate counts based on division
+    if (detail.divisionName === 'Direct') {
+      productEntry.directSingleSeat = detail.singleSeatCount
+      productEntry.directStep1 = detail.onlyStep1Count
+      productEntry.directStep2 = detail.onlyStep2Count
+    } else if (detail.divisionName === 'Agency') {
+      productEntry.agencySingleSeat = detail.singleSeatCount
+      productEntry.agencyStep1 = detail.onlyStep1Count
+      productEntry.agencyStep2 = detail.onlyStep2Count
     }
   })
 
