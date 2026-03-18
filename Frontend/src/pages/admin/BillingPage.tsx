@@ -398,32 +398,8 @@ export const BillingPage = () => {
 
                 {/* Preview Table */}
                 {showPreview && preview && (() => {
-                  // Group preview details by team
-                  const teamNameMap: Record<string, string> = {
-                    'FL': 'Florida',
-                    'CA': 'California',
-                    'GI': 'GI Clearing',
-                    'WA': 'Washington',
-                    'MI': 'Michigan',
-                    'CO': 'Colorado',
-                    'UT': 'Utah',
-                    'OR': 'Oregon',
-                    'RS': 'Regional Streamline',
-                    'NS': 'National Streamline',
-                    'FIF': 'FIF',
-                    'SC': 'SCB & PD',
-                    'SCB': 'SCB & PD',
-                    'AZ': 'Arizona',
-                    'TX': 'Texas',
-                    'PE': 'Pennsylvania',
-                    'PA': 'Pennsylvania',
-                    'OH': 'Ohio',
-                    'GU': 'Guam',
-                    'GA': 'Georgia',
-                    'VN': 'Vietnam Team'
-                  }
-
-                  const teamOrder = [
+                   // Group preview details by team
+                   const teamOrder = [
                     'Florida', 'California', 'GI Clearing', 'Washington', 'Michigan',
                     'Colorado', 'Utah', 'Oregon', 'Regional Streamline', 'National Streamline',
                     'FIF', 'SCB & PD', 'Arizona', 'Texas', 'Pennsylvania', 'Ohio', 'Guam',
