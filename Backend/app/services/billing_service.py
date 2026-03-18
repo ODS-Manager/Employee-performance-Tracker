@@ -193,7 +193,7 @@ def preview_billing_data(
                     'only_step1': 0,
                     'only_step2': 0,
                     'team_name': team.name,
-                    'product_type': team_product.product_type,
+                    'product_type': formatted_product,
                     'division_id': div_id
                 }
     
@@ -215,7 +215,7 @@ def preview_billing_data(
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': order.product_type,
+                'product_type': formatted_product,
                 'division_id': order.division_id
             }
         
@@ -332,7 +332,7 @@ def create_billing_report(
                     'only_step1': 0,
                     'only_step2': 0,
                     'team_name': team.name,
-                    'product_type': team_product.product_type,
+                    'product_type': formatted_product,
                     'division_id': div_id
                 }
     
@@ -354,7 +354,7 @@ def create_billing_report(
                 'only_step1': 0,
                 'only_step2': 0,
                 'team_name': team.name,
-                'product_type': order.product_type,
+                'product_type': formatted_product,
                 'division_id': order.division_id
             }
         
