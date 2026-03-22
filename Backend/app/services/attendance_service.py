@@ -2,6 +2,7 @@
 Attendance Service
 Business logic for manual attendance marking by team leads
 """
+import logging
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
@@ -89,19 +90,21 @@ class AttendanceService:
         check_date: date,
         status: str,
         marked_by: int,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        skip_team_validation: bool = False
     ) -> AttendanceRecordResponse:
         """Mark attendance for single examiner on single date"""
         # Validate current month
         self._validate_current_month(check_date)
         
-        # Validate team membership
-        self._validate_team_membership(user_id, team_id)
-        
-        # Get user and organization
+        # Get user and organization first (needed for validation and org_id)
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+        
+        # Validate team membership (skip for team leads if requested)
+        if not skip_team_validation and user.user_role != 'team_lead':
+            self._validate_team_membership(user_id, team_id)
         
         # Check if record exists
         existing = self.db.query(AttendanceRecord).filter(
@@ -268,6 +271,7 @@ class AttendanceService:
                 userId=user.id,
                 userName=user.user_name,
                 examinerId=user.examiner_id,
+                userRole=user.user_role,
                 status=status,
                 attendanceId=attendance_id,
                 notes=notes,
@@ -310,7 +314,8 @@ class AttendanceService:
                 daysPresent=0,
                 daysAbsent=working_days_calc,
                 daysLeave=0,
-                attendancePercent=0.0
+                attendancePercent=0.0,
+                records=[]
             )
         
         # Calculate working days (Mon–Fri only, up to today, don't include future days)
@@ -322,11 +327,29 @@ class AttendanceService:
             current += timedelta(days=1)
         
         # Query attendance records (only up to today)
-        records = self.db.query(AttendanceRecord).filter(
+        logger = logging.getLogger(__name__)
+        logger.info(f"Querying attendance for user {user_id} from {start_date} to {effective_end_date}")
+        
+        # Get only the most recent record per date (in case of duplicates)
+        # Use a subquery to get the max id per date (higher id = more recent)
+        subquery = self.db.query(
+            AttendanceRecord.date,
+            func.max(AttendanceRecord.id).label('max_id')
+        ).filter(
             AttendanceRecord.user_id == user_id,
             AttendanceRecord.date >= start_date,
             AttendanceRecord.date <= effective_end_date
+        ).group_by(AttendanceRecord.date).subquery()
+        
+        records = self.db.query(AttendanceRecord).join(
+            subquery,
+            (AttendanceRecord.date == subquery.c.date) & 
+            (AttendanceRecord.id == subquery.c.max_id)
         ).all()
+        
+        logger.info(f"Found {len(records)} records for user {user_id} (after deduplication)")
+        for r in records:
+            logger.info(f"  Record: id={r.id}, date={r.date}, status={r.status}, team_id={r.team_id}")
         
         # Count by status — weekends are excluded from all counts
         days_present = sum(1 for r in records if r.status == 'present' and r.date.weekday() <= 4)
@@ -336,6 +359,30 @@ class AttendanceService:
         
         # Calculate percentage (present days / total days)
         attendance_percent = (days_present / working_days * 100) if working_days > 0 else 0.0
+        
+        # Serialize records with proper user data
+        serialized_records = []
+        for record in records:
+            record_user = self.db.query(User).filter(User.id == record.user_id).first()
+            marked_by_user = self.db.query(User).filter(User.id == record.marked_by).first() if record.marked_by else None
+            modified_by_user = self.db.query(User).filter(User.id == record.modified_by).first() if record.modified_by else None
+            
+            serialized_records.append(AttendanceRecordResponse(
+                id=record.id,
+                userId=record.user_id,
+                userName=record_user.user_name if record_user else "Unknown",
+                examinerId=record_user.examiner_id if record_user else "Unknown",
+                teamId=record.team_id,
+                date=record.date,
+                status=record.status,
+                markedBy=record.marked_by,
+                markedByName=marked_by_user.user_name if marked_by_user else "Unknown",
+                markedAt=record.marked_at,
+                modifiedBy=record.modified_by,
+                modifiedByName=modified_by_user.user_name if modified_by_user else None,
+                modifiedAt=record.modified_at,
+                notes=record.notes
+            ))
         
         return AttendanceSummary(
             userId=user_id,
@@ -347,7 +394,8 @@ class AttendanceService:
             daysPresent=days_present,
             daysAbsent=days_absent,
             daysLeave=days_leave,
-            attendancePercent=round(attendance_percent, 2)
+            attendancePercent=round(attendance_percent, 2),
+            records=serialized_records
         )
     
     def get_team_attendance_report(
@@ -406,4 +454,108 @@ class AttendanceService:
                 "total_leave": team_leave,
                 "examiner_count": len(examiners)
             }
+        )
+    
+    def get_team_monthly_attendance_detail(
+        self,
+        team_id: int,
+        start_date: date,
+        end_date: date
+    ):
+        """Get detailed monthly attendance with daily records for all team members"""
+        from app.schemas.attendance import (
+            TeamMonthlyAttendanceReport,
+            ExaminerMonthlyAttendance,
+            DailyAttendanceRecord
+        )
+        
+        # Get team
+        team = self.db.query(Team).filter(Team.id == team_id).first()
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+        
+        # Get all active team members
+        memberships = self.db.query(UserTeam).options(
+            joinedload(UserTeam.user)
+        ).filter(
+            UserTeam.team_id == team_id,
+            UserTeam.is_active == True
+        ).all()
+        
+        # Get all attendance records for the date range
+        attendance_records = self.db.query(AttendanceRecord).filter(
+            AttendanceRecord.team_id == team_id,
+            AttendanceRecord.date >= start_date,
+            AttendanceRecord.date <= end_date
+        ).all()
+        
+        # Create lookup dict: {(user_id, date): attendance_record}
+        attendance_dict = {}
+        for record in attendance_records:
+            key = (record.user_id, record.date)
+            attendance_dict[key] = record
+        
+        # Build examiner monthly data
+        examiners_monthly = []
+        
+        for membership in memberships:
+            user = membership.user
+            if not user or not user.is_active:
+                continue
+            
+            # Build daily records for this examiner
+            daily_records = []
+            days_present = 0
+            days_absent = 0
+            days_leave = 0
+            days_not_marked = 0
+            
+            current_date = start_date
+            while current_date <= end_date:
+                key = (user.id, current_date)
+                attendance = attendance_dict.get(key)
+                
+                if attendance:
+                    status = attendance.status
+                    notes = attendance.notes
+                    if status == 'present':
+                        days_present += 1
+                    elif status == 'absent':
+                        days_absent += 1
+                    elif status == 'leave':
+                        days_leave += 1
+                else:
+                    status = None  # Not marked
+                    notes = None
+                    days_not_marked += 1
+                
+                daily_records.append(DailyAttendanceRecord(
+                    date=current_date,
+                    status=status,
+                    notes=notes
+                ))
+                
+                current_date += timedelta(days=1)
+            
+            total_days = len(daily_records)
+            
+            examiners_monthly.append(ExaminerMonthlyAttendance(
+                userId=user.id,
+                userName=user.user_name,
+                examinerId=user.examiner_id,
+                userRole=user.user_role,
+                totalDays=total_days,
+                daysPresent=days_present,
+                daysAbsent=days_absent,
+                daysLeave=days_leave,
+                daysNotMarked=days_not_marked,
+                dailyRecords=daily_records
+            ))
+        
+        return TeamMonthlyAttendanceReport(
+            teamId=team_id,
+            teamName=team.name,
+            startDate=start_date,
+            endDate=end_date,
+            examiners=examiners_monthly
         )

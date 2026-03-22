@@ -78,6 +78,7 @@ export const ExaminerManagementPage = () => {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
   const [formData, setFormData] = useState({
     userName: '',
+    examinerId: '',
     password: '',
     confirmPassword: '',
     userRole: 'examiner' as UserRole,
@@ -150,10 +151,10 @@ export const ExaminerManagementPage = () => {
         orgsSample: orgsRes.items
       })
       
-      // Store the total count from the API (this should be 149)
+      // Store the total count from the API (this should include all users)
       // If API doesn't provide total or we get no data, use a fallback
       const apiTotal = usersRes.total || usersRes.items?.length || 0
-      const displayTotal = apiTotal > 0 ? apiTotal : 149  // Fallback to known database count
+      const displayTotal = apiTotal > 0 ? apiTotal : 0
       setTotalExaminerCount(displayTotal)
       
       // Calculate total active/inactive counts from all data
@@ -161,12 +162,11 @@ export const ExaminerManagementPage = () => {
       const totalActive = allUsers.filter(u => u.isActive).length
       const totalInactive = allUsers.length - totalActive
       
-      // If we have no API data, use database-known values as fallback
-      setTotalActiveCount(totalActive > 0 ? totalActive : 149)  // All 149 users are active in our DB
+      setTotalActiveCount(totalActive)
       setTotalInactiveCount(totalInactive)
       
-      // Filter out only the currently logged-in user from the list (not superadmins)
-      const filteredExaminers = (usersRes.items || []).filter((u: UserData) => 
+      // Filter out only the currently logged-in user from the list
+      const filteredExaminers = allUsers.filter((u: UserData) => 
         u.id !== user?.id
       )
       
@@ -268,6 +268,7 @@ export const ExaminerManagementPage = () => {
   const resetForm = () => {
     setFormData({
       userName: '',
+      examinerId: '',
       password: '',
       confirmPassword: '',
       userRole: 'examiner',
@@ -295,8 +296,23 @@ export const ExaminerManagementPage = () => {
     setFormError('')
 
     // Validation
-    if (!formData.userName || !formData.password) {
+    if (!formData.userName || !formData.examinerId || !formData.password) {
       setFormError('Please fill in all required fields')
+      return
+    }
+
+    // Validate Employee ID format
+    const examinerIdRegex = /^[A-Z0-9_-]+$/i
+    if (!examinerIdRegex.test(formData.examinerId)) {
+      setFormError('Employee ID can only contain letters, numbers, hyphens, and underscores')
+      return
+    }
+    if (formData.examinerId.length < 2) {
+      setFormError('Employee ID must be at least 2 characters')
+      return
+    }
+    if (formData.examinerId.length > 50) {
+      setFormError('Employee ID must be at most 50 characters')
       return
     }
 
@@ -319,9 +335,10 @@ export const ExaminerManagementPage = () => {
     setIsSubmitting(true)
 
     try {
-      // Create the user
+      // Create the user with manual Employee ID
       const newUser = await usersApi.create({
         userName: formData.userName,
+        examinerId: formData.examinerId.trim().toUpperCase(),
         password: formData.password,
         userRole: formData.userRole,
         orgId: isUserRole(formData.userRole, 'superadmin') ? null : formData.orgId,
@@ -368,7 +385,7 @@ export const ExaminerManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <AdminHeader title="Employee Management" subtitle="View, manage, and onboard employees" />
+      <AdminHeader title="Employee Management" subtitle="View, manage, and onboard all employees" />
 
       <AdminNav />
 
@@ -496,6 +513,31 @@ export const ExaminerManagementPage = () => {
                         />
                         <p className="text-xs text-muted-foreground">
                           Must start with a letter. Allows letters, numbers, spaces, dots, and hyphens. Min 2 characters.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="examinerId">Employee ID *</Label>
+                        <Input 
+                          id="examinerId" 
+                          placeholder="e.g., EMP001 or JD-2024-001"
+                          value={formData.examinerId} 
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            // Allow letters, numbers, hyphens, and underscores
+                            if (val === '' || /^[a-zA-Z0-9_-]*$/.test(val)) {
+                              setFormData({...formData, examinerId: val});
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim().toUpperCase();
+                            setFormData({...formData, examinerId: val});
+                          }}
+                          required 
+                          disabled={isSubmitting}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Required. Unique identifier for the employee. Use letters, numbers, hyphens, or underscores. Will be converted to uppercase.
                         </p>
                       </div>
                     </div>
@@ -661,7 +703,7 @@ export const ExaminerManagementPage = () => {
           </Card>
         </div>
 
-        {/* Examiners Table */}
+        {/* Employees Table */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

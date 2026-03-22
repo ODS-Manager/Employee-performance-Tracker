@@ -20,6 +20,7 @@ export const OnboardingPage = () => {
   
   const [formData, setFormData] = useState({
     userName: '',
+    examinerId: '',
     password: '',
     confirmPassword: '',
     userRole: 'examiner' as UserRole,
@@ -33,6 +34,7 @@ export const OnboardingPage = () => {
   const [loadingTeams, setLoadingTeams] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [teamAssignmentErrors, setTeamAssignmentErrors] = useState<string[]>([])
 
   useEffect(() => {
     if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
@@ -42,61 +44,111 @@ export const OnboardingPage = () => {
     fetchInitialData()
   }, [user, navigate])
 
-  // Fetch teams when organization changes
+  // Fetch teams when organization changes (for admin users who don't use the selector)
   useEffect(() => {
-    if (formData.orgId) {
+    if (formData.orgId && user?.userRole !== 'superadmin') {
       fetchTeamsForOrg(formData.orgId)
-    } else {
+    } else if (!formData.orgId) {
       setTeams([])
+      setSelectedTeams([])
     }
-    // Clear selected teams when org changes
-    setSelectedTeams([])
-  }, [formData.orgId])
+  }, [formData.orgId, user?.userRole])
 
   const fetchInitialData = async () => {
     try {
+      setError('') // Clear previous errors
+      
       // Superadmin can see all organizations
       if (user?.userRole === 'superadmin') {
         const orgsRes = await organizationsApi.list({ isActive: true })
         setOrganizations(orgsRes.items || [])
+        
+        if (!orgsRes.items || orgsRes.items.length === 0) {
+          setError('No organizations found. Please create an organization first.')
+        }
       } else if (user?.orgId) {
         // Admin - fetch teams for their org
-        fetchTeamsForOrg(user.orgId)
+        await fetchTeamsForOrg(user.orgId)
+      } else {
+        setError('Unable to determine your organization. Please contact support.')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch data:', error)
+      const errorMsg = error.response?.data?.detail || 'Failed to load initial data. Please refresh the page.'
+      setError(errorMsg)
+      toast.error(errorMsg)
     }
   }
 
   const fetchTeamsForOrg = async (orgId: number) => {
     try {
       setLoadingTeams(true)
+      setError('') // Clear previous errors
       const teamsRes = await teamsApi.list({ 
         orgId: orgId,
         isActive: true 
       })
       setTeams(teamsRes.items || [])
-    } catch (error) {
+      
+      // Show message if no teams found
+      if (!teamsRes.items || teamsRes.items.length === 0) {
+        toast.info('No teams available for this organization. Please create teams first.')
+      }
+    } catch (error: any) {
       console.error('Failed to fetch teams:', error)
+      const errorMsg = error.response?.data?.detail || 'Failed to load teams. Please try again.'
+      setError(errorMsg)
+      toast.error(errorMsg)
       setTeams([])
     } finally {
       setLoadingTeams(false)
     }
   }
 
-  const handleOrgChange = (value: string) => {
-    const orgId = parseInt(value)
-    setFormData({...formData, orgId})
+  const handleOrgChange = async (value: string) => {
+    try {
+      const orgId = parseInt(value)
+      setFormData({...formData, orgId})
+      setError('') // Clear errors when org changes
+      setTeams([]) // Reset teams when org changes
+      setSelectedTeams([]) // Clear selected teams
+      
+      // Fetch teams for the selected organization
+      if (orgId) {
+        await fetchTeamsForOrg(orgId)
+      }
+    } catch (error: any) {
+      console.error('Failed to change organization:', error)
+      const errorMsg = error.response?.data?.detail || 'Failed to load teams for selected organization'
+      setError(errorMsg)
+      toast.error(errorMsg)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess(false)
+    setTeamAssignmentErrors([])
 
     // Validation
-    if (!formData.userName || !formData.password) {
+    if (!formData.userName || !formData.examinerId || !formData.password) {
       setError('Please fill in all required fields')
+      return
+    }
+
+    // Validate Employee ID format
+    const examinerIdRegex = /^[A-Z0-9_-]+$/i
+    if (!examinerIdRegex.test(formData.examinerId)) {
+      setError('Employee ID can only contain letters, numbers, hyphens, and underscores')
+      return
+    }
+    if (formData.examinerId.length < 2) {
+      setError('Employee ID must be at least 2 characters')
+      return
+    }
+    if (formData.examinerId.length > 50) {
+      setError('Employee ID must be at most 50 characters')
       return
     }
 
@@ -117,31 +169,56 @@ export const OnboardingPage = () => {
     }
 
     setIsLoading(true)
+    let newUser: any = null
+    const failedTeams: string[] = []
 
     try {
-      // Create the user - examinerId will be auto-generated by backend
-      const newUser = await usersApi.create({
+      // Step 1: Create the user with manual Employee ID
+      newUser = await usersApi.create({
         userName: formData.userName,
+        examinerId: formData.examinerId.trim().toUpperCase(),
         password: formData.password,
         userRole: formData.userRole,
         orgId: formData.userRole === 'superadmin' ? null : formData.orgId,
       })
 
-      // Add user to selected teams
-      for (const teamId of selectedTeams) {
-        await usersApi.addToTeam(newUser.id, { 
-          userId: newUser.id, 
-          teamId,
-          role: 'member'
-        })
+      // Step 2: Add user to selected teams (don't fail if team assignment fails)
+      if (selectedTeams.length > 0 && newUser?.id) {
+        for (const teamId of selectedTeams) {
+          try {
+            await usersApi.addToTeam(newUser.id, { 
+              userId: newUser.id, 
+              teamId,
+              role: 'member'
+            })
+          } catch (teamError: any) {
+            console.error(`Failed to add user to team ${teamId}:`, teamError)
+            const teamName = teams.find(t => t.id === teamId)?.name || `Team ID ${teamId}`
+            const errorDetail = teamError.response?.data?.detail || 'Unknown error'
+            failedTeams.push(`${teamName}: ${errorDetail}`)
+          }
+        }
       }
 
+      // Update state with team assignment errors
+      setTeamAssignmentErrors(failedTeams)
       setSuccess(true)
-      toast.success('Employee created successfully!')
+      
+      // Show appropriate success message
+      if (failedTeams.length > 0) {
+        // Partial success - user created but some teams failed
+        toast.success(`Employee "${formData.userName}" created successfully!`)
+        toast.error(`Failed to assign to ${failedTeams.length} team(s). You can assign teams later from Team Management.`, {
+          duration: 5000
+        })
+      } else {
+        toast.success('Employee created successfully!')
+      }
       
       // Reset form
       setFormData({
         userName: '',
+        examinerId: '',
         password: '',
         confirmPassword: '',
         userRole: 'examiner',
@@ -152,8 +229,13 @@ export const OnboardingPage = () => {
     } catch (error: any) {
       let errorMsg = 'Failed to create employee'
       const detail = error.response?.data?.detail
+      const status = error.response?.status
       
-      if (detail) {
+      if (status === 401) {
+        errorMsg = 'Your session has expired. Please log in again.'
+      } else if (status === 403) {
+        errorMsg = 'You do not have permission to create employees.'
+      } else if (detail) {
         if (typeof detail === 'string') {
           errorMsg = detail
         } else if (Array.isArray(detail)) {
@@ -162,6 +244,8 @@ export const OnboardingPage = () => {
         } else if (typeof detail === 'object') {
           errorMsg = detail.msg || detail.message || JSON.stringify(detail)
         }
+      } else if (error.message) {
+        errorMsg = error.message
       }
       
       setError(errorMsg)
@@ -216,6 +300,22 @@ export const OnboardingPage = () => {
                 <AlertDescription className="text-green-800">
                   Employee created successfully!
                   <span className="block mt-1 text-sm">You can add another employee or navigate away.</span>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Show partial success warning if user created but teams failed */}
+            {success && teamAssignmentErrors.length > 0 && (
+              <Alert className="mb-6 border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800">
+                  <strong>Note:</strong> Employee was created but could not be assigned to all selected teams:
+                  <ul className="list-disc list-inside mt-2 text-sm">
+                    {teamAssignmentErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-sm">You can assign teams later from the Team Management section.</p>
                 </AlertDescription>
               </Alert>
             )}
@@ -302,6 +402,31 @@ export const OnboardingPage = () => {
                     Must start with a letter. Allows letters, numbers, spaces, dots, and hyphens. Min 2 characters.
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="examinerId">Employee ID *</Label>
+                  <Input 
+                    id="examinerId" 
+                    placeholder="e.g., EMP001 or JD-2024-001"
+                    value={formData.examinerId} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Allow letters, numbers, hyphens, and underscores
+                      if (val === '' || /^[a-zA-Z0-9_-]*$/.test(val)) {
+                        setFormData({...formData, examinerId: val});
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value.trim().toUpperCase();
+                      setFormData({...formData, examinerId: val});
+                    }}
+                    required 
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required. Unique identifier for the employee. Use letters, numbers, hyphens, or underscores. Will be converted to uppercase.
+                  </p>
+                </div>
               </div>
 
               {/* Password */}
@@ -372,14 +497,42 @@ export const OnboardingPage = () => {
                       )}
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No teams available for this organization</p>
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
+                      <p className="text-sm text-amber-800">
+                        <AlertCircle className="h-4 w-4 inline mr-2" />
+                        No teams available for this organization.
+                      </p>
+                      <p className="text-xs text-amber-600 mt-1">
+                        Please create teams in the Team Management section first.
+                      </p>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-3"
+                        onClick={() => fetchTeamsForOrg(effectiveOrgId!)}
+                        disabled={loadingTeams}
+                      >
+                        {loadingTeams ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                        )}
+                        Retry Loading Teams
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
 
               {/* Show message if superadmin needs to select org first */}
               {showOrgSelector && !formData.orgId && formData.userRole !== 'superadmin' && (
-                <p className="text-sm text-amber-600">Please select a center to see available teams</p>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    <AlertCircle className="h-4 w-4 inline mr-2" />
+                    Please select an organization above to view available teams.
+                  </p>
+                </div>
               )}
 
               <Button type="submit" className="w-full" disabled={isLoading}>

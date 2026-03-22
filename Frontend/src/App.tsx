@@ -33,8 +33,13 @@ import ExaminerPerformanceDetailPage from './pages/admin/ExaminerPerformanceDeta
 import OrganizationsPage from './pages/admin/OrganizationsPage'
 import ProductivityReportsPage from './pages/admin/ProductivityReportsPage'
 import ExaminerTargetsPage from './pages/admin/ExaminerTargetsPage'
+import TeamLeadTargetsPage from './pages/admin/TeamLeadTargetsPage'
+import AdminTeamLeadAttendancePage from './pages/admin/AdminTeamLeadAttendancePage'
+import AdminMonthlyAttendanceReportPage from './pages/admin/AdminMonthlyAttendanceReportPage'
 import TeamAttendancePage from './pages/teamlead/TeamAttendancePage'
 import TeamAttendanceReportsPage from './pages/teamlead/TeamAttendanceReportsPage'
+import MonthlyAttendanceReportPage from './pages/teamlead/MonthlyAttendanceReportPage'
+import TeamLeadPersonalDashboard from './pages/teamlead/TeamLeadPersonalDashboard'
 import './App.css'
 
 const queryClient = new QueryClient({
@@ -231,6 +236,30 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/attendance/team-leads"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <AdminTeamLeadAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/attendance/monthly-report"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <AdminMonthlyAttendanceReportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/team-lead-targets"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <TeamLeadTargetsPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Team Lead Routes */}
             <Route
@@ -319,6 +348,22 @@ function App() {
               element={
                 <ProtectedRoute requiredRoles={['team_lead']}>
                   <TeamAttendanceReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teamlead/attendance/monthly-report"
+              element={
+                <ProtectedRoute requiredRoles={['team_lead']}>
+                  <MonthlyAttendanceReportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teamlead/personal-dashboard"
+              element={
+                <ProtectedRoute requiredRoles={['team_lead']}>
+                  <TeamLeadPersonalDashboard />
                 </ProtectedRoute>
               }
             />

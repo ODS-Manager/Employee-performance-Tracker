@@ -189,15 +189,29 @@ async def get_my_productivity(
     """
     Get productivity score for the current logged-in user.
     
-    Calculates scores across ALL teams the user belongs to,
+    For examiners: Calculates scores across ALL teams the examiner belongs to,
     compared against their single weekly target.
+    
+    For team leads: Calculates scores from orders worked on,
+    compared against their weekly target set by admin.
     """
     service = ProductivityService(db)
-    result = service.calculate_examiner_score(
-        user_id=int(current_user.id),  # type: ignore
-        start_date=start_date,
-        end_date=end_date
-    )
+    
+    # Check user role and call appropriate method
+    if current_user.user_role == 'examiner':  # type: ignore
+        result = service.calculate_examiner_score(
+            user_id=int(current_user.id),  # type: ignore
+            start_date=start_date,
+            end_date=end_date
+        )
+    elif current_user.user_role == 'team_lead':  # type: ignore
+        result = service.calculate_team_lead_score(
+            user_id=int(current_user.id),  # type: ignore
+            start_date=start_date,
+            end_date=end_date
+        )
+    else:
+        raise HTTPException(status_code=403, detail="Productivity is only available for examiners and team leads")
     
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])

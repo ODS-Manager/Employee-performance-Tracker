@@ -9,7 +9,7 @@ from datetime import date
 import math
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, get_user_teams
+from app.core.dependencies import get_current_user, get_user_teams, ROLE_TEAM_LEAD, ROLE_EXAMINER
 from app.services.quality_audit_service import QualityAuditService
 from app.models.user import User
 from app.models.team import Team
@@ -122,15 +122,17 @@ def list_quality_audits(
     if user_role_lower == "examiner":
         examiner_id = current_user.id
         org_id = current_user.org_id
-    # For team leads, restrict to teams they lead
+    # For team leads, restrict to teams they lead (unless viewing their own audits)
     elif user_role_lower == "team_lead":
-        team_ids = get_user_teams(current_user, db)
-        # If a specific team_id is requested, verify access
-        if team_id is not None:
-            if team_id not in team_ids:
-                raise HTTPException(status_code=403, detail="You can only view audits for teams you lead")
-            team_ids = None  # Use the single team_id filter instead
         org_id = current_user.org_id
+        # If querying for own audits, don't restrict by team_ids
+        if examiner_id != current_user.id:
+            team_ids = get_user_teams(current_user, db)
+            # If a specific team_id is requested, verify access
+            if team_id is not None:
+                if team_id not in team_ids:
+                    raise HTTPException(status_code=403, detail="You can only view audits for teams you lead")
+                team_ids = None  # Use the single team_id filter instead
     # For admin users, restrict to their org
     elif user_role_lower == "admin":
         org_id = current_user.org_id
@@ -149,10 +151,17 @@ def list_quality_audits(
         skip=skip,
         limit=page_size
     )
-    
+
     # Build response with examiner and team names
     list_items = []
     for audit in items:
+        # Get examiner to check role
+        examiner = db.query(User).filter(User.id == audit.examiner_id).first()
+
+        # Skip if team lead is viewing and this audit is for a non-examiner (not themselves)
+        # Team leads should be able to see their own audits
+        if user_role_lower == ROLE_TEAM_LEAD and examiner and examiner.user_role != ROLE_EXAMINER and examiner.id != current_user.id:
+            continue
         examiner = db.query(User).filter(User.id == audit.examiner_id).first()
         team = db.query(Team).filter(Team.id == audit.team_id).first()
         

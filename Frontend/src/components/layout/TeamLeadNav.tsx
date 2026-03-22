@@ -21,12 +21,14 @@ import {
   TrendingUp,
   Settings,
   ClipboardCheck,
-  Calendar
+  Calendar,
+  User
 } from 'lucide-react'
 
 // Navigation items for team lead
 const navItems = [
   { path: '/teamlead/dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Overview' },
+  { path: '/teamlead/personal-dashboard', label: 'Personal', icon: User, description: 'My performance' },
   { path: '/teamlead/team', label: 'My Team', icon: Users, description: 'Team members' },
   { path: '/teamlead/orders', label: 'Orders', icon: FileText, description: 'Team orders' },
   { path: '/teamlead/productivity', label: 'Productivity', icon: TrendingUp, description: 'Team productivity' },
@@ -39,11 +41,13 @@ const navItems = [
 const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/teamlead': { label: 'Team Lead' },
   '/teamlead/dashboard': { label: 'Dashboard', parent: '/teamlead' },
+  '/teamlead/personal-dashboard': { label: 'Personal Dashboard', parent: '/teamlead/dashboard' },
   '/teamlead/team': { label: 'My Team', parent: '/teamlead/dashboard' },
   '/teamlead/orders': { label: 'Orders', parent: '/teamlead/dashboard' },
   '/teamlead/productivity': { label: 'Productivity', parent: '/teamlead/dashboard' },
   '/teamlead/attendance': { label: 'Attendance', parent: '/teamlead/dashboard' },
   '/teamlead/attendance/reports': { label: 'Attendance Reports', parent: '/teamlead/attendance' },
+  '/teamlead/attendance/monthly-report': { label: 'Monthly Report', parent: '/teamlead/attendance' },
   '/teamlead/quality-audit': { label: 'Quality Audit', parent: '/teamlead/dashboard' },
   '/teamlead/team-management': { label: 'Manage Teams', parent: '/teamlead/dashboard' },
   '/teamlead/examiner/:userId/performance': { label: 'Employee Performance', parent: '/teamlead/productivity' },

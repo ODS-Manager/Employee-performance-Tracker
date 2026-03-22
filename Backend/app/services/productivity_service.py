@@ -547,7 +547,7 @@ class ProductivityService:
         today = date.today()
         actual_end_date = min(end_date, today)
         
-        # Get active team members - ONLY examiners (not team_lead, admin, superadmin)
+        # Get active team members - examiners AND team leads
         team_members = self.db.query(
             User.id,
             User.user_name,
@@ -557,8 +557,19 @@ class ProductivityService:
         ).filter(
             UserTeam.team_id == team_id,
             UserTeam.is_active == True,
-            User.user_role == 'examiner'
+            User.user_role.in_(['examiner', 'team_lead'])
         ).all()
+        
+        # Also include the primary team lead if they're not already in the list
+        if team and team.team_lead_id:
+            lead_ids = [int(member.id) for member in team_members]
+            if team.team_lead_id not in lead_ids:
+                lead_user = self.db.query(User.id, User.user_name, User.examiner_id).filter(
+                    User.id == team.team_lead_id,
+                    User.is_active == True
+                ).first()
+                if lead_user:
+                    team_members.append(lead_user)
 
         member_user_ids = [int(member.id) for member in team_members]  # type: ignore
 
@@ -920,3 +931,202 @@ class ProductivityService:
         all_scores.sort(key=lambda x: x["scores"]["totalScore"], reverse=True)
         
         return all_scores[:limit]
+
+    def calculate_team_lead_score(
+        self,
+        user_id: int,
+        start_date: date,
+        end_date: date
+    ) -> Dict[str, Any]:
+        """
+        Calculate productivity score for a team lead.
+        
+        Team leads work on orders like examiners but have targets set by admin.
+        - Target is stored in ExaminerWeeklyTarget with team_id = org_id
+        - Attendance-driven target calculation same as examiners
+        - Score from orders they've worked on (step1, step2, both)
+        
+        Returns:
+            Dict with step counts, scores, and productivity percentage
+        """
+        # Verify user is a team lead
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        if user.user_role != 'team_lead':  # type: ignore
+            return {"error": "This endpoint is only for team leads"}
+        
+        # Adjust end_date to not exceed today's date
+        today = date.today()
+        actual_end_date = min(end_date, today)
+        
+        # Get all teams the team lead belongs to (they work on orders in these teams)
+        user_teams = self.db.query(UserTeam).filter(
+            UserTeam.user_id == user_id,
+            UserTeam.is_active == True
+        ).all()
+        
+        user_team_ids = [int(ut.team_id) for ut in user_teams]  # type: ignore
+        
+        if not user_team_ids:
+            return {
+                "error": "Team lead is not assigned to any teams",
+                "userId": user_id
+            }
+        
+        # Calculate scores from ALL teams the team lead works in
+        total_step1_count = 0
+        total_step2_count = 0
+        total_both_steps_count = 0
+        
+        for tid in user_team_ids:
+            try:
+                # Count orders where team lead worked on step 1 only
+                step1_orders = self.db.query(Order).filter(
+                    Order.team_id == tid,
+                    Order.step1_user_id == user_id,
+                    Order.entry_date >= start_date,
+                    Order.entry_date <= actual_end_date
+                ).all()
+                
+                step1_only = 0
+                step2_only = 0
+                both_steps = 0
+                
+                for order in step1_orders:
+                    step2_uid = order.step2_user_id
+                    if step2_uid is not None and step2_uid == user_id:
+                        both_steps += 1
+                    else:
+                        step1_only += 1
+                
+                # Count orders where team lead worked on step 2 only
+                step2_orders = self.db.query(Order).filter(
+                    Order.team_id == tid,
+                    Order.step2_user_id == user_id,
+                    Order.entry_date >= start_date,
+                    Order.entry_date <= actual_end_date
+                ).all()
+                
+                for order in step2_orders:
+                    step1_uid = order.step1_user_id
+                    if step1_uid is None or step1_uid != user_id:
+                        step2_only += 1
+                
+                total_step1_count += step1_only
+                total_step2_count += step2_only
+                total_both_steps_count += both_steps
+            except Exception as e:
+                print(f"Error processing team {tid}: {e}")
+                continue
+        
+        # Get team score multipliers (use first team for score calculation)
+        team = self.db.query(Team).filter(Team.id == user_team_ids[0]).first()
+        step1_score = team.step1_score if team else 1.0  # type: ignore
+        step2_score = team.step2_score if team else 1.0  # type: ignore
+        
+        # Calculate total score
+        total_score = (
+            total_step1_count * float(step1_score) +
+            total_step2_count * float(step2_score) +
+            total_both_steps_count * (float(step1_score) + float(step2_score))
+        )
+        
+        # Get team lead's target from ExaminerWeeklyTarget (team_id = org_id for team leads)
+        # Get all weekly targets for this team lead
+        all_targets = self.db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == user_id
+        ).order_by(ExaminerWeeklyTarget.week_start_date).all()
+        
+        # Calculate attendance-driven target
+        weeks = self.get_weeks_in_range(start_date, actual_end_date)
+        total_expected_target = 0.0
+        weekly_target_used = 0
+        
+        # Get attendance service
+        attendance_service = AttendanceService(self.db)
+        
+        # Find the most recent target before start_date for carryforward
+        last_known_target = None
+        for t in all_targets:
+            if t.week_start_date < start_date:  # type: ignore
+                last_known_target = t.target  # type: ignore
+        
+        for week_start, week_end in weeks:
+            # Check if we have a target for this week
+            target_for_week = None
+            for t in all_targets:
+                if t.week_start_date == week_start:  # type: ignore
+                    target_for_week = t.target  # type: ignore
+                    break
+            
+            # Use last known target if no target for this week
+            if target_for_week is None and last_known_target is not None:
+                target_for_week = last_known_target
+            
+            if target_for_week is not None:
+                last_known_target = target_for_week
+                weekly_target_used = target_for_week
+                
+                # Calculate working days in this week (overlap with date range)
+                overlap_start = max(week_start, start_date)
+                overlap_end = min(week_end, actual_end_date)
+                working_days_in_week = self.get_working_days_in_range(overlap_start, overlap_end)
+                
+                # Calculate expected target based on working days (not attendance)
+                # This ensures productivity is calculated even if attendance isn't marked
+                daily_target = target_for_week / 5.0  # 5 working days per week
+                expected_for_week = working_days_in_week * daily_target
+                total_expected_target += expected_for_week
+        
+        # Calculate productivity percentage
+        productivity_percent = None
+        if total_expected_target > 0:
+            productivity_percent = round((total_score / total_expected_target) * 100, 2)
+        elif total_score > 0 and weekly_target_used > 0:
+            # If there's work done but expected target is 0 (e.g., no working days in range),
+            # use the weekly target as a minimum expected target for calculation
+            total_expected_target = float(weekly_target_used)
+            productivity_percent = round((total_score / total_expected_target) * 100, 2)
+        
+        # Get attendance for the period
+        attendance_summary = attendance_service.get_examiner_attendance_summary(
+            user_id=user_id,
+            start_date=start_date,
+            end_date=actual_end_date
+        )
+        
+        working_days = self.get_working_days_in_range(start_date, actual_end_date)
+        
+        return {
+            "userId": user_id,
+            "userName": user.user_name,  # type: ignore
+            "examinerId": user.examiner_id,  # type: ignore
+            "period": {
+                "startDate": start_date.isoformat(),
+                "endDate": actual_end_date.isoformat(),
+                "workingDays": working_days
+            },
+            "attendance": {
+                "daysPresent": attendance_summary.days_present,
+                "daysAbsent": attendance_summary.days_absent,
+                "daysLeave": attendance_summary.days_leave,
+                "attendancePercent": attendance_summary.attendance_percent
+            },
+            "completions": {
+                "step1Only": total_step1_count,
+                "step2Only": total_step2_count,
+                "singleSeat": total_both_steps_count,
+                "total": total_step1_count + total_step2_count + total_both_steps_count
+            },
+            "scores": {
+                "step1Score": round(total_step1_count * float(step1_score), 2),
+                "step2Score": round(total_step2_count * float(step2_score), 2),
+                "singleSeatScore": round(total_both_steps_count * (float(step1_score) + float(step2_score)), 2),
+                "totalScore": round(total_score, 2)
+            },
+            "weeklyTarget": weekly_target_used,
+            "expectedTarget": round(total_expected_target, 2) if total_expected_target > 0 else float(weekly_target_used),
+            "productivityPercent": productivity_percent,
+            "hasWeeklyTarget": weekly_target_used > 0
+        }

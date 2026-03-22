@@ -48,7 +48,7 @@ class UserBase(BaseModel):
 
 class UserCreate(BaseModel):
     user_name: str = Field(..., max_length=100, alias="userName")
-    examiner_id: Optional[str] = Field(None, max_length=50, alias="examinerId")  # Auto-generated if not provided
+    examiner_id: str = Field(..., max_length=50, alias="examinerId")  # Required: Manual Employee ID
     password: str = Field(..., min_length=8)
     user_role: str = Field(..., alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
@@ -59,6 +59,21 @@ class UserCreate(BaseModel):
     @classmethod
     def normalize_user_name(cls, v: str) -> str:
         return validate_user_name(v)
+    
+    @field_validator('examiner_id', mode='before')
+    @classmethod
+    def validate_examiner_id(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Employee ID is required')
+        v = v.strip().upper()
+        if len(v) < 2:
+            raise ValueError('Employee ID must be at least 2 characters')
+        if len(v) > 50:
+            raise ValueError('Employee ID must be at most 50 characters')
+        # Allow alphanumeric, hyphens, and underscores
+        if not re.match(r'^[A-Z0-9_-]+$', v):
+            raise ValueError('Employee ID can only contain letters, numbers, hyphens, and underscores')
+        return v
 
 
 class UserUpdate(BaseModel):

@@ -772,9 +772,15 @@ async def get_team_members(
         UserTeam, User.id == UserTeam.user_id
     ).filter(
         UserTeam.team_id == team_id
-    ).order_by(UserTeam.is_active.desc(), UserTeam.joined_at).all()
+    )
     
-    return [serialize_team_member(m.User, m.UserTeam) for m in members_query]
+    # If team lead is viewing, only show examiners (not other team leads or admins)
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
+        members_query = members_query.filter(User.user_role == ROLE_EXAMINER)
+    
+    members = members_query.order_by(UserTeam.is_active.desc(), UserTeam.joined_at).all()
+    
+    return [serialize_team_member(m.User, m.UserTeam) for m in members]
 
 
 @router.post("/{team_id}/members")

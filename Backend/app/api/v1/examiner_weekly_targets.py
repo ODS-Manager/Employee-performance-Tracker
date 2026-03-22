@@ -529,3 +529,187 @@ async def copy_targets_from_previous_week(
         "weekStartDate": week_start_date.isoformat(),
         "weekEndDate": week_end.isoformat()
     }
+
+
+@router.get("/team-leads")
+async def get_team_lead_targets(
+    week_start_date: Optional[date] = Query(None, description="Sunday of the week to get targets for"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get weekly targets for all team leads (admin only).
+    Team leads have overall targets (not per-team like examiners).
+    """
+    # Only admins and superadmins can access this
+    if current_user.user_role not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can manage team lead targets"
+        )
+    
+    # Determine the week
+    today = date.today()
+    if week_start_date:
+        if week_start_date.weekday() != 6:  # 6 = Sunday
+            week_start, week_end = get_week_boundaries(week_start_date)
+        else:
+            week_start = week_start_date
+            week_end = week_start + timedelta(days=6)
+    else:
+        week_start, week_end = get_week_boundaries(today)
+    
+    # Determine week status
+    current_week_start, _ = get_week_boundaries(today)
+    is_current_week = week_start == current_week_start
+    is_past_week = week_start < current_week_start
+    can_edit = not is_past_week
+    
+    # Build query for team leads
+    query = db.query(User).filter(
+        User.user_role == ROLE_TEAM_LEAD,
+        User.is_active == True
+    )
+    
+    # For admin, filter by their org
+    if current_user.user_role == ROLE_ADMIN:
+        query = query.filter(User.org_id == current_user.org_id)
+    
+    team_leads = query.all()
+    
+    # Get targets for these team leads for this week
+    # For team leads, we use org_id as the team_id in the target record
+    team_lead_ids = [tl.id for tl in team_leads]
+    targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id.in_(team_lead_ids),
+        ExaminerWeeklyTarget.week_start_date == week_start
+    ).all()
+    
+    # Create a map of user_id -> target
+    target_map = {t.user_id: t for t in targets}
+    
+    # Get previous week's targets for reference
+    prev_week_start = week_start - timedelta(days=7)
+    prev_targets = db.query(ExaminerWeeklyTarget).filter(
+        ExaminerWeeklyTarget.user_id.in_(team_lead_ids),
+        ExaminerWeeklyTarget.week_start_date == prev_week_start
+    ).all()
+    prev_target_map = {t.user_id: t.target for t in prev_targets}
+    
+    # Build response
+    members = []
+    for team_lead in team_leads:
+        current_target_obj = target_map.get(team_lead.id)
+        members.append({
+            "userId": team_lead.id,
+            "userName": team_lead.user_name,
+            "examinerId": team_lead.examiner_id,
+            "currentTarget": current_target_obj.target if current_target_obj else None,
+            "previousTarget": prev_target_map.get(team_lead.id),
+            "targetId": current_target_obj.id if current_target_obj else None
+        })
+    
+    # Sort by userName
+    members.sort(key=lambda x: x["userName"] or "")
+    
+    return {
+        "weekInfo": {
+            "weekStartDate": week_start.isoformat(),
+            "weekEndDate": week_end.isoformat(),
+            "isCurrentWeek": is_current_week,
+            "isPastWeek": is_past_week,
+            "canEdit": can_edit
+        },
+        "members": members
+    }
+
+
+@router.post("/team-leads")
+async def set_team_lead_targets(
+    data: WeeklyTargetBulkCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Set weekly targets for team leads (admin only).
+    Each target record uses the team lead's org_id as the team_id.
+    """
+    # Only admins and superadmins can set team lead targets
+    if current_user.user_role not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can set team lead targets"
+        )
+    
+    # Validate week_start_date
+    week_start = data.week_start_date
+    if week_start.weekday() != 6:  # 6 = Sunday
+        week_start, week_end = get_week_boundaries(week_start)
+    else:
+        week_end = week_start + timedelta(days=6)
+    
+    # Check if this is a past week
+    today = date.today()
+    current_week_start, _ = get_week_boundaries(today)
+    if week_start < current_week_start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot set targets for past weeks"
+        )
+    
+    created_count = 0
+    updated_count = 0
+    
+    for target_data in data.targets:
+        # Verify the user is a team lead
+        team_lead = db.query(User).filter(
+            User.id == target_data.user_id,
+            User.user_role == ROLE_TEAM_LEAD
+        ).first()
+        
+        if not team_lead:
+            continue
+        
+        # Check organization access for admin
+        if current_user.user_role == ROLE_ADMIN:
+            if team_lead.org_id != current_user.org_id:
+                continue
+        
+        # Check if target already exists for this week
+        existing_target = db.query(ExaminerWeeklyTarget).filter(
+            ExaminerWeeklyTarget.user_id == target_data.user_id,
+            ExaminerWeeklyTarget.week_start_date == week_start
+        ).first()
+        
+        # Use org_id as team_id for team lead targets
+        team_id_for_record = team_lead.org_id
+        
+        if existing_target:
+            # Update existing target
+            existing_target.target = target_data.target
+            existing_target.team_id = team_id_for_record  # Ensure org_id is set
+            existing_target.modified_at = datetime.utcnow()
+            updated_count += 1
+        else:
+            # Create new target
+            new_target = ExaminerWeeklyTarget(
+                user_id=target_data.user_id,
+                team_id=team_id_for_record,  # Use org_id as team_id
+                week_start_date=week_start,
+                week_end_date=week_end,
+                target=target_data.target,
+                created_by=current_user.id
+            )
+            db.add(new_target)
+            created_count += 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Created {created_count} and updated {updated_count} targets",
+        "createdCount": created_count,
+        "updatedCount": updated_count,
+        "weekStartDate": week_start.isoformat(),
+        "weekEndDate": week_end.isoformat()
+    }

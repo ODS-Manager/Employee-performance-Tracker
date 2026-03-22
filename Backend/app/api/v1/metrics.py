@@ -167,23 +167,25 @@ async def get_dashboard_stats(
     if team_id:
         order_query = order_query.filter(Order.team_id == team_id)
     
-    # Apply month/year filtering on entry_date
+    # Apply month/year filtering on entry_date for order counts (not billing)
+    order_query_with_date_filter = order_query
     if month:
-        order_query = order_query.filter(func.extract('month', Order.entry_date) == month)
+        order_query_with_date_filter = order_query_with_date_filter.filter(func.extract('month', Order.entry_date) == month)
     if year:
-        order_query = order_query.filter(func.extract('year', Order.entry_date) == year)
+        order_query_with_date_filter = order_query_with_date_filter.filter(func.extract('year', Order.entry_date) == year)
     
-    # Get counts
+    # Get counts - status counts use date filter, but pending billing uses all orders
     total_orders = order_query.count()
     
-    # Status counts - need to join with order_status table
+    # Status counts - need to join with order_status table (uses date filter)
     completed_status = db.query(OrderStatusType).filter(OrderStatusType.name == "Completed").first()
     on_hold_status = db.query(OrderStatusType).filter(OrderStatusType.name == "On-hold").first()
     bp_rti_status = db.query(OrderStatusType).filter(OrderStatusType.name == "BP & RTI").first()
     
-    orders_completed = order_query.filter(Order.order_status_id == completed_status.id).count() if completed_status else 0
-    orders_on_hold = order_query.filter(Order.order_status_id == on_hold_status.id).count() if on_hold_status else 0
-    orders_bp_rti = order_query.filter(Order.order_status_id == bp_rti_status.id).count() if bp_rti_status else 0
+    orders_completed = order_query_with_date_filter.filter(Order.order_status_id == completed_status.id).count() if completed_status else 0
+    orders_on_hold = order_query_with_date_filter.filter(Order.order_status_id == on_hold_status.id).count() if on_hold_status else 0
+    orders_bp_rti = order_query_with_date_filter.filter(Order.order_status_id == bp_rti_status.id).count() if bp_rti_status else 0
+    # Pending billing should NOT be filtered by date - includes all pending orders
     orders_pending_billing = order_query.filter(Order.billing_status == "pending").count()
     
     # User/Team counts based on same filters (not filtered by month/year - these are current totals)
@@ -207,11 +209,11 @@ async def get_dashboard_stats(
 
         total_examiners = user_query.filter(
             User.id.in_(active_member_user_ids),
-            User.user_role != ROLE_SUPERADMIN,
+            User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD]),
         ).count()
         active_examiners = user_query.filter(
             User.id.in_(active_member_user_ids),
-            User.user_role != ROLE_SUPERADMIN,
+            User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD]),
             User.is_active == True,
         ).count()
         total_teams = team_query.filter(Team.id == team_id, Team.is_active == True).count()
@@ -224,18 +226,18 @@ async def get_dashboard_stats(
 
         total_examiners = user_query.filter(
             User.id.in_(active_member_user_ids),
-            User.user_role != ROLE_SUPERADMIN,
+            User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD]),
         ).count()
         active_examiners = user_query.filter(
             User.id.in_(active_member_user_ids),
-            User.user_role != ROLE_SUPERADMIN,
+            User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD]),
             User.is_active == True,
         ).count()
         total_teams = team_query.filter(Team.id.in_(accessible_teams), Team.is_active == True).count()
     else:
         # Org-level counts
-        total_examiners = user_query.filter(User.user_role != ROLE_SUPERADMIN).count()
-        active_examiners = user_query.filter(User.user_role != ROLE_SUPERADMIN, User.is_active == True).count()
+        total_examiners = user_query.filter(User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD])).count()
+        active_examiners = user_query.filter(User.user_role.in_([ROLE_EXAMINER, ROLE_TEAM_LEAD]), User.is_active == True).count()
         total_teams = team_query.filter(Team.is_active == True).count()
     
     result = serialize_dashboard_stats(

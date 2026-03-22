@@ -327,12 +327,12 @@ def create_billing_report(
         Team.is_active == True
     ).order_by(Team.name).all()
     
-    # Query pending orders with Completed status for this period
-    # ONLY include Completed orders (order_status_id = 1) for billing
+    # Query pending orders with Completed or BP & RTI status for this period
+    # Include both Completed (ID 1) and BP & RTI (ID 3) for billing
     orders = db.query(Order).filter(
         Order.org_id == org_id,
         Order.billing_status == 'pending',
-        Order.order_status_id == 1,  # Only "Completed" status
+        Order.order_status_id.in_([1, 3]),  # "Completed" and "BP & RTI" status
         Order.entry_date >= start_date,
         Order.entry_date < end_date,
         Order.deleted_at.is_(None)

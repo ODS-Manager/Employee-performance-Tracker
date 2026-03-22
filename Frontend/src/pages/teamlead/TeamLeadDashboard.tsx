@@ -668,13 +668,19 @@ export const TeamLeadDashboard = () => {
                       <Badge variant="secondary">{order.productType}</Badge>
                     </div>
                     <div className="flex items-center gap-3">
-                      {order.step1UserId && order.step2UserId ? (
-                        <Badge className="bg-green-100 text-green-800">Completed</Badge>
-                      ) : order.step1UserId || order.step2UserId ? (
-                        <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
-                      ) : (
-                        <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
-                      )}
+                      {(() => {
+                        const status = order.orderStatusName?.toLowerCase() || ''
+                        if (status === 'completed') {
+                          return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+                        } else if (status === 'on-hold') {
+                          return <Badge className="bg-orange-100 text-orange-800">On-hold</Badge>
+                        } else if (status === 'bp & rti') {
+                          return <Badge className="bg-purple-100 text-purple-800">BP & RTI</Badge>
+                        } else if (status === 'in progress') {
+                          return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
+                        }
+                        return <Badge className="bg-gray-100 text-gray-800">{order.orderStatusName || 'Unknown'}</Badge>
+                      })()}
                       <span className="text-xs text-muted-foreground">
                         {new Date(order.entryDate).toLocaleDateString()}
                       </span>

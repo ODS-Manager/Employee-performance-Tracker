@@ -77,6 +77,7 @@ class DailyRosterExaminer(BaseModel):
     user_id: int = Field(alias="userId")
     user_name: str = Field(alias="userName")
     examiner_id: str = Field(alias="examinerId")
+    user_role: str = Field(alias="userRole", default="examiner")
     status: Optional[str] = None  # None means not marked (default absent)
     attendance_id: Optional[int] = Field(alias="attendanceId", default=None)
     notes: Optional[str] = None
@@ -111,6 +112,7 @@ class AttendanceSummary(BaseModel):
     days_absent: int = Field(alias="daysAbsent")
     days_leave: int = Field(alias="daysLeave")
     attendance_percent: float = Field(alias="attendancePercent")
+    records: List[AttendanceRecordResponse] = Field(alias="records", default=[])
     
     class Config:
         populate_by_name = True
@@ -137,6 +139,45 @@ class TeamAttendanceReport(BaseModel):
     working_days: int = Field(alias="workingDays")
     examiners: List[AttendanceSummary]
     team_summary: Dict[str, int] = Field(alias="teamSummary")  # Aggregate counts
+    
+    class Config:
+        populate_by_name = True
+
+
+class DailyAttendanceRecord(BaseModel):
+    """Daily attendance record for an examiner"""
+    date: date
+    status: Optional[str] = None  # present, absent, leave, or None (not marked)
+    notes: Optional[str] = None
+    
+    class Config:
+        populate_by_name = True
+
+
+class ExaminerMonthlyAttendance(BaseModel):
+    """Monthly attendance for a single examiner"""
+    user_id: int = Field(alias="userId")
+    user_name: str = Field(alias="userName")
+    examiner_id: str = Field(alias="examinerId")
+    user_role: str = Field(alias="userRole", default="examiner")
+    total_days: int = Field(alias="totalDays")
+    days_present: int = Field(alias="daysPresent")
+    days_absent: int = Field(alias="daysAbsent")
+    days_leave: int = Field(alias="daysLeave")
+    days_not_marked: int = Field(alias="daysNotMarked")
+    daily_records: List[DailyAttendanceRecord] = Field(alias="dailyRecords")
+
+    class Config:
+        populate_by_name = True
+
+
+class TeamMonthlyAttendanceReport(BaseModel):
+    """Team monthly attendance report with daily breakdown"""
+    team_id: int = Field(alias="teamId")
+    team_name: str = Field(alias="teamName")
+    start_date: date = Field(alias="startDate")
+    end_date: date = Field(alias="endDate")
+    examiners: List[ExaminerMonthlyAttendance]
     
     class Config:
         populate_by_name = True

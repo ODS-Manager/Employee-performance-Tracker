@@ -218,9 +218,11 @@ export const TeamMemberDetailPage = () => {
     if (!statusName) return 'bg-gray-100 text-gray-700'
     const status = statusName.toLowerCase()
     if (status.includes('complete')) return 'bg-green-100 text-green-700'
+    if (status.includes('on-hold')) return 'bg-orange-100 text-orange-700'
+    if (status.includes('bp & rti') || status.includes('rti')) return 'bg-purple-100 text-purple-700'
     if (status.includes('progress')) return 'bg-blue-100 text-blue-700'
     if (status.includes('pending')) return 'bg-yellow-100 text-yellow-700'
-    return 'bg-purple-100 text-purple-700'
+    return 'bg-gray-100 text-gray-700'
   }
 
   const isLoading = loadingEmployee || loadingTeam

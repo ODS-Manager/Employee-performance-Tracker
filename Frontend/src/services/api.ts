@@ -74,6 +74,7 @@ import type {
   DailyRosterResponse,
   AttendanceSummary,
   TeamAttendanceReport,
+  TeamMonthlyAttendanceReport,
   AttendanceStatus,
   FAName,
   FANameCreate,
@@ -1091,6 +1092,29 @@ export const weeklyTargetsApi = {
     const response = await api.post(`/weekly-targets/copy-from-previous/${params.teamId}`, null, { params: queryParams })
     return response.data
   },
+
+  // Get team lead targets for a specific week
+  getTeamLeadTargets: async (weekStartDate?: string): Promise<TeamWeeklyTargetsResponse> => {
+    const queryParams: Record<string, unknown> = {}
+    if (weekStartDate) {
+      queryParams.week_start_date = weekStartDate
+    }
+    const response = await api.get('/weekly-targets/team-leads', { params: queryParams })
+    return response.data
+  },
+
+  // Set/update team lead targets
+  setTeamLeadTargets: async (data: WeeklyTargetBulkCreate): Promise<WeeklyTargetSaveResponse> => {
+    const payload = {
+      week_start_date: data.weekStartDate,
+      targets: data.targets.map((t: any) => ({
+        user_id: t.userId,
+        target: t.target,
+      })),
+    }
+    const response = await api.post('/weekly-targets/team-leads', payload)
+    return response.data
+  },
 }
 
 // ============ Attendance API ============
@@ -1171,6 +1195,49 @@ export const attendanceApi = {
       notes: data.notes,
     }
     const response = await api.put(`/attendance/${recordId}`, payload)
+    return response.data
+  },
+
+  // Get team monthly attendance detail with daily breakdown
+  getTeamMonthlyAttendanceDetail: async (
+    teamId: number,
+    startDate: string,
+    endDate: string
+  ): Promise<TeamMonthlyAttendanceReport> => {
+    const response = await api.get(`/attendance/team/${teamId}/monthly-detail`, {
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    })
+    return response.data
+  },
+
+  // Mark attendance for a team lead (admin only)
+  markTeamLeadAttendance: async (data: AttendanceRecordCreate): Promise<AttendanceRecord> => {
+    const payload = {
+      user_id: data.userId,
+      team_id: data.teamId || 0,
+      date: data.date,
+      status: data.status,
+      notes: data.notes,
+    }
+    const response = await api.post('/attendance/team-lead', payload)
+    return response.data
+  },
+
+  // Get team lead attendance summary
+  getTeamLeadAttendance: async (
+    userId: number,
+    startDate: string,
+    endDate: string
+  ): Promise<AttendanceSummary> => {
+    const response = await api.get(`/attendance/team-lead/${userId}`, {
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    })
     return response.data
   },
 }

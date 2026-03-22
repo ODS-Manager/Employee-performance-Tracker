@@ -193,14 +193,14 @@ export const AdminDashboard = () => {
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600">
-                  Active Employees
+                  Active Examiners
                 </CardTitle>
                 <Users className="h-5 w-5 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-slate-900">{stats?.activeExaminers || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {stats?.totalExaminers || 0} total
+                  {stats?.totalExaminers || 0} total examiners
                 </p>
               </CardContent>
             </Card>

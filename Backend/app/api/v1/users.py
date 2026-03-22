@@ -226,45 +226,14 @@ async def create_user(
             detail="Username already registered"
         )
     
-    # Auto-generate examiner_id if not provided
-    examiner_id = user_data.examiner_id
-    if not examiner_id:
-        # Generate employee ID based on org and sequence
-        # Format: ORG_CODE + YYYYMM + 4-digit sequence (e.g., IND202412-0001)
-        from datetime import datetime as dt
-        year_month = dt.now().strftime("%Y%m")
-        
-        # Get org code prefix
-        org_prefix = "EMP"
-        if user_data.org_id:
-            from app.models.organization import Organization
-            org = db.query(Organization).filter(Organization.id == user_data.org_id).first()
-            if org:
-                org_prefix = org.code
-        
-        # Find the highest examiner_id for this prefix and year_month
-        prefix_pattern = f"{org_prefix}{year_month}-%"
-        last_emp = db.query(User).filter(User.examiner_id.like(prefix_pattern)).order_by(User.examiner_id.desc()).first()
-        
-        if last_emp and last_emp.examiner_id:
-            # Extract sequence number and increment
-            try:
-                last_seq = int(last_emp.examiner_id.split('-')[-1])
-                next_seq = last_seq + 1
-            except (ValueError, IndexError):
-                next_seq = 1
-        else:
-            next_seq = 1
-        
-        examiner_id = f"{org_prefix}{year_month}-{next_seq:04d}"
-    else:
-        # Check if provided examiner_id already exists
-        existing_emp = db.query(User).filter(User.examiner_id == examiner_id).first()
-        if existing_emp:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Employee ID already exists"
-            )
+    # Check if examiner_id (Employee ID) already exists
+    examiner_id = user_data.examiner_id.strip().upper()
+    existing_emp = db.query(User).filter(User.examiner_id == examiner_id).first()
+    if existing_emp:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Employee ID '{examiner_id}' already exists"
+        )
     
     # Create new user
     new_user = User(
@@ -787,7 +756,7 @@ async def add_user_to_team(
         )
     
     # Validate and auto-correct team role based on user's system role
-    role = validate_team_role(user, role)
+    role = validate_team_role(user.user_role, role)
     
     # Check if membership already exists
     existing = db.query(UserTeam).filter(

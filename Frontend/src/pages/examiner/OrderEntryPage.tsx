@@ -30,14 +30,14 @@ export const OrderEntryPage = () => {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [formInstanceKey, setFormInstanceKey] = useState(0)
 
   const handleLogout = async () => {
     await handleLogoutFlow(logout, navigate)
   }
 
   const handleOrderCreated = () => {
-    // Optionally navigate back to dashboard or show success
-    // For now, stay on page to allow creating more orders
+    setFormInstanceKey((currentKey) => currentKey + 1)
   }
 
   const getDashboardPath = () => {
@@ -129,6 +129,7 @@ export const OrderEntryPage = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <OrderForm 
+            key={formInstanceKey}
             onSuccess={handleOrderCreated}
             onCancel={() => navigate(getDashboardPath())}
           />

@@ -70,9 +70,9 @@ class TeamBase(BaseModel):
     # Productivity settings
     daily_target: int = Field(default=10, alias="dailyTarget", ge=1, le=100)
     monthly_target: Optional[int] = Field(default=None, alias="monthlyTarget", ge=0, le=100000)
-    single_seat_score: float = Field(default=1.0, alias="singleSeatScore", ge=0.1, le=10.0)
-    step1_score: float = Field(default=0.5, alias="step1Score", ge=0.1, le=10.0)
-    step2_score: float = Field(default=0.5, alias="step2Score", ge=0.1, le=10.0)
+    single_seat_score: float = Field(default=1.0, alias="singleSeatScore", ge=0.1, le=1000.0)
+    step1_score: float = Field(default=0.5, alias="step1Score", ge=0.1, le=1000.0)
+    step2_score: float = Field(default=0.5, alias="step2Score", ge=0.1, le=1000.0)
 
     class Config:
         populate_by_name = True
@@ -91,9 +91,9 @@ class TeamUpdate(BaseModel):
     # Productivity settings
     daily_target: Optional[int] = Field(None, alias="dailyTarget", ge=1, le=100)
     monthly_target: Optional[int] = Field(None, alias="monthlyTarget", ge=0, le=100000)
-    single_seat_score: Optional[float] = Field(None, alias="singleSeatScore", ge=0.1, le=10.0)
-    step1_score: Optional[float] = Field(None, alias="step1Score", ge=0.1, le=10.0)
-    step2_score: Optional[float] = Field(None, alias="step2Score", ge=0.1, le=10.0)
+    single_seat_score: Optional[float] = Field(None, alias="singleSeatScore", ge=0.1, le=1000.0)
+    step1_score: Optional[float] = Field(None, alias="step1Score", ge=0.1, le=1000.0)
+    step2_score: Optional[float] = Field(None, alias="step2Score", ge=0.1, le=1000.0)
     states: Optional[List[str]] = Field(None)
     products: Optional[List[str]] = Field(None)
     fa_names: Optional[List[int]] = Field(None, alias="faNames")  # List of FA name IDs to update
