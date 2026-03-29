@@ -217,21 +217,8 @@ export const OrderAnalysisPage = () => {
     filterYear,
   ])
 
-  // Filter orders by search query and client-side filters (for current page display)
+  // Filter orders by client-side filters only (server-side filters already applied)
   const filteredOrders = orders.filter(order => {
-    // Search filter
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase()
-      const matchesSearch = (
-        order.fileNumber.toLowerCase().includes(searchLower) ||
-        order.state.toLowerCase().includes(searchLower) ||
-        order.county.toLowerCase().includes(searchLower) ||
-        (order.orderStatusName?.toLowerCase().includes(searchLower)) ||
-        order.productType.toLowerCase().includes(searchLower)
-      )
-      if (!matchesSearch) return false
-    }
-    
     // Product filter (client-side)
     if (productFilter && order.productType !== productFilter) return false
     
@@ -244,21 +231,8 @@ export const OrderAnalysisPage = () => {
     return true
   })
 
-  // Filter ALL orders for stats calculation (includes all pages)
+  // Filter ALL orders for stats calculation (client-side filters only)
   const allFilteredOrders = allOrders.filter(order => {
-    // Search filter
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase()
-      const matchesSearch = (
-        order.fileNumber.toLowerCase().includes(searchLower) ||
-        order.state.toLowerCase().includes(searchLower) ||
-        order.county.toLowerCase().includes(searchLower) ||
-        (order.orderStatusName?.toLowerCase().includes(searchLower)) ||
-        order.productType.toLowerCase().includes(searchLower)
-      )
-      if (!matchesSearch) return false
-    }
-    
     // Product filter (client-side)
     if (productFilter && order.productType !== productFilter) return false
     
