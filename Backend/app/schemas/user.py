@@ -40,6 +40,7 @@ def validate_user_name(value: str) -> str:
 class UserBase(BaseModel):
     user_name: str = Field(..., max_length=100, serialization_alias="userName")
     examiner_id: str = Field(..., max_length=50, serialization_alias="examinerId")
+    employee_id: Optional[str] = Field(None, max_length=50, serialization_alias="employeeId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     
@@ -49,6 +50,7 @@ class UserBase(BaseModel):
 class UserCreate(BaseModel):
     user_name: str = Field(..., max_length=100, alias="userName")
     examiner_id: str = Field(..., max_length=50, alias="examinerId")  # Required: Manual Employee ID
+    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")  # Optional: Employee ID
     password: str = Field(..., min_length=8)
     user_role: str = Field(..., alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
@@ -79,6 +81,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     user_name: Optional[str] = Field(None, max_length=100, alias="userName")
     examiner_id: Optional[str] = Field(None, max_length=50, alias="examinerId")
+    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")
     user_role: Optional[str] = Field(None, alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
     is_active: Optional[bool] = Field(None, alias="isActive")
@@ -97,6 +100,7 @@ class UserResponse(BaseModel):
     id: int
     user_name: str = Field(..., serialization_alias="userName")
     examiner_id: str = Field(..., serialization_alias="examinerId")
+    employee_id: Optional[str] = Field(None, serialization_alias="employeeId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     password_last_changed: Optional[datetime] = Field(None, serialization_alias="passwordLastChanged")

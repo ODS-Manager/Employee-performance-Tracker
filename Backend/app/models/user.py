@@ -24,6 +24,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_name = Column(String(100), unique=True, nullable=False)  # Username (used for display and login)
     examiner_id = Column(String(50), unique=True, nullable=False)  # Examiner ID (unique identifier)
+    employee_id = Column(String(50), unique=True, nullable=True)  # Employee ID (E10011, E10050, etc.)
     password_hash = Column(String(255), nullable=False)  # Hashed password
     password_last_changed = Column(DateTime, nullable=True)  # Security tracking
     must_change_password = Column(Boolean, default=False)  # True when admin resets password with temp password
@@ -74,6 +75,7 @@ class User(Base):
     __table_args__ = (
         Index('idx_users_org_role', 'org_id', 'user_role'),
         Index('idx_users_examiner_id', 'examiner_id'),
+        Index('idx_users_employee_id', 'employee_id'),
         Index('idx_users_username', 'user_name'),
         Index('idx_users_last_login', 'last_login'),
     )
