@@ -756,7 +756,7 @@ export const OrderAnalysisPage = () => {
                                     </div>
                                   ) : orderDetail ? (
                                     <div className="space-y-6">
-                                      {/* Order Info */}
+                                       {/* Order Info */}
                                       <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div>
                                           <span className="text-gray-500">File Number:</span>
@@ -773,6 +773,10 @@ export const OrderAnalysisPage = () => {
                                         <div>
                                           <span className="text-gray-500">Product:</span>
                                           <span className="ml-2">{orderDetail.productType}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Property Type:</span>
+                                          <span className="ml-2">{orderDetail.propertyType?.name || '-'}</span>
                                         </div>
                                         <div>
                                           <span className="text-gray-500">Transaction Type:</span>

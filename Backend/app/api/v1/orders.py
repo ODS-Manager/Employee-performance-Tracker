@@ -780,6 +780,7 @@ async def create_order(
         state=order_data.state.upper(),
         county=order_data.county,
         product_type=order_data.product_type,
+        property_type_id=order_data.property_type_id,
         team_id=order_data.team_id,
         org_id=order_data.org_id,
         step1_user_id=order_data.step1_user_id,
