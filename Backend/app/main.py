@@ -3,8 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.middleware import CSRFMiddleware, SecurityHeadersMiddleware
-from app.core.db_migrations import ensure_orders_file_product_team_index_non_unique
-from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, examiner_weekly_targets, team_user_aliases, attendance, fa_names
+from app.core.db_migrations import (
+    ensure_orders_file_product_team_index_non_unique,
+    ensure_allowed_duplicate_products_table
+)
+from app.api.v1 import auth, users, teams, orders, dashboard, billing, organizations, database, reference, metrics, productivity, quality_audits, examiner_weekly_targets, team_user_aliases, attendance, fa_names, duplicate_config
 from app.tasks.session_cleanup import start_session_cleanup_scheduler
 
 # Scheduler instance
@@ -19,6 +22,7 @@ async def lifespan(app: FastAPI):
     # Startup
     global scheduler
     ensure_orders_file_product_team_index_non_unique()
+    ensure_allowed_duplicate_products_table()
     scheduler = start_session_cleanup_scheduler()
     scheduler.start()
     yield
@@ -61,6 +65,7 @@ app.include_router(team_user_aliases.router, prefix="/api/v1", tags=["Team User 
 app.include_router(fa_names.router, prefix="/api/v1/fa-names", tags=["FA Names"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["Orders"])
 app.include_router(reference.router, prefix="/api/v1/reference", tags=["Reference Data"])
+app.include_router(duplicate_config.router, prefix="/api/v1/duplicate-config", tags=["Duplicate Config"])
 app.include_router(metrics.router, prefix="/api/v1/metrics", tags=["Performance Metrics"])
 app.include_router(productivity.router, prefix="/api/v1/productivity", tags=["Productivity"])
 app.include_router(quality_audits.router, prefix="/api/v1", tags=["Quality Audits"])

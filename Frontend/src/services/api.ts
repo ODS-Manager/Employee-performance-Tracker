@@ -80,6 +80,8 @@ import type {
   FANameCreate,
   FANameUpdate,
   FANameListResponse,
+  AllowedDuplicateProduct,
+  AllowedDuplicateProductListResponse,
 } from '../types'
 
 // Use environment variable for API URL, fallback to production for deployment
@@ -603,6 +605,23 @@ export const organizationsApi = {
 }
 
 // ============ Reference Data API ============
+export interface ProductType {
+  id: number
+  name: string
+  isActive: boolean
+  createdAt?: string
+  modifiedAt?: string
+}
+
+export interface State {
+  id: number
+  code: string
+  name: string
+  isActive: boolean
+  createdAt?: string
+  modifiedAt?: string
+}
+
 export const referenceApi = {
   // Transaction Types
   getTransactionTypes: async (): Promise<TransactionType[]> => {
@@ -678,6 +697,97 @@ export const referenceApi = {
   ): Promise<Division> => {
     const response = await api.put(`/reference/divisions/${id}`, data)
     return response.data
+  },
+
+  // Property Types
+  getPropertyTypes: async (): Promise<PropertyType[]> => {
+    const response = await api.get('/reference/property-types')
+    return response.data
+  },
+
+  createPropertyType: async (name: string): Promise<PropertyType> => {
+    const response = await api.post('/reference/property-types', { name })
+    return response.data
+  },
+
+  updatePropertyType: async (
+    id: number,
+    data: { name?: string; isActive?: boolean }
+  ): Promise<PropertyType> => {
+    const response = await api.put(`/reference/property-types/${id}`, data)
+    return response.data
+  },
+
+  // Product Types
+  getProductTypes: async (): Promise<ProductType[]> => {
+    const response = await api.get('/reference/product-types')
+    return response.data
+  },
+
+  createProductType: async (name: string): Promise<ProductType> => {
+    const response = await api.post('/reference/product-types', { name })
+    return response.data
+  },
+
+  updateProductType: async (
+    id: number,
+    data: { name?: string; isActive?: boolean }
+  ): Promise<ProductType> => {
+    const response = await api.put(`/reference/product-types/${id}`, data)
+    return response.data
+  },
+
+  deleteProductType: async (id: number): Promise<void> => {
+    await api.delete(`/reference/product-types/${id}`)
+  },
+
+  // States
+  getStates: async (): Promise<State[]> => {
+    const response = await api.get('/reference/states')
+    return response.data
+  },
+
+  createState: async (data: { code: string; name: string }): Promise<State> => {
+    const response = await api.post('/reference/states', data)
+    return response.data
+  },
+
+  updateState: async (
+    id: number,
+    data: { code?: string; name?: string; isActive?: boolean }
+  ): Promise<State> => {
+    const response = await api.put(`/reference/states/${id}`, data)
+    return response.data
+  },
+
+  deleteState: async (id: number): Promise<void> => {
+    await api.delete(`/reference/states/${id}`)
+  },
+}
+
+// ============ Duplicate Config API ============
+export const duplicateConfigApi = {
+  // Get list of allowed duplicate products
+  getAll: async (): Promise<AllowedDuplicateProductListResponse> => {
+    const response = await api.get('/duplicate-config')
+    return response.data
+  },
+
+  // Add a product type to allowed duplicates
+  create: async (productType: string): Promise<AllowedDuplicateProduct> => {
+    const response = await api.post('/duplicate-config', { productType })
+    return response.data
+  },
+
+  // Update (toggle active status)
+  update: async (id: number, isActive: boolean): Promise<AllowedDuplicateProduct> => {
+    const response = await api.put(`/duplicate-config/${id}`, { isActive })
+    return response.data
+  },
+
+  // Delete a product type from allowed duplicates
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/duplicate-config/${id}`)
   },
 }
 

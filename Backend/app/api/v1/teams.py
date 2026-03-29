@@ -50,7 +50,7 @@ def serialize_team_product(product: TeamProduct) -> dict:
 def serialize_team_fa_name(team_fa_name) -> dict:
     """Serialize team FA name to camelCase dict with fa_name relationship"""
     return {
-        "id": team_fa_name.id,
+        "id": team_fa_name.fa_name_id,  # Return the fa_name_id (master table ID), not junction table ID
         "teamId": team_fa_name.team_id,
         "faName": team_fa_name.fa_name.name if hasattr(team_fa_name, 'fa_name') and team_fa_name.fa_name else None,
         "isActive": team_fa_name.is_active,
@@ -381,7 +381,11 @@ async def update_team(
     db: Session = Depends(get_db)
 ):
     """Update team details (Admin or Superadmin)"""
-    team = db.query(Team).filter(Team.id == team_id).first()
+    team = db.query(Team).options(
+        joinedload(Team.states),
+        joinedload(Team.products),
+        joinedload(Team.fa_names)
+    ).filter(Team.id == team_id).first()
     
     if not team:
         raise HTTPException(
@@ -449,18 +453,86 @@ async def update_team(
             )
             db.add(new_membership)
     
+    # Sync states if provided
+    if team_data.states is not None:
+        # Get current states
+        current_states = {s.state for s in team.states}
+        new_states = set(team_data.states)
+        
+        # Remove states that are no longer in the list
+        states_to_remove = current_states - new_states
+        if states_to_remove:
+            db.query(TeamState).filter(
+                TeamState.team_id == team_id,
+                TeamState.state.in_(states_to_remove)
+            ).delete(synchronize_session=False)
+        
+        # Add new states
+        states_to_add = new_states - current_states
+        for state_name in states_to_add:
+            new_state = TeamState(team_id=team_id, state=state_name)
+            db.add(new_state)
+    
+    # Sync products if provided
+    if team_data.products is not None:
+        # Get current products
+        current_products = {p.product_type for p in team.products}
+        new_products = set(team_data.products)
+        
+        # Remove products that are no longer in the list
+        products_to_remove = current_products - new_products
+        if products_to_remove:
+            db.query(TeamProduct).filter(
+                TeamProduct.team_id == team_id,
+                TeamProduct.product_type.in_(products_to_remove)
+            ).delete(synchronize_session=False)
+        
+        # Add new products
+        products_to_add = new_products - current_products
+        for product_name in products_to_add:
+            new_product = TeamProduct(team_id=team_id, product_type=product_name)
+            db.add(new_product)
+    
+    # Sync FA names if provided
+    if team_data.fa_names is not None:
+        # Get current FA name IDs
+        current_fa_name_ids = {fn.fa_name_id for fn in team.fa_names}
+        new_fa_name_ids = set(team_data.fa_names)
+        
+        # Remove FA names that are no longer in the list
+        fa_names_to_remove = current_fa_name_ids - new_fa_name_ids
+        if fa_names_to_remove:
+            db.query(TeamFAName).filter(
+                TeamFAName.team_id == team_id,
+                TeamFAName.fa_name_id.in_(fa_names_to_remove)
+            ).delete(synchronize_session=False)
+        
+        # Add new FA names
+        fa_names_to_add = new_fa_name_ids - current_fa_name_ids
+        for fa_name_id in fa_names_to_add:
+            new_team_fa_name = TeamFAName(team_id=team_id, fa_name_id=fa_name_id)
+            db.add(new_team_fa_name)
+    
     # Update timestamp and commit
     team.modified_at = datetime.utcnow()
     
     try:
         db.commit()
-        db.refresh(team)
+        # Re-fetch the team with all relationships to return updated data
+        team = db.query(Team).options(
+            joinedload(Team.states),
+            joinedload(Team.products),
+            joinedload(Team.fa_names).joinedload(TeamFAName.fa_name)
+        ).filter(Team.id == team_id).first()
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update team: {str(e)}"
         )
+    
+    # Invalidate teams cache for the organization
+    cache.invalidate_team_cache(team.org_id)
     
     # Return the updated team data
     return serialize_team(team)

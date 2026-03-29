@@ -126,7 +126,7 @@ class UserListResponse(BaseModel):
 
 # ============ Auth Schemas ============
 class LoginRequest(BaseModel):
-    user_name: str = Field(..., alias="userName")
+    employee_id: str = Field(..., alias="employeeId")
     password: str
 
     model_config = ConfigDict(populate_by_name=True)

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
-import { teamsApi, usersApi, organizationsApi, faNamesApi } from '../../services/api'
+import { teamsApi, usersApi, organizationsApi, faNamesApi, referenceApi } from '../../services/api'
 import { getInitials, handleLogoutFlow, parseApiError } from '../../utils/helpers'
 import type { Team, TeamWithMembers, User, Organization, TeamCreate, TeamUpdate, FAName } from '../../types'
 import { Button } from '../../components/ui/button'
@@ -41,22 +41,10 @@ import {
 } from 'lucide-react'
 import toast, { Toaster } from 'react-hot-toast'
 
-// Available states and products (can be configured)
-const AVAILABLE_STATES = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
-  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
-  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
-  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
-  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
-  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
-  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
-  'Wisconsin', 'Wyoming'
-]
+// Available states and products - fetched from API
+const AVAILABLE_STATES: string[] = []
 
-const AVAILABLE_PRODUCTS = [
-  'Full Search', 'Current Owner', 'Two Owner', 'Update', 'Refinance',
-  'Commercial', 'Construction', 'Foreclosure', 'REO', 'Short Sale'
-]
+const AVAILABLE_PRODUCTS: string[] = []
 
 const SCORE_INPUT_REGEX = /^\d*(\.\d{0,2})?$/
 
@@ -134,6 +122,10 @@ export const TeamManagementPage = () => {
   const [filterState, setFilterState] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
+  // Available states and products from API
+  const [availableStates, setAvailableStates] = useState<string[]>([])
+  const [availableProducts, setAvailableProducts] = useState<string[]>([])
+
   useEffect(() => {
     if (!user || !['admin', 'superadmin'].includes(user.userRole)) {
       navigate('/login')
@@ -171,6 +163,18 @@ export const TeamManagementPage = () => {
       if (user?.userRole === 'superadmin') {
         const orgsRes = await organizationsApi.list({ isActive: true })
         setOrganizations(orgsRes.items || [])
+      }
+
+      // Fetch states and products from reference API
+      try {
+        const [statesRes, productsRes] = await Promise.all([
+          referenceApi.getStates(),
+          referenceApi.getProductTypes()
+        ])
+        setAvailableStates(statesRes.map(s => s.code || s.name))
+        setAvailableProducts(productsRes.map(p => p.name))
+      } catch (err) {
+        console.error('Failed to fetch reference data:', err)
       }
     } catch (error) {
       console.error('Failed to fetch data:', error)
@@ -367,14 +371,9 @@ export const TeamManagementPage = () => {
       const teamWithMembers = await teamsApi.get(team.id)
       setSelectedTeam(teamWithMembers)
       
-      // Convert FA name strings to IDs for the form
+      // Extract FA name IDs directly from the response (id field is now fa_name_id)
       const faNameIds = teamWithMembers.faNames
-        ?.map(fnObj => {
-          // fnObj might be a string (from old data) or an object with faName property
-          const faNameString = typeof fnObj === 'string' ? fnObj : fnObj.faName
-          const foundFaName = allFANames.find(fn => fn.name === faNameString)
-          return foundFaName?.id
-        })
+        ?.map(fnObj => typeof fnObj === 'object' ? fnObj.id : undefined)
         .filter((id): id is number => id !== undefined) || []
       
       setFormData({
@@ -580,7 +579,7 @@ export const TeamManagementPage = () => {
                   <div className="space-y-2">
                     <Label>States</Label>
                     <MultiSelect
-                      options={AVAILABLE_STATES}
+                      options={availableStates.length > 0 ? availableStates : ['Loading...']}
                       selected={formData.states || []}
                       onChange={(states) => setFormData({...formData, states})}
                       placeholder="Select states..."
@@ -591,7 +590,7 @@ export const TeamManagementPage = () => {
                   <div className="space-y-2">
                     <Label>Products</Label>
                     <MultiSelect
-                      options={AVAILABLE_PRODUCTS}
+                      options={availableProducts.length > 0 ? availableProducts : ['Loading...']}
                       selected={formData.products || []}
                       onChange={(products) => setFormData({...formData, products})}
                       placeholder="Select products..."
@@ -1148,7 +1147,7 @@ export const TeamManagementPage = () => {
               <div className="space-y-2">
                 <Label>States</Label>
                 <MultiSelect
-                  options={AVAILABLE_STATES}
+                  options={availableStates.length > 0 ? availableStates : ['Loading...']}
                   selected={formData.states || []}
                   onChange={(states) => setFormData({...formData, states})}
                   placeholder="Select states..."
@@ -1160,7 +1159,7 @@ export const TeamManagementPage = () => {
               <div className="space-y-2">
                 <Label>Products</Label>
                 <MultiSelect
-                  options={AVAILABLE_PRODUCTS}
+                  options={availableProducts.length > 0 ? availableProducts : ['Loading...']}
                   selected={formData.products || []}
                   onChange={(products) => setFormData({...formData, products})}
                   placeholder="Select products..."

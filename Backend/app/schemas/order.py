@@ -15,7 +15,8 @@ class OrderBase(BaseModel):
     process_type_id: int = Field(..., alias="processTypeId")
     order_status_id: int = Field(..., alias="orderStatusId")
     division_id: int = Field(..., alias="divisionId")
-    state: str = Field(..., max_length=5)
+    property_type_id: Optional[int] = Field(None, alias="propertyTypeId")
+    state: str = Field(..., max_length=50)
     county: str = Field(..., max_length=100)
     product_type: str = Field(..., max_length=100, alias="productType")
     team_id: int = Field(..., alias="teamId")
@@ -39,7 +40,8 @@ class OrderUpdate(BaseModel):
     process_type_id: Optional[int] = Field(None, alias="processTypeId")
     order_status_id: Optional[int] = Field(None, alias="orderStatusId")
     division_id: Optional[int] = Field(None, alias="divisionId")
-    state: Optional[str] = Field(None, max_length=5)
+    property_type_id: Optional[int] = Field(None, alias="propertyTypeId")
+    state: Optional[str] = Field(None, max_length=50)
     county: Optional[str] = Field(None, max_length=100)
     product_type: Optional[str] = Field(None, max_length=100, alias="productType")
     team_id: Optional[int] = Field(None, alias="teamId")
@@ -92,6 +94,8 @@ class OrderResponse(BaseModel):
     order_status: Optional[ReferenceTypeInfo] = Field(None, alias="orderStatus")
     division_id: int = Field(..., alias="divisionId")
     division: Optional[ReferenceTypeInfo] = None
+    property_type_id: Optional[int] = Field(None, alias="propertyTypeId")
+    property_type: Optional[ReferenceTypeInfo] = Field(None, alias="propertyType")
     
     # Location
     state: str
@@ -133,6 +137,7 @@ class OrderSimpleResponse(BaseModel):
     process_type_name: Optional[str] = Field(None, alias="processTypeName")
     order_status_name: Optional[str] = Field(None, alias="orderStatusName")
     division_name: Optional[str] = Field(None, alias="divisionName")
+    property_type_name: Optional[str] = Field(None, alias="propertyTypeName")
     team_id: int = Field(..., alias="teamId")
     billing_status: str = Field(..., alias="billingStatus")
     created_at: datetime = Field(..., alias="createdAt")

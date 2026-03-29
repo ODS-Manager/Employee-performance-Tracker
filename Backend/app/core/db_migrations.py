@@ -2,11 +2,86 @@
 
 import logging
 
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 from app.database import engine
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_allowed_duplicate_products_table() -> None:
+    """
+    Create the allowed_duplicate_products table if it doesn't exist.
+    Populate it with the initial 5 product types that were previously hardcoded.
+    """
+    try:
+        with engine.begin() as conn:
+            inspector = inspect(conn)
+            
+            # Check if table exists
+            if "allowed_duplicate_products" not in inspector.get_table_names():
+                logger.info("Creating allowed_duplicate_products table...")
+                
+                # Create the table
+                conn.execute(text("""
+                    CREATE TABLE allowed_duplicate_products (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        product_type VARCHAR(100) NOT NULL UNIQUE,
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        created_by INTEGER NOT NULL,
+                        modified_at TIMESTAMP,
+                        modified_by INTEGER,
+                        FOREIGN KEY (created_by) REFERENCES users(id),
+                        FOREIGN KEY (modified_by) REFERENCES users(id)
+                    )
+                """))
+                
+                # Create indexes
+                conn.execute(text("""
+                    CREATE INDEX idx_allowed_dup_product_type 
+                    ON allowed_duplicate_products (product_type)
+                """))
+                
+                conn.execute(text("""
+                    CREATE INDEX idx_allowed_dup_is_active 
+                    ON allowed_duplicate_products (is_active)
+                """))
+                
+                logger.info("allowed_duplicate_products table created successfully")
+                
+                # Get the first superadmin user ID for created_by
+                result = conn.execute(text("""
+                    SELECT id FROM users WHERE user_role = 'superadmin' LIMIT 1
+                """)).fetchone()
+                
+                if result:
+                    superadmin_id = result[0]
+                    
+                    # Populate with initial 5 product types (previously hardcoded)
+                    initial_products = [
+                        "update",
+                        "date down",
+                        "gi clearing",
+                        "schedule b",
+                        "product delivery"
+                    ]
+                    
+                    for product in initial_products:
+                        conn.execute(text("""
+                            INSERT INTO allowed_duplicate_products 
+                            (product_type, is_active, created_by)
+                            VALUES (:product_type, 1, :created_by)
+                        """), {"product_type": product, "created_by": superadmin_id})
+                    
+                    logger.info(f"Populated {len(initial_products)} initial allowed duplicate product types")
+                else:
+                    logger.warning("No superadmin user found, skipping initial data population")
+            else:
+                logger.info("allowed_duplicate_products table already exists")
+                
+    except Exception as exc:
+        logger.warning("Could not ensure allowed_duplicate_products table: %s", exc)
 
 
 def ensure_orders_file_product_team_index_non_unique() -> None:

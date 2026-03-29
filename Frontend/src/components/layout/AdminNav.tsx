@@ -17,7 +17,8 @@ import {
   Target,
   CalendarDays,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  Settings
 } from 'lucide-react'
 
 // Dropdown menu item type
@@ -64,6 +65,7 @@ const navItems: NavItem[] = [
     ]
   },
   { path: '/admin/billing', label: 'Billing', icon: Receipt, description: 'Billing reports' },
+  { path: '/admin/reference-data', label: 'Reference Data', icon: Settings, description: 'Manage reference data' },
 ]
 
 // Superadmin only nav items
@@ -92,6 +94,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/admin/attendance/team-leads': { label: 'Team Lead Attendance', parent: '/admin/attendance' },
   '/admin/attendance/monthly-report': { label: 'Monthly Report', parent: '/admin/attendance' },
   '/admin/team-lead-targets': { label: 'Team Lead Targets', parent: '/admin/examiner-targets' },
+  '/admin/reference-data': { label: 'Reference Data', parent: '/admin/dashboard' },
 }
 
 // Function to get breadcrumb trail

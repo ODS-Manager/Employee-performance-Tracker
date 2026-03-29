@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, referenceApi, usersApi, ordersApi, organizationsApi } from '../../services/api'
 import type { 
@@ -25,6 +25,7 @@ interface OrderFormProps {
 export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormProps) => {
   const isEditMode = !!order
   const { user } = useAuthStore()
+  const queryClient = useQueryClient()
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
@@ -49,6 +50,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const [selectedProcessTypeId, setSelectedProcessTypeId] = useState<number | null>(null)
   const [selectedOrderStatusId, setSelectedOrderStatusId] = useState<number | null>(null)
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null)
+  const [selectedPropertyTypeId, setSelectedPropertyTypeId] = useState<number | null>(null)
   
   // Step assignment state - only used by admins
   const [step1UserId, setStep1UserId] = useState<number | null>(null)
@@ -160,6 +162,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const { data: divisions, isLoading: loadingDivisions } = useQuery({
     queryKey: ['divisions'],
     queryFn: referenceApi.getDivisions,
+  })
+
+  const { data: propertyTypes, isLoading: loadingPropertyTypes } = useQuery({
+    queryKey: ['propertyTypes'],
+    queryFn: referenceApi.getPropertyTypes,
   })
 
   // Fetch all team members for step user assignment (admin/team lead)
@@ -423,6 +430,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setSelectedProcessTypeId(order.processTypeId)
       setSelectedOrderStatusId(order.orderStatusId)
       setSelectedDivisionId(order.divisionId)
+      setSelectedPropertyTypeId(order.propertyTypeId || null)
       
       // Set step info
       if (order.step1) {
@@ -603,6 +611,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
             processTypeId: selectedProcessTypeId!,
             orderStatusId: selectedOrderStatusId!,
             divisionId: selectedDivisionId!,
+            propertyTypeId: selectedPropertyTypeId || undefined,
             state: selectedState,
             county: county.trim(),
             productType: selectedProductType,
@@ -655,6 +664,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           processTypeId: selectedProcessTypeId!,
           orderStatusId: selectedOrderStatusId!,
           divisionId: selectedDivisionId!,
+          propertyTypeId: selectedPropertyTypeId || undefined,
           state: selectedState,
           county: county.trim(),
           productType: selectedProductType,
@@ -752,6 +762,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       if (isEditMode && order) {
         // Update existing order
         await ordersApi.update(order.id, orderData as OrderUpdate)
+        
+        // Invalidate relevant caches to ensure fresh data is displayed
+        await queryClient.invalidateQueries({ queryKey: ['order', order.id.toString()] })
+        await queryClient.invalidateQueries({ queryKey: ['orders'] })
+        
         toast.success('Order updated successfully!')
       } else {
         // Create new order (or update existing if adding Step 1 or Step 2)
@@ -1129,6 +1144,25 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Property Type */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="propertyType" className="text-xs font-semibold text-gray-700">Property Type</Label>
+                  <Select
+                    value={selectedPropertyTypeId ? selectedPropertyTypeId.toString() : ''}
+                    onValueChange={(value) => setSelectedPropertyTypeId(value ? parseInt(value) : null)}
+                    disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
+                  >
+                    <SelectTrigger className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}>
+                      <SelectValue placeholder={teamNotSelected ? "Select team first" : "Select property type"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.isArray(propertyTypes) && propertyTypes.filter(p => p.isActive !== false).map((pt) => (
+                        <SelectItem key={pt.id} value={pt.id.toString()}>{pt.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* State & County */}

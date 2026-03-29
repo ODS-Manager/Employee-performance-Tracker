@@ -14,7 +14,7 @@ import { extractErrorMessage } from '../../utils/errorUtils'
 import odsLogo from '../../assets/ods-logo.png'
 
 export const LoginPage: React.FC = () => {
-  const [userName, setUserName] = useState('')
+  const [employeeId, setEmployeeId] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -48,7 +48,7 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!userName || !password) {
+    if (!employeeId || !password) {
       setError('Please fill in all fields')
       return
     }
@@ -57,7 +57,7 @@ export const LoginPage: React.FC = () => {
     setError('')
     
     try {
-      await login(userName, password)
+      await login(employeeId, password)
       
       // Get the user from store immediately after login
       const user = useAuthStore.getState().user
@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
         navigateToDashboard(user)
       }
     } catch (error: any) {
-      const errorMsg = extractErrorMessage(error, 'Invalid username or password')
+      const errorMsg = extractErrorMessage(error, 'Invalid employee ID or password')
       setError(errorMsg)
       toast.error(errorMsg, { duration: 8000 })
     } finally {
@@ -127,17 +127,17 @@ export const LoginPage: React.FC = () => {
               
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="userName" className="text-sm font-semibold text-slate-700">
-                    Username
+                  <Label htmlFor="employeeId" className="text-sm font-semibold text-slate-700">
+                    Employee ID
                   </Label>
                   <Input
-                    id="userName"
-                    name="userName"
+                    id="employeeId"
+                    name="employeeId"
                     type="text"
                     autoComplete="username"
-                    placeholder="Enter your username"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Enter your employee ID"
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
                     required
                     disabled={isLoading}
                     className="h-11 border-slate-300 focus:border-blue-500 focus:ring-blue-500 bg-white"

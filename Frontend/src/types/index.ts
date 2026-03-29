@@ -299,6 +299,29 @@ export interface Division {
   modifiedAt: string
 }
 
+export interface PropertyType {
+  id: number
+  name: string
+  isActive: boolean
+  createdAt?: string
+  modifiedAt?: string
+}
+
+export interface AllowedDuplicateProduct {
+  id: number
+  productType: string
+  isActive: boolean
+  createdAt: string
+  createdBy: number
+  modifiedAt?: string
+  modifiedBy?: number
+}
+
+export interface AllowedDuplicateProductListResponse {
+  items: AllowedDuplicateProduct[]
+  total: number
+}
+
 export interface ReferenceTypeInfo {
   id: number
   name: string
@@ -333,6 +356,8 @@ export interface Order {
   orderStatus: ReferenceTypeInfo | null
   divisionId: number
   division: ReferenceTypeInfo | null
+  propertyTypeId: number | null
+  propertyType: ReferenceTypeInfo | null
   state: string
   county: string
   productType: string
@@ -376,6 +401,7 @@ export interface OrderCreate {
   processTypeId: number
   orderStatusId: number
   divisionId: number
+  propertyTypeId?: number
   state: string
   county: string
   productType: string
@@ -394,6 +420,7 @@ export interface OrderUpdate {
   processTypeId?: number
   orderStatusId?: number
   divisionId?: number
+  propertyTypeId?: number
   state?: string
   county?: string
   productType?: string
@@ -533,7 +560,7 @@ export interface MetricsFilterParams {
 
 // ============ Auth Types ============
 export interface LoginRequest {
-  userName: string
+  employeeId: string
   password: string
 }
 

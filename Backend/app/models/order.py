@@ -28,9 +28,10 @@ class Order(Base):
     process_type_id = Column(Integer, ForeignKey("process_types.id"), nullable=False)
     order_status_id = Column(Integer, ForeignKey("order_status.id"), nullable=False)
     division_id = Column(Integer, ForeignKey("divisions.id"), nullable=False)
+    property_type_id = Column(Integer, ForeignKey("property_types.id"), nullable=True)
     
     # Location
-    state = Column(String(5), nullable=False)  # Filtered by team_states
+    state = Column(String(50), nullable=False)  # State code (e.g., CA, TX, DE-ATO)
     county = Column(String(100), nullable=False)  # Manual entry
     
     # Product and Team
@@ -66,6 +67,7 @@ class Order(Base):
     process_type = relationship("ProcessType")
     order_status = relationship("OrderStatusType")
     division = relationship("Division")
+    property_type = relationship("PropertyType")
     
     # User relationships
     step1_user = relationship("User", back_populates="step1_orders", foreign_keys=[step1_user_id])

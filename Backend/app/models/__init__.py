@@ -51,6 +51,9 @@ from app.models.audit_log import AuditLog
 # Billing
 from app.models.billing import BillingReport, BillingDetail
 
+# Allowed duplicate products
+from app.models.allowed_duplicate_product import AllowedDuplicateProduct
+
 __all__ = [
     # Reference tables
     "TransactionType",
@@ -89,5 +92,7 @@ __all__ = [
     "AuditLog",
     # Billing
     "BillingReport",
-    "BillingDetail"
+    "BillingDetail",
+    # Allowed duplicate products
+    "AllowedDuplicateProduct"
 ]

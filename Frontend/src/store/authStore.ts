@@ -12,7 +12,7 @@ interface AuthStore {
   setAuth: (user: User) => void
   setUser: (user: User) => void
   logout: () => Promise<void>
-  login: (userName: string, password: string) => Promise<void>
+  login: (employeeId: string, password: string) => Promise<void>
   checkAuth: () => Promise<void>
 }
 
@@ -43,10 +43,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      login: async (userName: string, password: string) => {
+      login: async (employeeId: string, password: string) => {
         try {
           set({ isLoading: true })
-          const response = await authApi.login({ userName, password })
+          const response = await authApi.login({ employeeId, password })
           
           if (response.success && response.user) {
             get().setAuth(response.user)

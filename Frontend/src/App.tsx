@@ -31,6 +31,7 @@ import TeamMembersPage from './pages/admin/TeamMembersPage'
 import ExaminerDetailPage from './pages/admin/ExaminerDetailPage'
 import ExaminerPerformanceDetailPage from './pages/admin/ExaminerPerformanceDetailPage'
 import OrganizationsPage from './pages/admin/OrganizationsPage'
+import ReferenceDataPage from './pages/admin/ReferenceDataPage'
 import ProductivityReportsPage from './pages/admin/ProductivityReportsPage'
 import ExaminerTargetsPage from './pages/admin/ExaminerTargetsPage'
 import TeamLeadTargetsPage from './pages/admin/TeamLeadTargetsPage'
@@ -217,6 +218,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRoles={['superadmin']}>
                   <OrganizationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/reference-data"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <ReferenceDataPage />
                 </ProtectedRoute>
               }
             />

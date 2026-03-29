@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { teamsApi, usersApi } from '../../services/api'
+import { teamsApi, usersApi, referenceApi } from '../../services/api'
 import { getInitials, parseApiError } from '../../utils/helpers'
 import type { Team, TeamWithMembers, User, TeamUpdate } from '../../types'
 import { Button } from '../../components/ui/button'
@@ -34,22 +34,9 @@ import {
 } from 'lucide-react'
 import toast, { Toaster } from 'react-hot-toast'
 
-// Available states and products (can be configured)
-const AVAILABLE_STATES = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
-  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
-  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
-  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
-  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
-  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
-  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
-  'Wisconsin', 'Wyoming'
-]
-
-const AVAILABLE_PRODUCTS = [
-  'Full Search', 'Current Owner', 'Two Owner', 'Update', 'Refinance',
-  'Commercial', 'Construction', 'Foreclosure', 'REO', 'Short Sale'
-]
+// Available states and products - fetched from API
+const AVAILABLE_STATES: string[] = []
+const AVAILABLE_PRODUCTS: string[] = []
 
 // Helper function to parse API error responses
 
@@ -85,6 +72,10 @@ export const TeamLeadTeamManagementPage = () => {
   const [filterProduct, setFilterProduct] = useState<string>('all')
   const [filterState, setFilterState] = useState<string>('all')
 
+  // Available states and products from API
+  const [availableStates, setAvailableStates] = useState<string[]>([])
+  const [availableProducts, setAvailableProducts] = useState<string[]>([])
+
   useEffect(() => {
     if (user) {
       fetchData()
@@ -102,6 +93,18 @@ export const TeamLeadTeamManagementPage = () => {
       
       setTeams(teamsRes.items || [])
       setUsers(usersRes.items || [])
+
+      // Fetch states and products from reference API
+      try {
+        const [statesRes, productsRes] = await Promise.all([
+          referenceApi.getStates(),
+          referenceApi.getProductTypes()
+        ])
+        setAvailableStates(statesRes.map(s => s.code || s.name))
+        setAvailableProducts(productsRes.map(p => p.name))
+      } catch (err) {
+        console.error('Failed to fetch reference data:', err)
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error)
       toast.error('Failed to load teams')
@@ -476,7 +479,7 @@ export const TeamLeadTeamManagementPage = () => {
               <div className="space-y-2">
                 <Label>States</Label>
                 <MultiSelect
-                  options={AVAILABLE_STATES}
+                  options={availableStates.length > 0 ? availableStates : ['Loading...']}
                   selected={formData.states || []}
                   onChange={(states) => setFormData({...formData, states})}
                   placeholder="Select states..."
@@ -488,7 +491,7 @@ export const TeamLeadTeamManagementPage = () => {
               <div className="space-y-2">
                 <Label>Products</Label>
                 <MultiSelect
-                  options={AVAILABLE_PRODUCTS}
+                  options={availableProducts.length > 0 ? availableProducts : ['Loading...']}
                   selected={formData.products || []}
                   onChange={(products) => setFormData({...formData, products})}
                   placeholder="Select products..."

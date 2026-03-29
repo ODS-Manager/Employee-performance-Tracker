@@ -131,8 +131,8 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
     client_ip = get_client_ip(req)
     user_agent = req.headers.get("user-agent", "Unknown")
     
-    # Create identifier for rate limiting (username + IP)
-    rate_limit_identifier = f"{request.user_name}:{client_ip}"
+    # Create identifier for rate limiting (employee_id + IP)
+    rate_limit_identifier = f"{request.employee_id}:{client_ip}"
     
     # Check if login is blocked due to too many failed attempts
     try:
@@ -146,7 +146,7 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
                 client_ip,
                 user_agent,
                 None,
-                {"reason": "rate_limited", "username": request.user_name}
+                {"reason": "rate_limited", "employee_id": request.employee_id}
             )
             
             raise HTTPException(
@@ -159,8 +159,8 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
         # Continue with rate limiting disabled if session service fails
         pass
     
-    # Find user by username (case-insensitive)
-    user = db.query(User).filter(func.lower(User.user_name) == func.lower(request.user_name)).first()
+    # Find user by employee_id (examiner_id) - case-insensitive
+    user = db.query(User).filter(func.lower(User.examiner_id) == func.lower(request.employee_id)).first()
     
     if not user:
         # Record failed attempt
@@ -176,12 +176,12 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
             client_ip,
             user_agent,
             None,
-            {"reason": "invalid_username", "username": request.user_name}
+            {"reason": "invalid_employee_id", "employee_id": request.employee_id}
         )
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
+            detail="Invalid employee ID or password"
         )
     
     if not verify_password(request.password, user.password_hash):
@@ -203,7 +203,7 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
+            detail="Invalid employee ID or password"
         )
     
     if not user.is_active:

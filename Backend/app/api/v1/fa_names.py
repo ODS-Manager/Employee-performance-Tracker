@@ -18,7 +18,6 @@ from app.schemas.fa_name import (
     FANameListResponse
 )
 from app.services.audit_service import AuditService
-from app.models.audit_log import AuditEntityType, AuditAction
 
 router = APIRouter()
 
@@ -124,13 +123,11 @@ async def create_fa_name(
     db.refresh(new_fa_name)
     
     # Audit log
-    AuditService.log_action(
-        db=db,
-        user_id=current_user.id,
-        action=AuditAction.CREATE,
-        entity_type=AuditEntityType.FA_NAME,
-        entity_id=new_fa_name.id,
-        details={"name": new_fa_name.name}
+    audit_service = AuditService(db)
+    audit_service.log_create(
+        entity=new_fa_name,
+        entity_type="FAName",
+        current_user=current_user
     )
     
     return serialize_fa_name(new_fa_name)
@@ -154,7 +151,7 @@ async def update_fa_name(
             detail="FA name not found"
         )
     
-    old_values = {"name": fa_name.name, "is_active": fa_name.is_active}
+    old_snapshot = {"name": fa_name.name, "is_active": fa_name.is_active}
     
     # Update name if provided
     if fa_name_data.name is not None:
@@ -182,16 +179,12 @@ async def update_fa_name(
     db.refresh(fa_name)
     
     # Audit log
-    AuditService.log_action(
-        db=db,
-        user_id=current_user.id,
-        action=AuditAction.UPDATE,
-        entity_type=AuditEntityType.FA_NAME,
-        entity_id=fa_name.id,
-        details={
-            "old_values": old_values,
-            "new_values": {"name": fa_name.name, "is_active": fa_name.is_active}
-        }
+    audit_service = AuditService(db)
+    audit_service.log_update(
+        entity=fa_name,
+        entity_type="FAName",
+        old_snapshot=old_snapshot,
+        current_user=current_user
     )
     
     return serialize_fa_name(fa_name)
@@ -221,13 +214,12 @@ async def delete_fa_name(
     db.commit()
     
     # Audit log
-    AuditService.log_action(
-        db=db,
-        user_id=current_user.id,
-        action=AuditAction.DELETE,
-        entity_type=AuditEntityType.FA_NAME,
-        entity_id=fa_name.id,
-        details={"name": fa_name.name}
+    audit_service = AuditService(db)
+    audit_service.log_delete(
+        entity=fa_name,
+        entity_type="FAName",
+        current_user=current_user,
+        is_soft_delete=True
     )
     
     return {"message": "FA name deleted successfully"}

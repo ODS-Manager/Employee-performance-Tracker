@@ -20,18 +20,11 @@ from app.models.team import Team
 from app.models.user_team import UserTeam
 from app.models.reference import OrderStatusType
 from app.models.fa_name import FAName
+from app.models.allowed_duplicate_product import AllowedDuplicateProduct
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services.cache_service import cache
 
 router = APIRouter()
-
-ALLOW_DUPLICATE_PRODUCT_TYPES = {
-    "update",
-    "date down",
-    "gi clearing",
-    "schedule b",
-    "product delivery",
-}
 
 
 def normalize_product_type(product_type: Optional[str]) -> str:
@@ -41,14 +34,36 @@ def normalize_product_type(product_type: Optional[str]) -> str:
     return " ".join(product_type.strip().lower().split())
 
 
-def is_duplicate_allowed_product(product_type: Optional[str]) -> bool:
-    """Return True when duplicates are allowed for the given product type."""
-    return normalize_product_type(product_type) in ALLOW_DUPLICATE_PRODUCT_TYPES
+def is_duplicate_allowed_product(product_type: Optional[str], db: Session) -> bool:
+    """
+    Return True when duplicates are allowed for the given product type.
+    Checks the database instead of hardcoded list.
+    """
+    # Check cache first
+    cache_key = f"allowed_dup_product:{normalize_product_type(product_type)}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    normalized = normalize_product_type(product_type)
+    if not normalized:
+        cache.set(cache_key, False, ttl=300)  # Cache for 5 minutes
+        return False
+    
+    # Query database
+    result = db.query(AllowedDuplicateProduct).filter(
+        AllowedDuplicateProduct.product_type == normalized,
+        AllowedDuplicateProduct.is_active == True
+    ).first()
+    
+    is_allowed = result is not None
+    cache.set(cache_key, is_allowed, ttl=300)  # Cache for 5 minutes
+    return is_allowed
 
 
-def can_create_duplicate_for_product(user: User, product_type: Optional[str]) -> bool:
+def can_create_duplicate_for_product(user: User, product_type: Optional[str], db: Session) -> bool:
     """Allow duplicate orders only for elevated roles on configured product types."""
-    if not is_duplicate_allowed_product(product_type):
+    if not is_duplicate_allowed_product(product_type, db):
         return False
 
     role = user.user_role.lower() if user.user_role else ""
@@ -118,6 +133,8 @@ def serialize_order(order: Order, include_steps: bool = True) -> dict:
         "orderStatus": serialize_reference_type(order.order_status) if hasattr(order, 'order_status') else None,
         "divisionId": order.division_id,
         "division": serialize_reference_type(order.division) if hasattr(order, 'division') else None,
+        "propertyTypeId": order.property_type_id,
+        "propertyType": serialize_reference_type(order.property_type) if hasattr(order, 'property_type') and order.property_type else None,
         "state": order.state,
         "county": order.county,
         "productType": order.product_type,
@@ -155,6 +172,7 @@ def serialize_simple_order(order: Order) -> dict:
         "processTypeName": effective_process_type_name,  # Use effective name instead of original
         "orderStatusName": order.order_status.name if order.order_status else None,
         "divisionName": order.division.name if order.division else None,
+        "propertyTypeName": order.property_type.name if order.property_type else None,
         "teamId": order.team_id,
         "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
         "createdAt": order.created_at.isoformat() if order.created_at else None,
@@ -477,7 +495,7 @@ async def check_file_number(
     
     # For specific product types, duplicates are explicitly allowed only for
     # superadmin/admin/team lead users.
-    duplicates_allowed = can_create_duplicate_for_product(current_user, product_type)
+    duplicates_allowed = can_create_duplicate_for_product(current_user, product_type, db)
     if duplicates_allowed:
         return {
             "exists": False,
@@ -614,7 +632,7 @@ async def create_order(
     
     # For selected product types duplicates are allowed per team only for
     # elevated roles.
-    product_allows_duplicates = can_create_duplicate_for_product(current_user, order_data.product_type)
+    product_allows_duplicates = can_create_duplicate_for_product(current_user, order_data.product_type, db)
 
     existing = None
     if not product_allows_duplicates:
@@ -1094,7 +1112,7 @@ async def update_order(
     prospective_product_type = update_data.get('product_type', order.product_type)
     prospective_team_id = update_data.get('team_id', order.team_id)
 
-    if not can_create_duplicate_for_product(current_user, prospective_product_type):
+    if not can_create_duplicate_for_product(current_user, prospective_product_type, db):
         duplicate_order = db.query(Order).filter(
             Order.id != order.id,
             Order.file_number == prospective_file_number,
