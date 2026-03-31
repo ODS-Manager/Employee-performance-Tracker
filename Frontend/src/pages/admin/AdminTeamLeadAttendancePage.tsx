@@ -32,7 +32,7 @@ import { cn } from '../../lib/utils'
 interface TeamLead {
   id: number
   userName: string
-  examinerId: string
+  employeeId: string
   isActive: boolean
 }
 
@@ -275,7 +275,7 @@ export const AdminTeamLeadAttendancePage = () => {
                         </Avatar>
                         <div>
                           <p className="font-medium">{teamLead.userName}</p>
-                          <p className="text-sm text-muted-foreground">ID: {teamLead.examinerId}</p>
+                          <p className="text-sm text-muted-foreground">ID: {teamLead.employeeId}</p>
                         </div>
                       </div>
 

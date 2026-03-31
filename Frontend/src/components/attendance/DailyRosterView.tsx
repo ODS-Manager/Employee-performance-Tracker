@@ -336,7 +336,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                           <div>
                             <div className="font-medium text-sm text-slate-900">{employee.userName}</div>
                             <div className="text-xs text-slate-500">
-                              ID: {employee.examinerId}
+                              ID: {employee.employeeId}
                             </div>
                             {employee.markedByName && (
                               <div className="text-xs text-slate-500 mt-1">

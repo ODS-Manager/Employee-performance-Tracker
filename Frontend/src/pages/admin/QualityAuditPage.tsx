@@ -47,7 +47,7 @@ export const QualityAuditPage = () => {
   
   // Form state
   const [formData, setFormData] = useState<QualityAuditCreate>({
-    examinerId: 0,
+    employeeId: 0,
     teamId: 0,
     processType: '',
     totalFilesReviewed: undefined,
@@ -81,16 +81,16 @@ export const QualityAuditPage = () => {
   // Filter teams based on selected examiner
   useEffect(() => {
     const filterTeamsByExaminer = async () => {
-      if (formData.examinerId && formData.examinerId > 0) {
+      if (formData.employeeId && formData.employeeId > 0) {
         try {
-          const userTeams = await usersApi.getTeams(formData.examinerId)
+          const userTeams = await usersApi.getTeams(formData.employeeId)
           const userTeamIds = userTeams.map(ut => ut.teamId)
           const filtered = teams.filter(team => userTeamIds.includes(team.id))
           setFilteredTeams(filtered)
           
           // Check if examiner has no teams
           if (filtered.length === 0) {
-            const selectedExaminer = examiners.find(e => e.id === formData.examinerId)
+            const selectedExaminer = examiners.find(e => e.id === formData.employeeId)
             const examinerName = selectedExaminer?.userName || 'The employee'
             toast.error(`${examinerName} is not onboarded in any team. Please assign them to a team first.`)
             // Reset teamId since there are no teams available (only if not in edit mode)
@@ -114,7 +114,7 @@ export const QualityAuditPage = () => {
     }
     
     filterTeamsByExaminer()
-  }, [formData.examinerId, teams, examiners, editingId])
+  }, [formData.employeeId, teams, examiners, editingId])
 
   // Filter examiners based on selected team in filter section
   useEffect(() => {
@@ -211,7 +211,7 @@ export const QualityAuditPage = () => {
     try {
       const params: any = {}
       if (filterTeamId) params.teamId = filterTeamId
-      if (filterExaminerId) params.examinerId = filterExaminerId
+      if (filterExaminerId) params.employeeId = filterExaminerId
       
       const response = await qualityAuditApi.list(params)
       setAudits(response.items || [])
@@ -224,7 +224,7 @@ export const QualityAuditPage = () => {
     e.preventDefault()
     
     // Validation
-    if (!formData.examinerId || !formData.teamId || !formData.processType) {
+    if (!formData.employeeId || !formData.teamId || !formData.processType) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -269,8 +269,8 @@ export const QualityAuditPage = () => {
     
     // Pre-load the teams for the examiner before setting form data
     try {
-      if (audit.examinerId && audit.examinerId > 0) {
-        const userTeams = await usersApi.getTeams(audit.examinerId)
+      if (audit.employeeId && audit.employeeId > 0) {
+        const userTeams = await usersApi.getTeams(audit.employeeId)
         const userTeamIds = userTeams.map(ut => ut.teamId)
         const filtered = teams.filter(team => userTeamIds.includes(team.id))
         setFilteredTeams(filtered)
@@ -283,7 +283,7 @@ export const QualityAuditPage = () => {
     
     // Set form data after teams are loaded
     setFormData({
-      examinerId: audit.examinerId,
+      employeeId: audit.employeeId,
       teamId: audit.teamId,
       processType: audit.processType,
       totalFilesReviewed: audit.totalFilesReviewed,
@@ -315,7 +315,7 @@ export const QualityAuditPage = () => {
   const resetForm = () => {
     setEditingId(null)
     setFormData({
-      examinerId: 0,
+      employeeId: 0,
       teamId: 0,
       processType: '',
       filesWithError: 0,
@@ -393,8 +393,8 @@ export const QualityAuditPage = () => {
                   <div className="space-y-2">
                     <Label>Employee Name *</Label>
                     <Select
-                      value={formData.examinerId?.toString() || '0'}
-                      onValueChange={(value) => setFormData({ ...formData, examinerId: parseInt(value) })}
+                      value={formData.employeeId?.toString() || '0'}
+                      onValueChange={(value) => setFormData({ ...formData, employeeId: parseInt(value) })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select employee" />
@@ -434,7 +434,7 @@ export const QualityAuditPage = () => {
                         )}
                       </SelectContent>
                     </Select>
-                    {formData.examinerId > 0 && filteredTeams.length === 0 && (
+                    {formData.employeeId > 0 && filteredTeams.length === 0 && (
                       <p className="text-xs text-red-600">
                         Selected employee is not onboarded in any team
                       </p>

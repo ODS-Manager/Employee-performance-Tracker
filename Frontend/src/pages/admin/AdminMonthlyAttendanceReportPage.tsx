@@ -21,7 +21,7 @@ interface DayInfo {
 interface TeamLeadMonthlyAttendance {
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   totalDays: number
   daysPresent: number
   daysAbsent: number
@@ -121,7 +121,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
     const rows = report.examiners.map((emp: TeamLeadMonthlyAttendance) => {
       const row = [
         emp.userName || 'N/A',
-        emp.examinerId || 'N/A',
+        emp.employeeId || 'N/A',
         emp.totalDays,
         emp.daysPresent,
         emp.daysAbsent,
@@ -275,7 +275,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
                               </Avatar>
                               <div>
                                 <div className="font-medium text-slate-900">{examiner.userName || '-'}</div>
-                                {examiner.examinerId && <div className="text-xs text-slate-500">ID: {examiner.examinerId}</div>}
+                                {examiner.employeeId && <div className="text-xs text-slate-500">ID: {examiner.employeeId}</div>}
                               </div>
                             </div>
                           </td>

@@ -20,7 +20,7 @@ export const OnboardingPage = () => {
   
   const [formData, setFormData] = useState({
     userName: '',
-    examinerId: '',
+    employeeId: '',
     password: '',
     confirmPassword: '',
     userRole: 'examiner' as UserRole,
@@ -132,22 +132,22 @@ export const OnboardingPage = () => {
     setTeamAssignmentErrors([])
 
     // Validation
-    if (!formData.userName || !formData.examinerId || !formData.password) {
+    if (!formData.userName || !formData.employeeId || !formData.password) {
       setError('Please fill in all required fields')
       return
     }
 
     // Validate Employee ID format
-    const examinerIdRegex = /^[A-Z0-9_-]+$/i
-    if (!examinerIdRegex.test(formData.examinerId)) {
+    const employeeIdRegex = /^[A-Z0-9_-]+$/i
+    if (!employeeIdRegex.test(formData.employeeId)) {
       setError('Employee ID can only contain letters, numbers, hyphens, and underscores')
       return
     }
-    if (formData.examinerId.length < 2) {
+    if (formData.employeeId.length < 2) {
       setError('Employee ID must be at least 2 characters')
       return
     }
-    if (formData.examinerId.length > 50) {
+    if (formData.employeeId.length > 50) {
       setError('Employee ID must be at most 50 characters')
       return
     }
@@ -176,7 +176,7 @@ export const OnboardingPage = () => {
       // Step 1: Create the user with manual Employee ID
       newUser = await usersApi.create({
         userName: formData.userName,
-        examinerId: formData.examinerId.trim().toUpperCase(),
+        employeeId: formData.employeeId.trim().toUpperCase(),
         password: formData.password,
         userRole: formData.userRole,
         orgId: formData.userRole === 'superadmin' ? null : formData.orgId,
@@ -218,7 +218,7 @@ export const OnboardingPage = () => {
       // Reset form
       setFormData({
         userName: '',
-        examinerId: '',
+        employeeId: '',
         password: '',
         confirmPassword: '',
         userRole: 'examiner',
@@ -404,21 +404,21 @@ export const OnboardingPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="examinerId">Employee ID *</Label>
+                  <Label htmlFor="employeeId">Employee ID *</Label>
                   <Input 
-                    id="examinerId" 
+                    id="employeeId" 
                     placeholder="e.g., EMP001 or JD-2024-001"
-                    value={formData.examinerId} 
+                    value={formData.employeeId} 
                     onChange={(e) => {
                       const val = e.target.value;
                       // Allow letters, numbers, hyphens, and underscores
                       if (val === '' || /^[a-zA-Z0-9_-]*$/.test(val)) {
-                        setFormData({...formData, examinerId: val});
+                        setFormData({...formData, employeeId: val});
                       }
                     }}
                     onBlur={(e) => {
                       const val = e.target.value.trim().toUpperCase();
-                      setFormData({...formData, examinerId: val});
+                      setFormData({...formData, employeeId: val});
                     }}
                     required 
                     disabled={isLoading}

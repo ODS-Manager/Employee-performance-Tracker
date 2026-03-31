@@ -40,7 +40,7 @@ def validate_user_name(value: str) -> str:
 class UserBase(BaseModel):
     user_name: str = Field(..., max_length=100, serialization_alias="userName")
     examiner_id: str = Field(..., max_length=50, serialization_alias="examinerId")
-    employee_id: Optional[str] = Field(None, max_length=50, serialization_alias="employeeId")
+    employee_id: str = Field(..., max_length=50, serialization_alias="employeeId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     
@@ -49,8 +49,7 @@ class UserBase(BaseModel):
 
 class UserCreate(BaseModel):
     user_name: str = Field(..., max_length=100, alias="userName")
-    examiner_id: str = Field(..., max_length=50, alias="examinerId")  # Required: Manual Employee ID
-    employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")  # Optional: Employee ID
+    employee_id: str = Field(..., max_length=50, alias="employeeId")  # Required: Manual Employee ID
     password: str = Field(..., min_length=8)
     user_role: str = Field(..., alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
@@ -62,9 +61,9 @@ class UserCreate(BaseModel):
     def normalize_user_name(cls, v: str) -> str:
         return validate_user_name(v)
     
-    @field_validator('examiner_id', mode='before')
+    @field_validator('employee_id', mode='before')
     @classmethod
-    def validate_examiner_id(cls, v: str) -> str:
+    def validate_employee_id(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError('Employee ID is required')
         v = v.strip().upper()
@@ -80,7 +79,6 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     user_name: Optional[str] = Field(None, max_length=100, alias="userName")
-    examiner_id: Optional[str] = Field(None, max_length=50, alias="examinerId")
     employee_id: Optional[str] = Field(None, max_length=50, alias="employeeId")
     user_role: Optional[str] = Field(None, alias="userRole")
     org_id: Optional[int] = Field(None, alias="orgId")
@@ -94,13 +92,28 @@ class UserUpdate(BaseModel):
         if v is None:
             return v
         return validate_user_name(v)
+    
+    @field_validator('employee_id', mode='before')
+    @classmethod
+    def validate_employee_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError('Employee ID cannot be empty')
+        v = v.strip().upper()
+        if len(v) < 2:
+            raise ValueError('Employee ID must be at least 2 characters')
+        if len(v) > 50:
+            raise ValueError('Employee ID must be at most 50 characters')
+        if not re.match(r'^[A-Z0-9_-]+$', v):
+            raise ValueError('Employee ID can only contain letters, numbers, hyphens, and underscores')
+        return v
 
 
 class UserResponse(BaseModel):
     id: int
     user_name: str = Field(..., serialization_alias="userName")
-    examiner_id: str = Field(..., serialization_alias="examinerId")
-    employee_id: Optional[str] = Field(None, serialization_alias="employeeId")
+    employee_id: str = Field(..., serialization_alias="employeeId")
     user_role: str = Field(..., serialization_alias="userRole")
     org_id: Optional[int] = Field(None, serialization_alias="orgId")
     password_last_changed: Optional[datetime] = Field(None, serialization_alias="passwordLastChanged")

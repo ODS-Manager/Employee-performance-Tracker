@@ -412,7 +412,7 @@ export const ExaminerDetailPage = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</Label>
-                    <p className="font-medium font-mono">{examiner.examinerId}</p>
+                    <p className="font-medium font-mono">{examiner.employeeId}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Organization</Label>

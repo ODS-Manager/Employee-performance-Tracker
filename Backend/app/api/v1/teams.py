@@ -91,7 +91,7 @@ def serialize_team_member(user: User, user_team: UserTeam) -> dict:
         "id": user_team.id,
         "userId": user.id,
         "userName": user.user_name,
-        "examinerId": user.examiner_id,
+        "employeeId": user.employee_id,
         "userRole": user.user_role,
         "teamRole": user_team.role,
         "joinedAt": user_team.joined_at.isoformat() if user_team.joined_at else None,

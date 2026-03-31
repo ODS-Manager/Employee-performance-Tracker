@@ -184,7 +184,7 @@ export const ExaminerDashboard = () => {
       faName: selectedFaName || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
-      pageSize: 100 
+      pageSize: 10000  // Increased to show all orders without pagination limit
     }),
     enabled: !!user && user.userRole === 'examiner',
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -201,7 +201,7 @@ export const ExaminerDashboard = () => {
   const { data: qualityAuditsData } = useQuery({
     queryKey: ['qualityAudits', user?.id, fromDate, toDate],
     queryFn: () => qualityAuditApi.list({
-      examinerId: user!.id,
+      employeeId: user!.id,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),

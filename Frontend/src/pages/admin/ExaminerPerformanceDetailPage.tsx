@@ -48,7 +48,7 @@ interface ExaminerMetric {
 interface ProductivityData {
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   productivityPercent: number | null
   expectedTarget: number
   weeklyTarget: number | null
@@ -68,7 +68,7 @@ interface ProductivityData {
 
 interface QualityAudit {
   id: number
-  examinerId: number
+  employeeId: number
   examinerName: string
   teamName: string
   processType: string
@@ -280,7 +280,7 @@ export const ExaminerPerformanceDetailPage = () => {
       ['EXAMINER PERFORMANCE REPORT'],
       [],
       ['Employee:', examiner?.userName || 'Unknown'],
-      ['Employee ID:', examiner?.examinerId || 'N/A'],
+      ['Employee ID:', examiner?.employeeId || 'N/A'],
       ['Period:', `${getMonthOptions(filterYear).find(m => m.value === filterMonth)?.label} ${filterYear}`],
       [],
       ['SUMMARY STATISTICS'],
@@ -395,7 +395,7 @@ export const ExaminerPerformanceDetailPage = () => {
     }
     
     // Generate Excel file
-    XLSX.writeFile(wb, `Examiner_Performance_${examiner?.examinerId}_${filterYear}-${filterMonth}.xlsx`)
+    XLSX.writeFile(wb, `Examiner_Performance_${examiner?.employeeId}_${filterYear}-${filterMonth}.xlsx`)
     toast.success('Report exported successfully!')
   }
 
@@ -434,7 +434,7 @@ export const ExaminerPerformanceDetailPage = () => {
                 {examiner?.userName || 'Employee'} Performance
               </h1>
               <p className="text-slate-600 mt-1">
-                Examiner ID: {examiner?.examinerId || 'N/A'} • 
+                Examiner ID: {examiner?.employeeId || 'N/A'} • 
                 {getMonthOptions(filterYear).find(m => m.value === filterMonth)?.label} {filterYear}
               </p>
             </div>

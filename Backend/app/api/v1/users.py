@@ -25,6 +25,7 @@ from app.core.security import get_password_hash, verify_password
 from app.services.cache_service import cache
 from app.services.audit_service import AuditService
 from app.models.audit_log import AuditEntityType, AuditAction
+from app.utils.id_generator import generate_examiner_id
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def serialize_user(user: User) -> dict:
     return {
         "id": user.id,
         "userName": user.user_name,
-        "examinerId": user.examiner_id,
+        "employeeId": user.employee_id,
         "userRole": user.user_role,
         "orgId": user.org_id,
         "passwordLastChanged": user.password_last_changed.isoformat() if user.password_last_changed else None,
@@ -226,19 +227,23 @@ async def create_user(
             detail="Username already registered"
         )
     
-    # Check if examiner_id (Employee ID) already exists
-    examiner_id = user_data.examiner_id.strip().upper()
-    existing_emp = db.query(User).filter(User.examiner_id == examiner_id).first()
+    # Check if employee_id already exists
+    employee_id = user_data.employee_id.strip().upper()
+    existing_emp = db.query(User).filter(User.employee_id == employee_id).first()
     if existing_emp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Employee ID '{examiner_id}' already exists"
+            detail=f"Employee ID '{employee_id}' already exists"
         )
+    
+    # Auto-generate examiner_id
+    examiner_id = generate_examiner_id(db)
     
     # Create new user
     new_user = User(
         user_name=user_data.user_name,
         examiner_id=examiner_id,
+        employee_id=employee_id,
         password_hash=get_password_hash(user_data.password),
         user_role=user_data.user_role,
         org_id=user_data.org_id,
@@ -408,9 +413,9 @@ async def update_user(
             )
     
     # Check for examiner_id uniqueness if changing
-    if 'examiner_id' in update_data:
+    if 'employee_id' in update_data:
         existing = db.query(User).filter(
-            User.examiner_id == update_data['examiner_id'],
+            User.employee_id == update_data['employee_id'],
             User.id != user_id
         ).first()
         if existing:

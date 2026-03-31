@@ -47,7 +47,7 @@ import toast from 'react-hot-toast'
 interface UserData {
   id: number
   userName: string
-  examinerId: string
+  employeeId: string
   userRole: string
   orgId: number | null
   isActive: boolean
@@ -78,7 +78,7 @@ export const ExaminerManagementPage = () => {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
   const [formData, setFormData] = useState({
     userName: '',
-    examinerId: '',
+    employeeId: '',
     password: '',
     confirmPassword: '',
     userRole: 'examiner' as UserRole,
@@ -222,7 +222,7 @@ export const ExaminerManagementPage = () => {
       const searchLower = searchQuery.toLowerCase()
       const matchesSearch = searchQuery === '' || 
         emp.userName.toLowerCase().includes(searchLower) ||
-        emp.examinerId.toLowerCase().includes(searchLower) ||
+        emp.employeeId.toLowerCase().includes(searchLower) ||
         getOrgName(emp.orgId).toLowerCase().includes(searchLower)
       
       // Role filter
@@ -268,7 +268,7 @@ export const ExaminerManagementPage = () => {
   const resetForm = () => {
     setFormData({
       userName: '',
-      examinerId: '',
+      employeeId: '',
       password: '',
       confirmPassword: '',
       userRole: 'examiner',
@@ -296,22 +296,22 @@ export const ExaminerManagementPage = () => {
     setFormError('')
 
     // Validation
-    if (!formData.userName || !formData.examinerId || !formData.password) {
+    if (!formData.userName || !formData.employeeId || !formData.password) {
       setFormError('Please fill in all required fields')
       return
     }
 
     // Validate Employee ID format
-    const examinerIdRegex = /^[A-Z0-9_-]+$/i
-    if (!examinerIdRegex.test(formData.examinerId)) {
+    const employeeIdRegex = /^[A-Z0-9_-]+$/i
+    if (!employeeIdRegex.test(formData.employeeId)) {
       setFormError('Employee ID can only contain letters, numbers, hyphens, and underscores')
       return
     }
-    if (formData.examinerId.length < 2) {
+    if (formData.employeeId.length < 2) {
       setFormError('Employee ID must be at least 2 characters')
       return
     }
-    if (formData.examinerId.length > 50) {
+    if (formData.employeeId.length > 50) {
       setFormError('Employee ID must be at most 50 characters')
       return
     }
@@ -338,7 +338,7 @@ export const ExaminerManagementPage = () => {
       // Create the user with manual Employee ID
       const newUser = await usersApi.create({
         userName: formData.userName,
-        examinerId: formData.examinerId.trim().toUpperCase(),
+        employeeId: formData.employeeId.trim().toUpperCase(),
         password: formData.password,
         userRole: formData.userRole,
         orgId: isUserRole(formData.userRole, 'superadmin') ? null : formData.orgId,
@@ -517,21 +517,21 @@ export const ExaminerManagementPage = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="examinerId">Employee ID *</Label>
+                        <Label htmlFor="employeeId">Employee ID *</Label>
                         <Input 
-                          id="examinerId" 
+                          id="employeeId" 
                           placeholder="e.g., EMP001 or JD-2024-001"
-                          value={formData.examinerId} 
+                          value={formData.employeeId} 
                           onChange={(e) => {
                             const val = e.target.value;
                             // Allow letters, numbers, hyphens, and underscores
                             if (val === '' || /^[a-zA-Z0-9_-]*$/.test(val)) {
-                              setFormData({...formData, examinerId: val});
+                              setFormData({...formData, employeeId: val});
                             }
                           }}
                           onBlur={(e) => {
                             const val = e.target.value.trim().toUpperCase();
-                            setFormData({...formData, examinerId: val});
+                            setFormData({...formData, employeeId: val});
                           }}
                           required 
                           disabled={isSubmitting}
@@ -857,7 +857,7 @@ export const ExaminerManagementPage = () => {
                           </Avatar>
                           <div>
                             <div>{emp.userName}</div>
-                            <div className="text-xs text-muted-foreground">{emp.examinerId}</div>
+                            <div className="text-xs text-muted-foreground">{emp.employeeId}</div>
                           </div>
                         </div>
                       </TableCell>

@@ -138,6 +138,7 @@ def serialize_order(order: Order, include_steps: bool = True) -> dict:
         "state": order.state,
         "county": order.county,
         "productType": order.product_type,
+        "productionType": order.production_type or "regular",  # Default to 'regular' if NULL
         "teamId": order.team_id,
         "orgId": order.org_id,
         "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
@@ -168,6 +169,7 @@ def serialize_simple_order(order: Order) -> dict:
         "state": order.state,
         "county": order.county,
         "productType": order.product_type,
+        "productionType": order.production_type or "regular",  # Default to 'regular' if NULL
         "transactionTypeName": order.transaction_type.name if order.transaction_type else None,
         "processTypeName": effective_process_type_name,  # Use effective name instead of original
         "orderStatusName": order.order_status.name if order.order_status else None,
@@ -780,6 +782,7 @@ async def create_order(
         state=order_data.state.upper(),
         county=order_data.county,
         product_type=order_data.product_type,
+        production_type=order_data.production_type,  # Add production_type field
         property_type_id=order_data.property_type_id,
         team_id=order_data.team_id,
         org_id=order_data.org_id,
@@ -1045,7 +1048,7 @@ async def update_order(
     # Define field categories
     order_detail_fields = ['file_number', 'entry_date', 'transaction_type_id', 'process_type_id', 
                           'division_id', 'state', 'county', 
-                          'product_type', 'team_id', 'billing_status']
+                          'product_type', 'production_type', 'team_id', 'billing_status']
     order_status_fields = ['order_status_id']
     step1_fields = ['step1_user_id', 'step1_fa_name_id']
     step2_fields = ['step2_user_id', 'step2_fa_name_id']

@@ -36,7 +36,7 @@ import toast from 'react-hot-toast'
 interface TeamLeadTarget {
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   currentTarget: number | null
   previousTarget: number | null
   targetId: number | null
@@ -288,7 +288,7 @@ export const TeamLeadTargetsPage = () => {
                                 {teamLead.userName}
                               </TableCell>
                               <TableCell>
-                                {teamLead.examinerId}
+                                {teamLead.employeeId}
                               </TableCell>
                               <TableCell>
                                 {teamLead.previousTarget !== null && teamLead.previousTarget > 0 ? (

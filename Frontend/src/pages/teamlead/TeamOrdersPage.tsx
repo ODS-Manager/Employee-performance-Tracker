@@ -283,6 +283,7 @@ export const TeamOrdersPage = () => {
           'State': order.state,
           'County': order.county,
           'Product Type': order.productType,
+          'Production Type': order.productionType || 'regular',
           'Transaction Type': order.transactionType?.name || '-',
           'Process Type': order.processType?.name || '-',
           'Division': order.division?.name || '-',
@@ -310,6 +311,7 @@ export const TeamOrdersPage = () => {
         { wch: 10 }, // State
         { wch: 15 }, // County
         { wch: 20 }, // Product Type
+        { wch: 12 }, // Production Type
         { wch: 18 }, // Transaction Type
         { wch: 15 }, // Process Type
         { wch: 15 }, // Division
@@ -744,6 +746,7 @@ export const TeamOrdersPage = () => {
                       <TableHead>State</TableHead>
                       <TableHead>County</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Division</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Billing</TableHead>
@@ -753,7 +756,7 @@ export const TeamOrdersPage = () => {
                   <TableBody>
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                           <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p>No orders found for the selected filters</p>
                         </TableCell>
@@ -773,6 +776,11 @@ export const TeamOrdersPage = () => {
                           <TableCell>{order.county}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">{order.productType}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={order.productionType === 'OT' ? 'default' : 'outline'}>
+                              {order.productionType || 'regular'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{order.divisionName || '-'}</Badge>

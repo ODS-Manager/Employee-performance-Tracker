@@ -31,7 +31,7 @@ interface TeamMember {
   id: number
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   userRole: string
   teamRole: string
   isActive: boolean
@@ -275,7 +275,7 @@ const TeamReportDetailPage = () => {
                           </Avatar>
                           <div>
                             <div className="font-medium">{member.userName}</div>
-                            <div className="text-xs text-muted-foreground">{member.examinerId}</div>
+                            <div className="text-xs text-muted-foreground">{member.employeeId}</div>
                           </div>
                         </div>
                       </TableCell>

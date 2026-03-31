@@ -487,7 +487,7 @@ export const TeamProductivityPage = () => {
                               <div>
                                 <div>{examiner.userName || examiner.userName}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  {examiner.examinerId}
+                                  {examiner.employeeId}
                                 </div>
                               </div>
                             </div>

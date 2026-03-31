@@ -993,7 +993,7 @@ export const qualityAuditApi = {
   // Create a new quality audit
   create: async (data: QualityAuditCreate): Promise<QualityAudit> => {
     const payload: Record<string, unknown> = {
-      examiner_id: data.examinerId,
+      employee_id: data.employeeId,
       team_id: data.teamId,
       process_type: data.processType,
       files_with_error: data.filesWithError,
@@ -1016,7 +1016,7 @@ export const qualityAuditApi = {
     const queryParams: Record<string, unknown> = {}
     if (params?.orgId !== undefined) queryParams.org_id = params.orgId
     if (params?.teamId !== undefined) queryParams.team_id = params.teamId
-    if (params?.examinerId !== undefined) queryParams.examiner_id = params.examinerId
+    if (params?.employeeId !== undefined) queryParams.employee_id = params.employeeId
     if (params?.startDate) queryParams.start_date = params.startDate
     if (params?.endDate) queryParams.end_date = params.endDate
     if (params?.page) queryParams.page = params.page
@@ -1248,7 +1248,7 @@ export const attendanceApi = {
       team_id: data.teamId,
       date: data.date,
       status: data.status,
-      examiner_ids: data.examinerIds,
+      employee_ids: data.employeeIds,
     }
     const response = await api.post('/attendance/mark-bulk', payload)
     return response.data

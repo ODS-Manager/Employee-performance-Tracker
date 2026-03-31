@@ -614,7 +614,7 @@ export const ProductivityReportsPage = () => {
                                     <TableCell>
                                       <div>
                                         <div className="font-medium">{examiner.userName || examiner.userName}</div>
-                                        <div className="text-xs text-muted-foreground">{examiner.examinerId}</div>
+                                        <div className="text-xs text-muted-foreground">{examiner.employeeId}</div>
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center">

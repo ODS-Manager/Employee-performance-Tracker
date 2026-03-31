@@ -46,6 +46,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const [selectedState, setSelectedState] = useState('')
   const [county, setCounty] = useState('')
   const [selectedProductType, setSelectedProductType] = useState('')
+  const [selectedProductionType, setSelectedProductionType] = useState<'regular' | 'OT'>('regular')
   const [selectedTransactionTypeId, setSelectedTransactionTypeId] = useState<number | null>(null)
   const [selectedProcessTypeId, setSelectedProcessTypeId] = useState<number | null>(null)
   const [selectedOrderStatusId, setSelectedOrderStatusId] = useState<number | null>(null)
@@ -426,6 +427,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setSelectedState(order.state)
       setCounty(order.county)
       setSelectedProductType(order.productType)
+      setSelectedProductionType(order.productionType || 'regular')
       setSelectedTransactionTypeId(order.transactionTypeId)
       setSelectedProcessTypeId(order.processTypeId)
       setSelectedOrderStatusId(order.orderStatusId)
@@ -615,6 +617,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
             state: selectedState,
             county: county.trim(),
             productType: selectedProductType,
+            productionType: selectedProductionType,
             teamId: selectedTeamId!,
             orgId: effectiveOrgId || user?.orgId || 0,
           }
@@ -668,6 +671,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           state: selectedState,
           county: county.trim(),
           productType: selectedProductType,
+          productionType: selectedProductionType,
           teamId: selectedTeamId!,
           orgId: effectiveOrgId || user?.orgId || 0,
         }
@@ -839,6 +843,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         'county': 'County',
         'product_type': 'Product Type',
         'productType': 'Product Type',
+        'production_type': 'Production Type',
+        'productionType': 'Production Type',
         'transaction_type_id': 'Transaction Type',
         'transactionTypeId': 'Transaction Type',
         'process_type_id': 'Process Type',
@@ -1213,6 +1219,24 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       {Array.isArray(availableProducts) && availableProducts.map((product) => (
                         <SelectItem key={product} value={product}>{product}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Production Type */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="productionType" className="text-xs font-semibold text-gray-700">Production Type *</Label>
+                  <Select
+                    value={selectedProductionType}
+                    onValueChange={(value: 'regular' | 'OT') => setSelectedProductionType(value)}
+                    disabled={!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1}
+                  >
+                    <SelectTrigger className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!canEditOrderDetails || teamNotSelected || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}>
+                      <SelectValue placeholder="Select production type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="regular">Regular</SelectItem>
+                      <SelectItem value="OT">OT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

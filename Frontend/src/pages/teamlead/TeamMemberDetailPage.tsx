@@ -150,7 +150,7 @@ export const TeamMemberDetailPage = () => {
   // Fetch quality audits for this employee
   const { data: auditsData, isLoading: loadingAudits, error: auditsError } = useQuery({
     queryKey: ['quality-audits', 'examiner', employeeUserId],
-    queryFn: () => qualityAuditApi.list({ examinerId: employeeUserId }),
+    queryFn: () => qualityAuditApi.list({ employeeId: employeeUserId }),
     enabled: !!employeeUserId,
   })
 
@@ -692,7 +692,7 @@ export const TeamMemberDetailPage = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</Label>
-                    <p className="font-medium font-mono">{employee.examinerId}</p>
+                    <p className="font-medium font-mono">{employee.employeeId}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Role</Label>

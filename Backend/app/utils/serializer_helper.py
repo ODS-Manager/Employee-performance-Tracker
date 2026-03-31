@@ -96,7 +96,7 @@ class SerializerHelper:
         return {
             "id": user.id,
             "userName": user.user_name,
-            "examinerId": user.examiner_id,
+            "employeeId": user.employee_id,
             "userRole": user.user_role,
             "orgId": user.org_id,
             "isActive": user.is_active,
@@ -110,7 +110,7 @@ class SerializerHelper:
         return {
             "id": user.id,
             "userName": user.user_name,
-            "examinerId": user.examiner_id,
+            "employeeId": user.employee_id,
             "userRole": user.user_role,
             "orgId": user.org_id,
             "passwordLastChanged": SerializerHelper.serialize_datetime(user.password_last_changed),

@@ -168,7 +168,7 @@ async def get_team_weekly_targets(
         members.append({
             "userId": user.id,
             "userName": user.user_name,
-            "examinerId": user.examiner_id,
+            "employeeId": user.employee_id,
             "currentTarget": current_target_obj.target if current_target_obj else None,
             "previousTarget": prev_target_map.get(user.id),
             "targetId": current_target_obj.id if current_target_obj else None

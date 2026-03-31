@@ -159,13 +159,8 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
         # Continue with rate limiting disabled if session service fails
         pass
     
-    # Find user by employee_id or examiner_id - case-insensitive
-    # First try employee_id, then fall back to examiner_id
+    # Find user by employee_id - case-insensitive
     user = db.query(User).filter(func.lower(User.employee_id) == func.lower(request.employee_id)).first()
-    
-    if not user:
-        # Try examiner_id as fallback
-        user = db.query(User).filter(func.lower(User.examiner_id) == func.lower(request.employee_id)).first()
     
     if not user:
         # Record failed attempt
@@ -508,7 +503,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
     return {
         "id": current_user.id,
         "userName": current_user.user_name,
-        "examinerId": current_user.examiner_id,
+        "employeeId": current_user.employee_id,
         "userRole": current_user.user_role.lower(),
         "orgId": current_user.org_id,
         "passwordLastChanged": current_user.password_last_changed.isoformat() if current_user.password_last_changed else None,

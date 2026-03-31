@@ -427,8 +427,8 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                                 </div>
                                 <div>
                                   <div className="font-medium text-sm text-slate-900">{examiner.userName || '-'}</div>
-                                  {examiner.examinerId && (
-                                    <div className="text-xs text-slate-500">ID: {examiner.examinerId}</div>
+                                  {examiner.employeeId && (
+                                    <div className="text-xs text-slate-500">ID: {examiner.employeeId}</div>
                                   )}
                                 </div>
                               </div>

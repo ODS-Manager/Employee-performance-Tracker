@@ -486,7 +486,7 @@ class ProductivityService:
         return {
             "userId": user_id,
             "userName": user.user_name,
-            "examinerId": user.examiner_id,
+            "employeeId": user.employee_id,
             "teamsIncluded": user_team_ids,
             # weeklyTarget: full weekly target (sum across all teams) — for reference
             "weeklyTarget": weekly_target_used,
@@ -1101,7 +1101,7 @@ class ProductivityService:
         return {
             "userId": user_id,
             "userName": user.user_name,  # type: ignore
-            "examinerId": user.examiner_id,  # type: ignore
+            "employeeId": user.employee_id,  # type: ignore
             "period": {
                 "startDate": start_date.isoformat(),
                 "endDate": actual_end_date.isoformat(),

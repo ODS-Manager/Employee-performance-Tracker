@@ -32,7 +32,7 @@ export interface OrganizationListResponse {
 export interface User {
   id: number
   userName: string
-  examinerId: string
+  employeeId: string
   userRole: UserRole
   orgId: number | null
   passwordLastChanged: string | null
@@ -46,7 +46,7 @@ export interface User {
 
 export interface UserCreate {
   userName: string
-  examinerId: string  // Required: Manual Employee ID entry
+  employeeId: string  // Required: Manual Employee ID entry
   password: string
   userRole: UserRole
   orgId: number | null
@@ -83,7 +83,7 @@ export interface TeamMember {
   id: number
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   userRole: UserRole
   teamRole: string
   joinedAt: string
@@ -361,6 +361,7 @@ export interface Order {
   state: string
   county: string
   productType: string
+  productionType: 'regular' | 'OT'
   teamId: number
   orgId: number
   step1: StepInfo | null
@@ -381,6 +382,7 @@ export interface OrderSimple {
   state: string
   county: string
   productType: string
+  productionType: 'regular' | 'OT'
   transactionTypeName: string | null
   processTypeName: string | null
   orderStatusName: string | null
@@ -405,6 +407,7 @@ export interface OrderCreate {
   state: string
   county: string
   productType: string
+  productionType?: 'regular' | 'OT'  // Optional, defaults to 'regular'
   teamId: number
   orgId: number
   step1UserId?: number
@@ -424,6 +427,7 @@ export interface OrderUpdate {
   state?: string
   county?: string
   productType?: string
+  productionType?: 'regular' | 'OT'
   teamId?: number
   step1UserId?: number
   step1FaNameId?: number
@@ -632,7 +636,7 @@ export interface ProductivityScores {
 export interface ExaminerProductivity {
   userId: number
   userName?: string
-  examinerId?: string
+  employeeId?: string
   teamsIncluded: number[]
   weeklyTarget: number | null  // null if no target set
   dailyTarget: number | null   // weeklyTarget / 5 working days
@@ -726,7 +730,7 @@ export interface ProcessTypeOFE {
 
 export interface QualityAudit {
   id: number
-  examinerId: number
+  employeeId: number
   examinerName: string
   teamId: number
   teamName: string
@@ -751,7 +755,7 @@ export interface QualityAudit {
 }
 
 export interface QualityAuditCreate {
-  examinerId: number
+  employeeId: number
   teamId: number
   processType: string
   totalFilesReviewed?: number  // Optional manual entry
@@ -970,7 +974,7 @@ export interface AttendanceRecord {
   id: number
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   teamId: number
   date: string
   status: AttendanceStatus
@@ -1006,7 +1010,7 @@ export interface AttendanceRecordUpdate {
 export interface DailyRosterExaminer {
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   status?: AttendanceStatus
   attendanceId?: number
   notes?: string
@@ -1030,7 +1034,7 @@ export interface DailyRosterResponse {
 export interface AttendanceSummary {
   userId?: number
   userName?: string
-  examinerId?: string
+  employeeId?: string
   startDate: string
   endDate: string
   workingDays: number
@@ -1080,7 +1084,7 @@ export interface DailyAttendanceRecord {
 export interface ExaminerMonthlyAttendance {
   userId: number
   userName: string
-  examinerId: string
+  employeeId: string
   totalDays: number
   daysPresent: number
   daysAbsent: number

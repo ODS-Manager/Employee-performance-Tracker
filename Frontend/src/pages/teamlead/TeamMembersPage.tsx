@@ -503,7 +503,7 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-sm">{member.examinerId}</span>
+                            <span className="font-mono text-sm">{member.employeeId}</span>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{member.userRole}</Badge>

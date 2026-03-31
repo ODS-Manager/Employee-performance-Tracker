@@ -19,6 +19,7 @@ class OrderBase(BaseModel):
     state: str = Field(..., max_length=50)
     county: str = Field(..., max_length=100)
     product_type: str = Field(..., max_length=100, alias="productType")
+    production_type: str = Field(default='regular', max_length=20, alias="productionType")
     team_id: int = Field(..., alias="teamId")
     org_id: int = Field(..., alias="orgId")
 
@@ -44,6 +45,7 @@ class OrderUpdate(BaseModel):
     state: Optional[str] = Field(None, max_length=50)
     county: Optional[str] = Field(None, max_length=100)
     product_type: Optional[str] = Field(None, max_length=100, alias="productType")
+    production_type: Optional[str] = Field(None, max_length=20, alias="productionType")
     team_id: Optional[int] = Field(None, alias="teamId")
     
     # Step 1 updates
@@ -103,6 +105,7 @@ class OrderResponse(BaseModel):
     
     # Product and assignment
     product_type: str = Field(..., alias="productType")
+    production_type: str = Field(..., alias="productionType")
     team_id: int = Field(..., alias="teamId")
     org_id: int = Field(..., alias="orgId")
     
@@ -133,6 +136,7 @@ class OrderSimpleResponse(BaseModel):
     state: str
     county: str
     product_type: str = Field(..., alias="productType")
+    production_type: str = Field(..., alias="productionType")
     transaction_type_name: Optional[str] = Field(None, alias="transactionTypeName")
     process_type_name: Optional[str] = Field(None, alias="processTypeName")
     order_status_name: Optional[str] = Field(None, alias="orderStatusName")

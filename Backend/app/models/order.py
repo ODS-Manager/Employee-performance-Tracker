@@ -36,6 +36,7 @@ class Order(Base):
     
     # Product and Team
     product_type = Column(String(100), nullable=False)  # Filtered by team_products
+    production_type = Column(String(20), nullable=False, default='regular')  # regular or OT
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     

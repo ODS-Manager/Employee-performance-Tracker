@@ -197,7 +197,7 @@ export const TeamLeadPersonalDashboard = () => {
   const { data: qualityAuditsData } = useQuery({
     queryKey: ['qualityAudits', user?.id, fromDate, toDate],
     queryFn: () => qualityAuditApi.list({
-      examinerId: user!.id,
+      employeeId: user!.id,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
