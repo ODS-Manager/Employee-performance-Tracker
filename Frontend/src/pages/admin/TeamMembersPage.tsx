@@ -129,7 +129,7 @@ export const TeamMembersPage = () => {
     return (
       u.userName.toLowerCase().includes(query) ||
       u.userName.toLowerCase().includes(query) ||
-      u.employeeId.toLowerCase().includes(query)
+      (u.employeeId && u.employeeId.toLowerCase().includes(query))
     )
   })
 
@@ -535,7 +535,7 @@ export const TeamMembersPage = () => {
                     >
                       <div>
                         <p className="font-medium text-sm">{u.userName}</p>
-                        <p className="text-xs text-slate-500">@{u.userName} &bull; {u.employeeId}</p>
+                        <p className="text-xs text-slate-500">@{u.userName} &bull; {u.employeeId || '-'}</p>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded ${getUserRoleBadgeColor(u.userRole)}`}>
                         {u.userRole.replace('_', ' ')}

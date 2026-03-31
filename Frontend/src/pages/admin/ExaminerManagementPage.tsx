@@ -47,7 +47,7 @@ import toast from 'react-hot-toast'
 interface UserData {
   id: number
   userName: string
-  employeeId: string
+  employeeId: string | null
   userRole: string
   orgId: number | null
   isActive: boolean
@@ -221,8 +221,8 @@ export const ExaminerManagementPage = () => {
       // Search filter
       const searchLower = searchQuery.toLowerCase()
       const matchesSearch = searchQuery === '' || 
-        emp.userName.toLowerCase().includes(searchLower) ||
-        emp.employeeId.toLowerCase().includes(searchLower) ||
+        emp.userName?.toLowerCase().includes(searchLower) ||
+        (emp.employeeId && emp.employeeId.toLowerCase().includes(searchLower)) ||
         getOrgName(emp.orgId).toLowerCase().includes(searchLower)
       
       // Role filter
@@ -857,7 +857,7 @@ export const ExaminerManagementPage = () => {
                           </Avatar>
                           <div>
                             <div>{emp.userName}</div>
-                            <div className="text-xs text-muted-foreground">{emp.employeeId}</div>
+                            <div className="text-xs text-muted-foreground">{emp.employeeId || '-'}</div>
                           </div>
                         </div>
                       </TableCell>
