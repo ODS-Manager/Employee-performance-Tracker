@@ -66,6 +66,7 @@ class StepInfo(BaseModel):
     """Step information embedded in order response"""
     user_id: Optional[int] = Field(None, alias="userId")
     user_name: Optional[str] = Field(None, alias="userName")
+    employee_id: Optional[str] = Field(None, alias="employeeId")
     fa_name: Optional[str] = Field(None, alias="faName")
     fa_name_id: Optional[int] = Field(None, alias="faNameId")
 

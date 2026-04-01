@@ -164,6 +164,7 @@ class SerializerHelper:
         return {
             "userId": user_id,
             "userName": user.user_name if user else None,
+            "employeeId": user.employee_id if user else None,
             "faName": fa_name_obj.name if fa_name_obj else None,
         }
     

@@ -19,12 +19,14 @@ import {
   RefreshCw,
   Eye,
   Pencil,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react'
 import { ordersApi, teamsApi, referenceApi, metricsApi } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
 import toast from 'react-hot-toast'
+import * as XLSX from 'xlsx'
 import {
   Dialog,
   DialogContent,
@@ -309,6 +311,81 @@ export const OrderAnalysisPage = () => {
       toast.error(msg)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  // Export orders to Excel
+  const handleExportToExcel = async () => {
+    if (allFilteredOrders.length === 0) {
+      toast.error('No orders to export')
+      return
+    }
+
+    const loadingToast = toast.loading(`Fetching detailed order information for ${allFilteredOrders.length} orders...`)
+
+    try {
+      // Fetch full order details for all filtered orders
+      const orderDetailsPromises = allFilteredOrders.map(order => ordersApi.get(order.id))
+      const fullOrders = await Promise.all(orderDetailsPromises)
+
+      // Prepare data for export with complete details in specified column order
+      const exportData = fullOrders.map((order) => {
+        return {
+          'Date': new Date(order.entryDate).toLocaleDateString(),
+          'Order': order.fileNumber,
+          'Transaction Type': order.transactionType?.name || '-',
+          'State': order.state,
+          'Order Status': order.orderStatus?.name || '-',
+          'County': order.county || '-',
+          'Region': order.division?.name || '-',
+          'Step1 FA Name': order.step1?.faName || '-',
+          'Step 1 Username': order.step1?.userName || '-',
+          'Step2 FA Name': order.step2?.faName || '-',
+          'Step 2 Real Name': order.step2?.userName || '-',
+          'Property Type': order.propertyType?.name || '-',
+          'Production Type': order.productionType || 'regular',
+          'Employee ID': order.step1?.employeeId || order.step2?.employeeId || '-',
+        }
+      })
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(exportData)
+
+      // Set column widths
+      const colWidths = [
+        { wch: 12 }, // Date
+        { wch: 15 }, // Order
+        { wch: 18 }, // Transaction Type
+        { wch: 10 }, // State
+        { wch: 15 }, // Order Status
+        { wch: 15 }, // County
+        { wch: 15 }, // Region
+        { wch: 18 }, // Step1 FA Name
+        { wch: 18 }, // Step 1 Username
+        { wch: 18 }, // Step2 FA Name
+        { wch: 18 }, // Step 2 Real Name
+        { wch: 15 }, // Property Type
+        { wch: 14 }, // Production Type
+        { wch: 14 }, // Employee ID
+      ]
+      ws['!cols'] = colWidths
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Orders')
+
+      // Generate filename with date range
+      const filename = `Orders_${effectiveStartDate}_to_${effectiveEndDate}.xlsx`
+
+      // Save file
+      XLSX.writeFile(wb, filename)
+      
+      toast.dismiss(loadingToast)
+      toast.success(`Exported ${fullOrders.length} orders to Excel`)
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.dismiss(loadingToast)
+      toast.error('Failed to export orders. Please try again.')
     }
   }
 
@@ -604,10 +681,16 @@ export const OrderAnalysisPage = () => {
                 Showing {filteredOrders.length} of {totalOrders} orders
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => refetchOrders()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportToExcel}>
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => refetchOrders()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingOrders ? (

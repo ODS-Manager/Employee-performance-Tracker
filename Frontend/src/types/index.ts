@@ -331,6 +331,7 @@ export interface ReferenceTypeInfo {
 export interface StepInfo {
   userId: number | null
   userName: string | null
+  employeeId: string | null
   faName: string | null
   faNameId: number | null
 }
