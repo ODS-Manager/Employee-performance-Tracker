@@ -2,6 +2,8 @@
 Orders API Routes
 CRUD operations for order management with step-based workflow
 """
+import logging
+import traceback
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
@@ -23,6 +25,8 @@ from app.models.fa_name import FAName
 from app.models.allowed_duplicate_product import AllowedDuplicateProduct
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services.cache_service import cache
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -581,6 +585,8 @@ async def create_order(
     - If file_number exists and user is adding a different step: update existing order
     - If file_number exists with same step: reject (duplicate)
     """
+    logger.info(f"POST /orders - file_number={order_data.file_number}, user={current_user.id}")
+    
     # Import Organization model
     from app.models.organization import Organization
     from app.models.reference import ProcessType
@@ -817,6 +823,7 @@ async def create_order(
         joinedload(Order.step2_fa_name)
     ).filter(Order.id == order.id).first()
     
+    logger.info(f"Order created: id={order.id}, file_number={order.file_number}")
     return serialize_order(order)
 
 
@@ -827,40 +834,57 @@ async def get_order(
     db: Session = Depends(get_db)
 ):
     """Get order by ID with full details"""
-    order = db.query(Order).options(
-        joinedload(Order.transaction_type),
-        joinedload(Order.process_type),
-        joinedload(Order.order_status),
-        joinedload(Order.division),
-        joinedload(Order.step1_user),
-        joinedload(Order.step2_user)
-    ).filter(Order.id == order_id).first()
-    
-    if not order:
+    try:
+        logger.info(f"GET /orders/{order_id} - User: {current_user.id}")
+        
+        order = db.query(Order).options(
+            joinedload(Order.transaction_type),
+            joinedload(Order.process_type),
+            joinedload(Order.order_status),
+            joinedload(Order.division),
+            joinedload(Order.step1_user),
+            joinedload(Order.step2_user)
+        ).filter(Order.id == order_id).first()
+        
+        if not order:
+            logger.warning(f"Order {order_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        
+        logger.info(f"Order {order_id}: file={order.file_number}, step1_user={order.step1_user_id}, step2_user={order.step2_user_id}")
+        
+        # Check access - team members can view all orders in their team
+        if current_user.user_role.lower() == ROLE_SUPERADMIN:
+            pass  # Full access
+        elif current_user.user_role.lower() == ROLE_ADMIN:
+            if order.org_id != current_user.org_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
+        elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
+            if not check_team_access(current_user, order.team_id, db):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
+        else:  # Employee
+            # Employees can view any order in their team
+            if not check_team_access(current_user, order.team_id, db):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
+        
+        # Add edit permissions info to the response
+        logger.info(f"Serializing order {order_id}")
+        order_dict = serialize_order(order)
+        order_dict["editPermissions"] = get_edit_permissions(order, current_user)
+        
+        logger.info(f"GET /orders/{order_id} successful")
+        return order_dict
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ERROR in GET /orders/{order_id}: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching order: {str(e)}"
         )
-    
-    # Check access - team members can view all orders in their team
-    if current_user.user_role.lower() == ROLE_SUPERADMIN:
-        pass  # Full access
-    elif current_user.user_role.lower() == ROLE_ADMIN:
-        if order.org_id != current_user.org_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
-        if not check_team_access(current_user, order.team_id, db):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    else:  # Employee
-        # Employees can view any order in their team
-        if not check_team_access(current_user, order.team_id, db):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
-    
-    # Add edit permissions info to the response
-    order_dict = serialize_order(order)
-    order_dict["editPermissions"] = get_edit_permissions(order, current_user)
-    
-    return order_dict
 
 
 def get_edit_permissions(order: Order, user: User) -> dict:
