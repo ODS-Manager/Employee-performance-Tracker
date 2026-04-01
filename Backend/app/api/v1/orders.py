@@ -93,6 +93,7 @@ def serialize_step_info(order, step_num: int) -> Optional[dict]:
     return {
         "userId": user_id,
         "userName": user.user_name if user else None,
+        "employeeId": user.employee_id if user else None,
         "faName": fa_name,
         "faNameId": fa_name_id
     }

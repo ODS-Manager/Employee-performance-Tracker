@@ -151,10 +151,12 @@ class SerializerHelper:
             user_id = order.step1_user_id
             user = order.step1_user if hasattr(order, 'step1_user') else None
             fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
+            fa_name_id = order.step1_fa_name_id
         elif step_num == 2:
             user_id = order.step2_user_id
             user = order.step2_user if hasattr(order, 'step2_user') else None
             fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
+            fa_name_id = order.step2_fa_name_id
         else:
             return None
         
@@ -166,6 +168,7 @@ class SerializerHelper:
             "userName": user.user_name if user else None,
             "employeeId": user.employee_id if user else None,
             "faName": fa_name_obj.name if fa_name_obj else None,
+            "faNameId": fa_name_id,
         }
     
     @staticmethod
