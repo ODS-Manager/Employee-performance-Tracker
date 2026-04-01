@@ -15,7 +15,7 @@ class OrderBase(BaseModel):
     process_type_id: int = Field(..., alias="processTypeId")
     order_status_id: int = Field(..., alias="orderStatusId")
     division_id: int = Field(..., alias="divisionId")
-    property_type_id: Optional[int] = Field(None, alias="propertyTypeId")
+    property_type_id: int = Field(..., alias="propertyTypeId")
     state: str = Field(..., max_length=50)
     county: str = Field(..., max_length=100)
     product_type: str = Field(..., max_length=100, alias="productType")

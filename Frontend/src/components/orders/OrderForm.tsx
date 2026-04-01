@@ -503,6 +503,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     if (!selectedTransactionTypeId) newErrors.push('Transaction type is required')
     if (!selectedProcessTypeId) newErrors.push('Process type is required')
     if (!selectedDivisionId) newErrors.push('Division is required')
+    if (!selectedPropertyTypeId) newErrors.push('Property type is required')
+    if (!selectedProductionType) newErrors.push('Production type is required')
     
     // Order status is required for admins, and also for examiners who can edit order details or order status
     if ((canAssignToOthers || canEditOrderDetails || canEditOrderStatus) && !selectedOrderStatusId) newErrors.push('Order status is required')
@@ -1154,7 +1156,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
 
                 {/* Property Type */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="propertyType" className="text-xs font-semibold text-gray-700">Property Type</Label>
+                  <Label htmlFor="propertyType" className="text-xs font-semibold text-gray-700">Property Type *</Label>
                   <Select
                     value={selectedPropertyTypeId ? selectedPropertyTypeId.toString() : ''}
                     onValueChange={(value) => setSelectedPropertyTypeId(value ? parseInt(value) : null)}
