@@ -78,29 +78,41 @@ def can_create_duplicate_for_product(user: User, product_type: Optional[str], db
 
 def serialize_step_info(order, step_num: int) -> Optional[dict]:
     """Serialize step information to camelCase dict"""
-    if step_num == 1:
-        user_id = order.step1_user_id
-        user = order.step1_user if hasattr(order, 'step1_user') else None
-        fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
-        fa_name = fa_name_obj.name if fa_name_obj else None
-        fa_name_id = order.step1_fa_name_id
-    else:
-        user_id = order.step2_user_id
-        user = order.step2_user if hasattr(order, 'step2_user') else None
-        fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
-        fa_name = fa_name_obj.name if fa_name_obj else None
-        fa_name_id = order.step2_fa_name_id
-    
-    if not user_id:
-        return None
-    
-    return {
-        "userId": user_id,
-        "userName": user.user_name if user else None,
-        "employeeId": user.employee_id if user else None,
-        "faName": fa_name,
-        "faNameId": fa_name_id
-    }
+    try:
+        if step_num == 1:
+            user_id = order.step1_user_id
+            user = order.step1_user if hasattr(order, 'step1_user') else None
+            fa_name_obj = order.step1_fa_name if hasattr(order, 'step1_fa_name') else None
+            fa_name = fa_name_obj.name if fa_name_obj else None
+            fa_name_id = order.step1_fa_name_id
+        else:
+            user_id = order.step2_user_id
+            user = order.step2_user if hasattr(order, 'step2_user') else None
+            fa_name_obj = order.step2_fa_name if hasattr(order, 'step2_fa_name') else None
+            fa_name = fa_name_obj.name if fa_name_obj else None
+            fa_name_id = order.step2_fa_name_id
+        
+        if not user_id:
+            return None
+        
+        return {
+            "userId": user_id,
+            "userName": user.user_name if user else None,
+            "employeeId": user.employee_id if user else None,
+            "faName": fa_name,
+            "faNameId": fa_name_id
+        }
+    except Exception as e:
+        logger.error(f"Error serializing step {step_num} for order {order.id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        # Return a safe fallback
+        return {
+            "userId": order.step1_user_id if step_num == 1 else order.step2_user_id,
+            "userName": None,
+            "employeeId": None,
+            "faName": None,
+            "faNameId": order.step1_fa_name_id if step_num == 1 else order.step2_fa_name_id
+        }
 
 
 def serialize_reference_type(ref_obj) -> Optional[dict]:
@@ -115,51 +127,56 @@ def serialize_reference_type(ref_obj) -> Optional[dict]:
 
 def serialize_order(order: Order, include_steps: bool = True) -> dict:
     """Serialize order to camelCase dict"""
-    # Get the process type name for display
-    effective_process_type_name = order.process_type.name if order.process_type else "Unknown"
-    
-    # Create a modified process type object for display
-    process_type_display = None
-    if hasattr(order, 'process_type') and order.process_type:
-        process_type_display = {
-            "id": order.process_type.id,
-            "name": effective_process_type_name  # Use effective name instead of original
+    try:
+        # Get the process type name for display
+        effective_process_type_name = order.process_type.name if order.process_type else "Unknown"
+        
+        # Create a modified process type object for display
+        process_type_display = None
+        if hasattr(order, 'process_type') and order.process_type:
+            process_type_display = {
+                "id": order.process_type.id,
+                "name": effective_process_type_name  # Use effective name instead of original
+            }
+        
+        result = {
+            "id": order.id,
+            "fileNumber": order.file_number,
+            "entryDate": order.entry_date.isoformat() if order.entry_date else None,
+            "transactionTypeId": order.transaction_type_id,
+            "transactionType": serialize_reference_type(order.transaction_type) if hasattr(order, 'transaction_type') else None,
+            "processTypeId": order.process_type_id,
+            "processType": process_type_display,  # Use the modified process type with effective name
+            "orderStatusId": order.order_status_id,
+            "orderStatus": serialize_reference_type(order.order_status) if hasattr(order, 'order_status') else None,
+            "divisionId": order.division_id,
+            "division": serialize_reference_type(order.division) if hasattr(order, 'division') else None,
+            "propertyTypeId": order.property_type_id,
+            "propertyType": serialize_reference_type(order.property_type) if hasattr(order, 'property_type') and order.property_type else None,
+            "state": order.state,
+            "county": order.county,
+            "productType": order.product_type,
+            "productionType": order.production_type or "regular",  # Default to 'regular' if NULL
+            "teamId": order.team_id,
+            "orgId": order.org_id,
+            "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
+            "createdBy": order.created_by,
+            "modifiedBy": order.modified_by,
+            "createdAt": order.created_at.isoformat() if order.created_at else None,
+            "modifiedAt": order.modified_at.isoformat() if order.modified_at else None,
+            "deletedAt": order.deleted_at.isoformat() if order.deleted_at else None,
+            "deletedBy": order.deleted_by
         }
-    
-    result = {
-        "id": order.id,
-        "fileNumber": order.file_number,
-        "entryDate": order.entry_date.isoformat() if order.entry_date else None,
-        "transactionTypeId": order.transaction_type_id,
-        "transactionType": serialize_reference_type(order.transaction_type) if hasattr(order, 'transaction_type') else None,
-        "processTypeId": order.process_type_id,
-        "processType": process_type_display,  # Use the modified process type with effective name
-        "orderStatusId": order.order_status_id,
-        "orderStatus": serialize_reference_type(order.order_status) if hasattr(order, 'order_status') else None,
-        "divisionId": order.division_id,
-        "division": serialize_reference_type(order.division) if hasattr(order, 'division') else None,
-        "propertyTypeId": order.property_type_id,
-        "propertyType": serialize_reference_type(order.property_type) if hasattr(order, 'property_type') and order.property_type else None,
-        "state": order.state,
-        "county": order.county,
-        "productType": order.product_type,
-        "productionType": order.production_type or "regular",  # Default to 'regular' if NULL
-        "teamId": order.team_id,
-        "orgId": order.org_id,
-        "billingStatus": order.billing_status or "pending",  # Default to 'pending' if NULL
-        "createdBy": order.created_by,
-        "modifiedBy": order.modified_by,
-        "createdAt": order.created_at.isoformat() if order.created_at else None,
-        "modifiedAt": order.modified_at.isoformat() if order.modified_at else None,
-        "deletedAt": order.deleted_at.isoformat() if order.deleted_at else None,
-        "deletedBy": order.deleted_by
-    }
-    
-    if include_steps:
-        result["step1"] = serialize_step_info(order, 1)
-        result["step2"] = serialize_step_info(order, 2)
-    
-    return result
+        
+        if include_steps:
+            result["step1"] = serialize_step_info(order, 1)
+            result["step2"] = serialize_step_info(order, 2)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error serializing order {order.id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
 
 
 def serialize_simple_order(order: Order) -> dict:
@@ -842,8 +859,11 @@ async def get_order(
             joinedload(Order.process_type),
             joinedload(Order.order_status),
             joinedload(Order.division),
+            joinedload(Order.property_type),
             joinedload(Order.step1_user),
-            joinedload(Order.step2_user)
+            joinedload(Order.step2_user),
+            joinedload(Order.step1_fa_name),
+            joinedload(Order.step2_fa_name)
         ).filter(Order.id == order_id).first()
         
         if not order:
