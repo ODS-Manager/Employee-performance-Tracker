@@ -235,7 +235,11 @@ export const AdminNav = () => {
   const isSuperadmin = user?.userRole === 'superadmin'
 
   const mainNavItems = isSuperadmin
-    ? navItems.filter((item) => item.path !== '/admin/examiner-targets')
+    ? navItems.filter((item) => 
+        item.path !== '/admin/examiner-targets' && 
+        item.path !== '/admin/attendance/team-leads' && 
+        item.path !== '/admin/reference-data'
+      )
     : navItems
   
   // Combine nav items based on role

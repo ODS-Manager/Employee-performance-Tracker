@@ -66,12 +66,12 @@ def is_duplicate_allowed_product(product_type: Optional[str], db: Session) -> bo
 
 
 def can_create_duplicate_for_product(user: User, product_type: Optional[str], db: Session) -> bool:
-    """Allow duplicate orders only for elevated roles on configured product types."""
+    """Allow duplicate orders for all roles on configured product types."""
     if not is_duplicate_allowed_product(product_type, db):
         return False
 
     role = user.user_role.lower() if user.user_role else ""
-    return role in {ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD}
+    return role in {ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER}
 
 
 # ============ Serializer Functions ============
@@ -424,6 +424,134 @@ async def list_orders(
     return {
         "items": [serialize_simple_order(o) for o in orders],
         "total": total
+    }
+
+
+@router.get("/export")
+async def export_orders(
+    org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
+    team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team"),
+    order_status_id: Optional[int] = Query(None, alias="orderStatusId", description="Filter by status"),
+    step1_user_id: Optional[int] = Query(None, alias="step1UserId", description="Filter by step1 user"),
+    step2_user_id: Optional[int] = Query(None, alias="step2UserId", description="Filter by step2 user"),
+    my_orders: bool = Query(False, alias="myOrders", description="Filter orders where current user worked on step1 OR step2"),
+    process_type_id: Optional[int] = Query(None, alias="processTypeId", description="Filter by process type"),
+    division_id: Optional[int] = Query(None, alias="divisionId", description="Filter by division"),
+    billing_status: Optional[str] = Query(None, alias="billingStatus", description="Filter by billing status"),
+    state: Optional[str] = Query(None, description="Filter by state"),
+    search: Optional[str] = Query(None, alias="search", description="Search by file number, state, county, status, or product"),
+    fa_name: Optional[str] = Query(None, alias="faName", description="Filter by FA name (step1 or step2)"),
+    start_date: Optional[date] = Query(None, alias="startDate", description="Filter by entry date start"),
+    end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
+    include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
+    max_records: int = Query(10000, ge=1, le=50000, alias="maxRecords", description="Maximum records to export"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export orders with full details for Excel export.
+    Returns all matching orders with complete information (including step details, FA names, etc.)
+    in a single API call. Use the same filters as list_orders.
+    """
+    from sqlalchemy import or_
+    
+    # Build query with all necessary joins for full details
+    query = db.query(Order).options(
+        joinedload(Order.transaction_type),
+        joinedload(Order.process_type),
+        joinedload(Order.order_status),
+        joinedload(Order.division),
+        joinedload(Order.property_type),
+        joinedload(Order.step1_user),
+        joinedload(Order.step2_user),
+        joinedload(Order.step1_fa_name),
+        joinedload(Order.step2_fa_name),
+        joinedload(Order.team)
+    )
+    
+    # Exclude soft-deleted by default
+    if not include_deleted:
+        query = query.filter(Order.deleted_at == None)
+    
+    # Apply role-based filtering
+    if current_user.user_role.lower() == ROLE_SUPERADMIN:
+        if org_id:
+            query = query.filter(Order.org_id == org_id)
+    elif current_user.user_role.lower() == ROLE_ADMIN:
+        query = query.filter(Order.org_id == current_user.org_id)
+    elif current_user.user_role.lower() == ROLE_TEAM_LEAD:
+        accessible_teams = get_user_teams(current_user, db)
+        if not accessible_teams:
+            return {"items": [], "total": 0}
+        query = query.filter(Order.team_id.in_(accessible_teams))
+    else:  # Examiner
+        accessible_teams = get_user_teams(current_user, db)
+        if not accessible_teams:
+            return {"items": [], "total": 0}
+        query = query.filter(Order.team_id.in_(accessible_teams))
+    
+    # Apply additional filters
+    if team_id:
+        query = query.filter(Order.team_id == team_id)
+    if order_status_id:
+        query = query.filter(Order.order_status_id == order_status_id)
+    
+    # myOrders filter
+    if my_orders:
+        query = query.filter(
+            or_(
+                Order.step1_user_id == current_user.id,
+                Order.step2_user_id == current_user.id
+            )
+        )
+    else:
+        if step1_user_id:
+            query = query.filter(Order.step1_user_id == step1_user_id)
+        if step2_user_id:
+            query = query.filter(Order.step2_user_id == step2_user_id)
+    
+    if billing_status:
+        query = query.filter(Order.billing_status == billing_status)
+    if process_type_id:
+        query = query.filter(Order.process_type_id == process_type_id)
+    if division_id:
+        query = query.filter(Order.division_id == division_id)
+    if state:
+        query = query.filter(Order.state == state.upper())
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Order.file_number.ilike(search_term),
+                Order.state.ilike(search_term),
+                Order.county.ilike(search_term),
+                Order.product_type.ilike(search_term),
+                Order.order_status.has(OrderStatusType.name.ilike(search_term))
+            )
+        )
+    if fa_name:
+        query = query.filter(
+            or_(
+                Order.step1_fa_name.has(FAName.name == fa_name),
+                Order.step2_fa_name.has(FAName.name == fa_name)
+            )
+        )
+    if start_date:
+        query = query.filter(Order.entry_date >= start_date)
+    if end_date:
+        query = query.filter(Order.entry_date <= end_date)
+    
+    # Get total count
+    total = query.count()
+    
+    # Limit results and sort
+    orders = query.order_by(Order.entry_date.desc(), Order.id.desc()).limit(max_records).all()
+    
+    # Serialize with full details
+    return {
+        "items": [serialize_order(o) for o in orders],
+        "total": total,
+        "exported": len(orders)
     }
 
 

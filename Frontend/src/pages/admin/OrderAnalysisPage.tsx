@@ -321,33 +321,39 @@ export const OrderAnalysisPage = () => {
       return
     }
 
-    const loadingToast = toast.loading(`Fetching detailed order information for ${allFilteredOrders.length} orders...`)
+    const loadingToast = toast.loading(`Exporting ${allFilteredOrders.length} orders...`)
 
     try {
-      // Fetch full order details for all filtered orders using allSettled to handle failures gracefully
-      const orderDetailsPromises = allFilteredOrders.map(order => ordersApi.get(order.id))
-      const results = await Promise.allSettled(orderDetailsPromises)
-      
-      // Filter successful results and log failures
-      const fullOrders = results
-        .filter((result, index) => {
-          if (result.status === 'rejected') {
-            console.warn(`Failed to fetch order ${allFilteredOrders[index]?.id}:`, result.reason)
-            return false
-          }
-          return true
-        })
-        .map(result => (result as PromiseFulfilledResult<any>).value)
-      
+      // Use the export endpoint to fetch all orders with full details in a single API call
+      const exportResult = await ordersApi.export({
+        orgId: user?.orgId || undefined,
+        search: searchQuery || undefined,
+        teamId: selectedTeamId ? parseInt(selectedTeamId) : undefined,
+        orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
+        billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
+        state: stateFilter || undefined,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate,
+        maxRecords: 50000,
+      })
+
+      let fullOrders = exportResult.items
+
+      // Apply client-side filters (product, process type, transaction type)
+      if (productFilter) {
+        fullOrders = fullOrders.filter(o => o.productType === productFilter)
+      }
+      if (processTypeFilter) {
+        fullOrders = fullOrders.filter(o => o.processType?.name === processTypeFilter)
+      }
+      if (transactionTypeFilter) {
+        fullOrders = fullOrders.filter(o => o.transactionType?.name === transactionTypeFilter)
+      }
+
       if (fullOrders.length === 0) {
         toast.dismiss(loadingToast)
-        toast.error('Failed to fetch any order details for export')
+        toast.error('No orders match the current filters')
         return
-      }
-      
-      const failedCount = allFilteredOrders.length - fullOrders.length
-      if (failedCount > 0) {
-        console.warn(`${failedCount} orders failed to load and will be skipped`)
       }
 
       // Prepare data for export with complete details in specified column order
@@ -403,11 +409,7 @@ export const OrderAnalysisPage = () => {
       XLSX.writeFile(wb, filename)
       
       toast.dismiss(loadingToast)
-      if (failedCount > 0) {
-        toast.success(`Exported ${fullOrders.length} orders to Excel (${failedCount} orders skipped due to errors)`)
-      } else {
-        toast.success(`Exported ${fullOrders.length} orders to Excel`)
-      }
+      toast.success(`Exported ${fullOrders.length} orders to Excel`)
     } catch (error) {
       console.error('Export error:', error)
       toast.dismiss(loadingToast)

@@ -255,12 +255,40 @@ export const TeamOrdersPage = () => {
       return
     }
 
-    const loadingToast = toast.loading(`Fetching detailed order information for ${filteredOrders.length} orders...`)
+    const loadingToast = toast.loading(`Exporting ${filteredOrders.length} orders...`)
 
     try {
-      // Fetch full order details for all filtered orders
-      const orderDetailsPromises = filteredOrders.map(order => ordersApi.get(order.id))
-      const fullOrders = await Promise.all(orderDetailsPromises)
+      // Use the export endpoint to fetch all orders with full details in a single API call
+      const exportResult = await ordersApi.export({
+        teamId: teamId!,
+        startDate,
+        endDate,
+        billingStatus: billingFilter !== 'all' ? (billingFilter as 'pending' | 'done') : undefined,
+        state: stateFilter !== 'all' ? stateFilter : undefined,
+        processTypeId: processTypeFilter !== 'all' ? parseInt(processTypeFilter) : undefined,
+        divisionId: divisionFilter !== 'all' ? parseInt(divisionFilter) : undefined,
+        orderStatusId: orderStatusFilter !== 'all' ? parseInt(orderStatusFilter) : undefined,
+        faName: faNameFilter !== 'all' ? faNameFilter : undefined,
+        maxRecords: 50000,
+      })
+
+      let fullOrders = exportResult.items
+
+      // Apply client-side work status filter
+      if (statusFilter !== 'all') {
+        fullOrders = fullOrders.filter(order => {
+          if (statusFilter === 'completed') return order.step1?.userId && order.step2?.userId
+          if (statusFilter === 'in_progress') return (order.step1?.userId && !order.step2?.userId) || (!order.step1?.userId && order.step2?.userId)
+          if (statusFilter === 'pending') return !order.step1?.userId && !order.step2?.userId
+          return true
+        })
+      }
+
+      if (fullOrders.length === 0) {
+        toast.dismiss(loadingToast)
+        toast.error('No orders match the current filters')
+        return
+      }
 
       // Prepare data for export with complete details
       const exportData = fullOrders.map((order) => {

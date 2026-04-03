@@ -502,6 +502,12 @@ export const ordersApi = {
     return response.data
   },
 
+  // Export orders with full details for Excel export
+  export: async (params?: OrderFilterParams & { maxRecords?: number }): Promise<{ items: Order[], total: number, exported: number }> => {
+    const response = await api.get('/orders/export', { params })
+    return response.data
+  },
+
   // Check if file number + product type combination exists and get its current state
   checkFileNumber: async (fileNumber: string, teamId: number, productType: string): Promise<FileNumberCheckResponse> => {
     const response = await api.get(`/orders/check-file/${encodeURIComponent(fileNumber)}`, {

@@ -3,7 +3,7 @@ Database reset API endpoint
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash
 from app.models.organization import Organization
