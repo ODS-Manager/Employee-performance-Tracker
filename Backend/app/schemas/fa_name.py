@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 
 class FANameBase(BaseModel):
@@ -12,8 +12,8 @@ class FANameCreate(FANameBase):
 
 
 class FANameUpdate(BaseModel):
-    name: str | None = Field(None, min_length=1, max_length=200, description="FA Name")
-    is_active: bool | None = Field(None, description="Active status")
+    name: str = Field(..., min_length=1, max_length=200, description="FA Name")
+    is_active: bool = Field(..., description="Active status")
 
 
 class FAName(FANameBase):

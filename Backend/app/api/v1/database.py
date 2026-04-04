@@ -212,7 +212,8 @@ async def init_database():
                 # Create test user "guru" with password "12345678"
                 test_user = User(
                     user_name="guru",
-                    examiner_id="GURU001", 
+                    examiner_id="GURU001",
+                    employee_id="guru",
                     password_hash=get_password_hash("12345678"),
                     user_role=UserRole.ADMIN,
                     is_active=True
@@ -223,6 +224,7 @@ async def init_database():
                 admin_user = User(
                     user_name="admin",
                     examiner_id="ADMIN001",
+                    employee_id="admin",
                     password_hash=get_password_hash("admin123"),
                     user_role=UserRole.ADMIN,
                     is_active=True

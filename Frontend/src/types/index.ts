@@ -388,6 +388,7 @@ export interface OrderSimple {
   processTypeName: string | null
   orderStatusName: string | null
   divisionName: string | null
+  propertyTypeName: string | null
   teamId: number
   billingStatus: 'pending' | 'done'
   createdAt: string | null

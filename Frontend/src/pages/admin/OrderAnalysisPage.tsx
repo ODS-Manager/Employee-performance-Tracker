@@ -62,6 +62,7 @@ export const OrderAnalysisPage = () => {
   const [productFilter, setProductFilter] = useState<string>('')
   const [processTypeFilter, setProcessTypeFilter] = useState<string>('')
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('')
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('')
   const [startDateFilter, setStartDateFilter] = useState<string>('')
   const [endDateFilter, setEndDateFilter] = useState<string>('')
   
@@ -176,6 +177,12 @@ export const OrderAnalysisPage = () => {
     }),
   })
 
+  // Fetch property types for filter
+  const { data: propertyTypes } = useQuery({
+    queryKey: ['propertyTypes'],
+    queryFn: referenceApi.getPropertyTypes,
+  })
+
   // Fetch single order details
   const { data: orderDetail, isLoading: loadingOrderDetail } = useQuery({
     queryKey: ['order', orderDetailId],
@@ -215,6 +222,7 @@ export const OrderAnalysisPage = () => {
     productFilter,
     processTypeFilter,
     transactionTypeFilter,
+    propertyTypeFilter,
     filterMonth,
     filterYear,
   ])
@@ -230,6 +238,9 @@ export const OrderAnalysisPage = () => {
     // Transaction Type filter (client-side)
     if (transactionTypeFilter && order.transactionTypeName !== transactionTypeFilter) return false
     
+    // Property Type filter (client-side)
+    if (propertyTypeFilter && order.propertyTypeName !== propertyTypeFilter) return false
+    
     return true
   })
 
@@ -243,6 +254,9 @@ export const OrderAnalysisPage = () => {
     
     // Transaction Type filter (client-side)
     if (transactionTypeFilter && order.transactionTypeName !== transactionTypeFilter) return false
+    
+    // Property Type filter (client-side)
+    if (propertyTypeFilter && order.propertyTypeName !== propertyTypeFilter) return false
     
     return true
   })
@@ -542,7 +556,7 @@ export const OrderAnalysisPage = () => {
             </div>
 
             {/* Row 2: Column-specific filters */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
               {/* Entry Date Range */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Start Date</label>
@@ -599,6 +613,24 @@ export const OrderAnalysisPage = () => {
                 </Select>
               </div>
 
+              {/* Property Type Filter */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500 font-medium">Property Type</label>
+                <Select value={propertyTypeFilter || 'all'} onValueChange={(val) => setPropertyTypeFilter(val === 'all' ? '' : val)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All Property Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Property Types</SelectItem>
+                    {propertyTypes?.filter(p => p.isActive !== false).map(propType => (
+                      <SelectItem key={propType.id} value={propType.name}>
+                        {propType.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Transaction Type Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Transaction Type</label>
@@ -637,7 +669,7 @@ export const OrderAnalysisPage = () => {
             </div>
 
             {/* Clear Filters Button */}
-            {(searchQuery || selectedTeamId || selectedStatusId || billingStatusFilter || stateFilter || productFilter || processTypeFilter || transactionTypeFilter || startDateFilter || endDateFilter) && (
+            {(searchQuery || selectedTeamId || selectedStatusId || billingStatusFilter || stateFilter || productFilter || propertyTypeFilter || processTypeFilter || transactionTypeFilter || startDateFilter || endDateFilter) && (
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
@@ -649,6 +681,7 @@ export const OrderAnalysisPage = () => {
                     setBillingStatusFilter('')
                     setStateFilter('')
                     setProductFilter('')
+                    setPropertyTypeFilter('')
                     setProcessTypeFilter('')
                     setTransactionTypeFilter('')
                     setStartDateFilter('')
@@ -742,6 +775,7 @@ export const OrderAnalysisPage = () => {
                       <TableHead>Entry Date</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Property Type</TableHead>
                       <TableHead>Transaction</TableHead>
                       <TableHead>Division</TableHead>
                       <TableHead>Process</TableHead>
@@ -753,7 +787,7 @@ export const OrderAnalysisPage = () => {
                   <TableBody>
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={12} className="text-center py-8 text-gray-500">
                           No orders found
                         </TableCell>
                       </TableRow>
@@ -772,6 +806,7 @@ export const OrderAnalysisPage = () => {
                           <TableCell>{formatDate(order.entryDate)}</TableCell>
                           <TableCell>{order.state}</TableCell>
                           <TableCell className="text-xs">{order.productType}</TableCell>
+                          <TableCell className="text-xs">{order.propertyTypeName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.transactionTypeName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.divisionName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.processTypeName || '-'}</TableCell>
