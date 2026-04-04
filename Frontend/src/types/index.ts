@@ -396,6 +396,9 @@ export interface OrderSimple {
   // Step user IDs for productivity calculation
   step1UserId: number | null
   step2UserId: number | null
+  // Step usernames for display
+  step1UserName: string | null
+  step2UserName: string | null
 }
 
 export interface OrderCreate {

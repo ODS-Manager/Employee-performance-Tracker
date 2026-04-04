@@ -779,6 +779,8 @@ export const OrderAnalysisPage = () => {
                       <TableHead>Transaction</TableHead>
                       <TableHead>Division</TableHead>
                       <TableHead>Process</TableHead>
+                      <TableHead>Step 1 User</TableHead>
+                      <TableHead>Step 2 User</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Billing</TableHead>
                       <TableHead>Actions</TableHead>
@@ -787,7 +789,7 @@ export const OrderAnalysisPage = () => {
                   <TableBody>
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={14} className="text-center py-8 text-gray-500">
                           No orders found
                         </TableCell>
                       </TableRow>
@@ -810,6 +812,8 @@ export const OrderAnalysisPage = () => {
                           <TableCell className="text-xs">{order.transactionTypeName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.divisionName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.processTypeName || '-'}</TableCell>
+                          <TableCell className="text-xs">{order.step1UserName || '-'}</TableCell>
+                          <TableCell className="text-xs">{order.step2UserName || '-'}</TableCell>
                           <TableCell>
                             <Badge className={getStatusBadge(order.orderStatusName)}>
                               {order.orderStatusName || 'Unknown'}

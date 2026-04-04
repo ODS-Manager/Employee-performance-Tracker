@@ -203,7 +203,10 @@ def serialize_simple_order(order: Order) -> dict:
         "modifiedAt": order.modified_at.isoformat() if order.modified_at else None,
         # Step user IDs for productivity calculation
         "step1UserId": order.step1_user_id,
-        "step2UserId": order.step2_user_id
+        "step2UserId": order.step2_user_id,
+        # Step usernames for display
+        "step1UserName": order.step1_user.user_name if order.step1_user else None,
+        "step2UserName": order.step2_user.user_name if order.step2_user else None
     }
 
 
