@@ -78,6 +78,8 @@ export const TeamOrdersPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [billingFilter, setBillingFilter] = useState<string>('all')
   const [stateFilter, setStateFilter] = useState<string>('all')
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
+  const [productionTypeFilter, setProductionTypeFilter] = useState<string>('all')
   const [processTypeFilter, setProcessTypeFilter] = useState<string>('all')
   const [divisionFilter, setDivisionFilter] = useState<string>('all')
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all')
@@ -181,10 +183,23 @@ export const TeamOrdersPage = () => {
 
   // Filter orders based on work status (completed/in-progress/pending based on step assignments)
   const filteredOrders = orders.filter(order => {
-    if (statusFilter === 'all') return true
-    if (statusFilter === 'completed') return order.step1UserId && order.step2UserId
-    if (statusFilter === 'in_progress') return (order.step1UserId && !order.step2UserId) || (!order.step1UserId && order.step2UserId)
-    if (statusFilter === 'pending') return !order.step1UserId && !order.step2UserId
+    // Work Status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        if (!order.step1UserId || !order.step2UserId) return false
+      } else if (statusFilter === 'in_progress') {
+        if ((order.step1UserId && order.step2UserId) || (!order.step1UserId && !order.step2UserId)) return false
+      } else if (statusFilter === 'pending') {
+        if (order.step1UserId || order.step2UserId) return false
+      }
+    }
+    
+    // Product Type filter
+    if (productTypeFilter !== 'all' && order.productType !== productTypeFilter) return false
+    
+    // Production Type filter
+    if (productionTypeFilter !== 'all' && order.productionType !== productionTypeFilter) return false
+    
     return true
   })
 
@@ -240,6 +255,8 @@ export const TeamOrdersPage = () => {
     setStatusFilter('all')
     setBillingFilter('all')
     setStateFilter('all')
+    setProductTypeFilter('all')
+    setProductionTypeFilter('all')
     setProcessTypeFilter('all')
     setDivisionFilter('all')
     setOrderStatusFilter('all')
@@ -274,7 +291,7 @@ export const TeamOrdersPage = () => {
 
       let fullOrders = exportResult.items
 
-      // Apply client-side work status filter
+      // Apply client-side filters
       if (statusFilter !== 'all') {
         fullOrders = fullOrders.filter(order => {
           if (statusFilter === 'completed') return order.step1?.userId && order.step2?.userId
@@ -282,6 +299,16 @@ export const TeamOrdersPage = () => {
           if (statusFilter === 'pending') return !order.step1?.userId && !order.step2?.userId
           return true
         })
+      }
+      
+      // Apply product type filter
+      if (productTypeFilter !== 'all') {
+        fullOrders = fullOrders.filter(order => order.productType === productTypeFilter)
+      }
+      
+      // Apply production type filter
+      if (productionTypeFilter !== 'all') {
+        fullOrders = fullOrders.filter(order => order.productionType === productionTypeFilter)
       }
 
       if (fullOrders.length === 0) {
@@ -391,6 +418,8 @@ export const TeamOrdersPage = () => {
     statusFilter !== 'all',
     billingFilter !== 'all',
     stateFilter !== 'all',
+    productTypeFilter !== 'all',
+    productionTypeFilter !== 'all',
     processTypeFilter !== 'all',
     divisionFilter !== 'all',
     orderStatusFilter !== 'all',
@@ -607,7 +636,7 @@ export const TeamOrdersPage = () => {
                 {/* Comprehensive Filters Panel */}
                 {showFilters && (
                   <div className="mt-4 pt-4 border-t">
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-4">
                       {/* Date Range */}
                       <div className="space-y-2">
                         <Label htmlFor="startDate" className="text-xs font-medium text-slate-600">
@@ -682,6 +711,39 @@ export const TeamOrdersPage = () => {
                                 {stateObj.state}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Product Type Filter */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium text-slate-600">Product</Label>
+                        <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="All Products" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Products</SelectItem>
+                            {currentTeam?.products?.map((product) => (
+                              <SelectItem key={product} value={product}>
+                                {product}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Production Type Filter (Regular/OT) */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium text-slate-600">Production Type</Label>
+                        <Select value={productionTypeFilter} onValueChange={setProductionTypeFilter}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="All Types" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="regular">Regular</SelectItem>
+                            <SelectItem value="OT">OT</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

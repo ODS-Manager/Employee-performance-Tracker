@@ -60,6 +60,7 @@ export const OrderAnalysisPage = () => {
   const [billingStatusFilter, setBillingStatusFilter] = useState<string>('')
   const [stateFilter, setStateFilter] = useState<string>('')
   const [productFilter, setProductFilter] = useState<string>('')
+  const [productionTypeFilter, setProductionTypeFilter] = useState<string>('')
   const [processTypeFilter, setProcessTypeFilter] = useState<string>('')
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('')
   const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('')
@@ -220,6 +221,7 @@ export const OrderAnalysisPage = () => {
     startDateFilter,
     endDateFilter,
     productFilter,
+    productionTypeFilter,
     processTypeFilter,
     transactionTypeFilter,
     propertyTypeFilter,
@@ -231,6 +233,9 @@ export const OrderAnalysisPage = () => {
   const filteredOrders = orders.filter(order => {
     // Product filter (client-side)
     if (productFilter && order.productType !== productFilter) return false
+    
+    // Production Type filter (client-side)
+    if (productionTypeFilter && order.productionType !== productionTypeFilter) return false
     
     // Process Type filter (client-side)
     if (processTypeFilter && order.processTypeName !== processTypeFilter) return false
@@ -248,6 +253,9 @@ export const OrderAnalysisPage = () => {
   const allFilteredOrders = allOrders.filter(order => {
     // Product filter (client-side)
     if (productFilter && order.productType !== productFilter) return false
+    
+    // Production Type filter (client-side)
+    if (productionTypeFilter && order.productionType !== productionTypeFilter) return false
     
     // Process Type filter (client-side)
     if (processTypeFilter && order.processTypeName !== processTypeFilter) return false
@@ -353,9 +361,12 @@ export const OrderAnalysisPage = () => {
 
       let fullOrders = exportResult.items
 
-      // Apply client-side filters (product, process type, transaction type)
+      // Apply client-side filters (product, production type, process type, transaction type)
       if (productFilter) {
         fullOrders = fullOrders.filter(o => o.productType === productFilter)
+      }
+      if (productionTypeFilter) {
+        fullOrders = fullOrders.filter(o => o.productionType === productionTypeFilter)
       }
       if (processTypeFilter) {
         fullOrders = fullOrders.filter(o => o.processType?.name === processTypeFilter)
@@ -375,6 +386,8 @@ export const OrderAnalysisPage = () => {
         return {
           'Date': new Date(order.entryDate).toLocaleDateString(),
           'Order': order.fileNumber,
+          'Product Type': order.productType || '-',
+          'Production Type': order.productionType || 'regular',
           'Transaction Type': order.transactionType?.name || '-',
           'State': order.state,
           'Order Status': order.orderStatus?.name || '-',
@@ -385,7 +398,6 @@ export const OrderAnalysisPage = () => {
           'Step2 FA Name': order.step2?.faName || '-',
           'Step 2 Real Name': order.step2?.userName || '-',
           'Property Type': order.propertyType?.name || '-',
-          'Production Type': order.productionType || 'regular',
           'Employee ID': order.step1?.employeeId || order.step2?.employeeId || '-',
         }
       })
@@ -398,6 +410,8 @@ export const OrderAnalysisPage = () => {
       const colWidths = [
         { wch: 12 }, // Date
         { wch: 15 }, // Order
+        { wch: 20 }, // Product Type
+        { wch: 14 }, // Production Type
         { wch: 18 }, // Transaction Type
         { wch: 10 }, // State
         { wch: 15 }, // Order Status
@@ -408,7 +422,6 @@ export const OrderAnalysisPage = () => {
         { wch: 18 }, // Step2 FA Name
         { wch: 18 }, // Step 2 Real Name
         { wch: 15 }, // Property Type
-        { wch: 14 }, // Production Type
         { wch: 14 }, // Employee ID
       ]
       ws['!cols'] = colWidths
@@ -556,7 +569,7 @@ export const OrderAnalysisPage = () => {
             </div>
 
             {/* Row 2: Column-specific filters */}
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
               {/* Entry Date Range */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Start Date</label>
@@ -609,6 +622,21 @@ export const OrderAnalysisPage = () => {
                         {product}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Production Type Filter (Regular/OT) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500 font-medium">Production Type</label>
+                <Select value={productionTypeFilter || 'all'} onValueChange={(val) => setProductionTypeFilter(val === 'all' ? '' : val)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="regular">Regular</SelectItem>
+                    <SelectItem value="OT">OT</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -669,7 +697,7 @@ export const OrderAnalysisPage = () => {
             </div>
 
             {/* Clear Filters Button */}
-            {(searchQuery || selectedTeamId || selectedStatusId || billingStatusFilter || stateFilter || productFilter || propertyTypeFilter || processTypeFilter || transactionTypeFilter || startDateFilter || endDateFilter) && (
+            {(searchQuery || selectedTeamId || selectedStatusId || billingStatusFilter || stateFilter || productFilter || productionTypeFilter || propertyTypeFilter || processTypeFilter || transactionTypeFilter || startDateFilter || endDateFilter) && (
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
@@ -681,6 +709,7 @@ export const OrderAnalysisPage = () => {
                     setBillingStatusFilter('')
                     setStateFilter('')
                     setProductFilter('')
+                    setProductionTypeFilter('')
                     setPropertyTypeFilter('')
                     setProcessTypeFilter('')
                     setTransactionTypeFilter('')
@@ -775,6 +804,7 @@ export const OrderAnalysisPage = () => {
                       <TableHead>Entry Date</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Property Type</TableHead>
                       <TableHead>Transaction</TableHead>
                       <TableHead>Division</TableHead>
@@ -808,6 +838,11 @@ export const OrderAnalysisPage = () => {
                           <TableCell>{formatDate(order.entryDate)}</TableCell>
                           <TableCell>{order.state}</TableCell>
                           <TableCell className="text-xs">{order.productType}</TableCell>
+                          <TableCell>
+                            <Badge variant={order.productionType === 'OT' ? 'default' : 'outline'}>
+                              {order.productionType || 'regular'}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-xs">{order.propertyTypeName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.transactionTypeName || '-'}</TableCell>
                           <TableCell className="text-xs">{order.divisionName || '-'}</TableCell>

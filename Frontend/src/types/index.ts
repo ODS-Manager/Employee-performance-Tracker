@@ -814,13 +814,14 @@ export interface BillingDetail {
   onlyStep1Count: number
   onlyStep2Count: number
   totalCount: number
+  productionType?: 'regular' | 'OT'
 }
 
 export interface BillingReport {
   id: number
   orgId: number
-  teamId: number | null  // Always null for org-wide reports
-  teamName: string | null  // Always "All Teams"
+  teamId: number | null
+  teamName: string | null
   startDate: string
   endDate: string
   status: 'draft' | 'finalized'
@@ -833,6 +834,8 @@ export interface BillingReport {
   modifiedAt: string
   details: BillingDetail[]
   totalFiles: number
+  productType?: string
+  productionType?: 'regular' | 'OT'
 }
 
 export interface BillingReportListResponse {
@@ -841,15 +844,17 @@ export interface BillingReportListResponse {
 }
 
 export interface BillingReportCreate {
-  startDate: string  // No team selection - always org-wide
+  startDate: string
   endDate: string
-  orgId?: number  // Optional - for superadmin to select organization
+  orgId?: number
+  teamId?: number
 }
 
 export interface BillingPreviewRequest {
-  startDate: string  // No team selection - always org-wide
+  startDate: string
   endDate: string
-  orgId?: number  // Optional - for superadmin to select organization
+  orgId?: number
+  teamId?: number
 }
 
 export interface BillingPreviewDetail {
@@ -862,6 +867,7 @@ export interface BillingPreviewDetail {
   onlyStep1Count: number
   onlyStep2Count: number
   totalCount: number
+  productionType?: 'regular' | 'OT'
 }
 
 export interface BillingPreviewResponse {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
-import { billingApi, organizationsApi } from '../../services/api'
-import type { BillingReport, BillingPreviewResponse, Organization } from '../../types'
+import { billingApi, organizationsApi, teamsApi } from '../../services/api'
+import type { BillingReport, BillingPreviewResponse, Organization, Team } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Label } from '../../components/ui/label'
@@ -47,6 +48,18 @@ export const BillingPage = () => {
 
   // Centers state (for superadmin)
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  
+  // Fetch teams for team selection filter
+  const { data: teamsData } = useQuery({
+    queryKey: ['teams', 'billing', selectedOrgId],
+    queryFn: () => teamsApi.list({ 
+      orgId: selectedOrgId,
+      isActive: true
+    }),
+    enabled: !!selectedOrgId || user?.userRole !== 'superadmin',
+  })
+  const teams = teamsData?.items || []
   
   // Use global filter for organization
   const selectedOrgId = user?.userRole === 'superadmin' 
@@ -139,6 +152,7 @@ export const BillingPage = () => {
         startDate: formStartDate,
         endDate: formEndDate,
         orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
+        teamId: selectedTeamId || undefined,
       })
 
       if (previewData.totalFiles === 0) {
@@ -179,6 +193,7 @@ export const BillingPage = () => {
         startDate: formStartDate,
         endDate: formEndDate,
         orgId: user?.userRole === 'superadmin' ? selectedOrgId : undefined,
+        teamId: selectedTeamId || undefined,
       })
 
       toast.success('Billing report created successfully')
@@ -328,7 +343,10 @@ export const BillingPage = () => {
                     <Label>Organization *</Label>
                     <Select
                       value={selectedOrgId?.toString() || ''}
-                      onValueChange={(value) => setFilterOrgId(value)}
+                      onValueChange={(value) => {
+                        setFilterOrgId(value)
+                        setSelectedTeamId(null)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select center" />
@@ -337,6 +355,29 @@ export const BillingPage = () => {
                         {organizations.map((org) => (
                           <SelectItem key={org.id} value={org.id.toString()}>
                             {org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Team selector for filtering by specific team */}
+                {teams.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Team (Optional)</Label>
+                    <Select
+                      value={selectedTeamId?.toString() || 'all'}
+                      onValueChange={(value) => setSelectedTeamId(value === 'all' ? null : parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Teams" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Teams</SelectItem>
+                        {teams.map((team) => (
+                          <SelectItem key={team.id} value={team.id.toString()}>
+                            {team.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
