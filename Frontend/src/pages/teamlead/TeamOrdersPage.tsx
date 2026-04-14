@@ -132,6 +132,25 @@ export const TeamOrdersPage = () => {
 
   const currentTeam = myTeams.find(t => t.id === teamId)
 
+  const productOptions = Array.from(
+    new Set(
+      (currentTeam?.products || [])
+        .map((product: unknown) => {
+          if (typeof product === 'string') return product
+          if (
+            product &&
+            typeof product === 'object' &&
+            'productType' in product &&
+            typeof (product as { productType?: unknown }).productType === 'string'
+          ) {
+            return (product as { productType: string }).productType
+          }
+          return ''
+        })
+        .filter((productType): productType is string => Boolean(productType))
+    )
+  )
+
   // Fetch reference data for filters
   const { data: processTypes = [] } = useQuery<ProcessType[]>({
     queryKey: ['process-types'],
@@ -724,9 +743,9 @@ export const TeamOrdersPage = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Products</SelectItem>
-                            {currentTeam?.products?.map((product) => (
-                              <SelectItem key={product} value={product}>
-                                {product}
+                            {productOptions.map((productType) => (
+                              <SelectItem key={productType} value={productType}>
+                                {productType}
                               </SelectItem>
                             ))}
                           </SelectContent>
