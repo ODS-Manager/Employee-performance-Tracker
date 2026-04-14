@@ -49,6 +49,11 @@ export const BillingPage = () => {
   // Centers state (for superadmin)
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+
+  // Use global filter for organization
+  const selectedOrgId = user?.userRole === 'superadmin'
+    ? (filterOrgId ? parseInt(filterOrgId) : undefined)
+    : undefined
   
   // Fetch teams for team selection filter
   const { data: teamsData } = useQuery({
@@ -60,11 +65,6 @@ export const BillingPage = () => {
     enabled: !!selectedOrgId || user?.userRole !== 'superadmin',
   })
   const teams = teamsData?.items || []
-  
-  // Use global filter for organization
-  const selectedOrgId = user?.userRole === 'superadmin' 
-    ? (filterOrgId ? parseInt(filterOrgId) : undefined)
-    : undefined
 
   // Local filters for the reports list view - now using dates
   const [listFilterStartDate, setListFilterStartDate] = useState<string>('')
