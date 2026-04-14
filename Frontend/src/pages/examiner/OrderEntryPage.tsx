@@ -30,14 +30,13 @@ export const OrderEntryPage = () => {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-  const [formInstanceKey, setFormInstanceKey] = useState(0)
 
   const handleLogout = async () => {
     await handleLogoutFlow(logout, navigate)
   }
 
   const handleOrderCreated = () => {
-    setFormInstanceKey((currentKey) => currentKey + 1)
+    // OrderForm resets itself after successful create.
   }
 
   const getDashboardPath = () => {
@@ -129,7 +128,6 @@ export const OrderEntryPage = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <OrderForm 
-            key={formInstanceKey}
             onSuccess={handleOrderCreated}
             onCancel={() => navigate(getDashboardPath())}
           />

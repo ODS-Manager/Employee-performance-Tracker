@@ -26,6 +26,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const isEditMode = !!order
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const getTodayDate = () => new Date().toISOString().split('T')[0]
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
@@ -40,7 +41,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Form state
   const [fileNumber, setFileNumber] = useState('')
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0])
+  const [entryDate, setEntryDate] = useState(getTodayDate())
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [selectedState, setSelectedState] = useState('')
@@ -78,6 +79,34 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Can this user assign work to others? (admin, superadmin, team_lead)
   const canAssignToOthers = isAdminOrSuperadmin || isTeamLead
+  const [disableCreateAutoDefaults, setDisableCreateAutoDefaults] = useState(false)
+
+  const resetCreateForm = () => {
+    setDisableCreateAutoDefaults(true)
+    setSelectedOrgId(null)
+    setSelectedTeamId(null)
+    setFileNumber('')
+    setEntryDate(getTodayDate())
+    setSelectedState('')
+    setCounty('')
+    setSelectedProductType('')
+    setSelectedProductionType('regular')
+    setSelectedTransactionTypeId(null)
+    setSelectedProcessTypeId(null)
+    setSelectedOrderStatusId(null)
+    setSelectedDivisionId(null)
+    setSelectedPropertyTypeId(null)
+    setStep1UserId(null)
+    setStep2UserId(null)
+    setStep1FaNameId(null)
+    setStep2FaNameId(null)
+    setFileNumberExists(false)
+    setCanAddStep2(false)
+    setCanAddStep1(false)
+    setExistingOrderId(null)
+    setIsDuplicateEntry(false)
+    setSelectedDuplicateAssigneeId(null)
+  }
 
   // For regular users: fetch their team memberships
   const { data: userProfile, isLoading: loadingUserProfile } = useQuery({
@@ -405,10 +434,10 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
 
   // Auto-select organization for admin users (they have a fixed orgId)
   useEffect(() => {
-    if (user?.userRole === 'admin' && user.orgId && !selectedOrgId) {
+    if (!isEditMode && !disableCreateAutoDefaults && user?.userRole === 'admin' && user.orgId && !selectedOrgId) {
       setSelectedOrgId(user.orgId)
     }
-  }, [user, selectedOrgId])
+  }, [user, selectedOrgId, isEditMode, disableCreateAutoDefaults])
 
   // Reset team selection when organization changes
   useEffect(() => {
@@ -448,34 +477,34 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
 
   // Auto-select team if user only has one team (only in create mode)
   useEffect(() => {
-    if (!isEditMode && availableTeams.length === 1 && !selectedTeamId) {
+    if (!isEditMode && !disableCreateAutoDefaults && availableTeams.length === 1 && !selectedTeamId) {
       setSelectedTeamId(availableTeams[0].id)
     }
-  }, [availableTeams, selectedTeamId, isEditMode])
+  }, [availableTeams, selectedTeamId, isEditMode, disableCreateAutoDefaults])
 
   // Auto-set order status to first active one (only in create mode)
   useEffect(() => {
-    if (!isEditMode && orderStatuses?.length && !selectedOrderStatusId) {
+    if (!isEditMode && !disableCreateAutoDefaults && orderStatuses?.length && !selectedOrderStatusId) {
       const activeStatus = orderStatuses.find(s => s.isActive)
       if (activeStatus) setSelectedOrderStatusId(activeStatus.id)
     }
-  }, [orderStatuses, selectedOrderStatusId, isEditMode])
+  }, [orderStatuses, selectedOrderStatusId, isEditMode, disableCreateAutoDefaults])
 
   // Auto-set division to first one (only in create mode)
   useEffect(() => {
-    if (!isEditMode && divisions?.length && !selectedDivisionId) {
+    if (!isEditMode && !disableCreateAutoDefaults && divisions?.length && !selectedDivisionId) {
       setSelectedDivisionId(divisions[0].id)
     }
-  }, [divisions, selectedDivisionId, isEditMode])
+  }, [divisions, selectedDivisionId, isEditMode, disableCreateAutoDefaults])
 
   // Auto-set process type for examiners (only in create mode)
   useEffect(() => {
-    if (!isEditMode && processTypes?.length && !selectedProcessTypeId) {
+    if (!isEditMode && !disableCreateAutoDefaults && processTypes?.length && !selectedProcessTypeId) {
       // Default to first active process type
       const defaultProcess = processTypes.find(p => p.isActive)
       if (defaultProcess) setSelectedProcessTypeId(defaultProcess.id)
     }
-  }, [processTypes, selectedProcessTypeId, isEditMode])
+  }, [processTypes, selectedProcessTypeId, isEditMode, disableCreateAutoDefaults])
 
   // Handle process type changes - manage step users for Single Seat
   useEffect(() => {
@@ -786,45 +815,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         } else {
           toast.success('Order created successfully!')
         }
-        
-        // Reset form completely to fresh state (like a new order page)
-        setSelectedTeamId(null)
-        setFileNumber('')
-        setEntryDate(new Date().toISOString().split('T')[0])
-        setSelectedState('')
-        setCounty('')
-        setSelectedProductType('')
-        setSelectedTransactionTypeId(null)
-        setStep1UserId(null)
-        setStep2UserId(null)
-        setStep1FaNameId(null)
-        setStep2FaNameId(null)
-        setFileNumberExists(false)
-        setCanAddStep2(false)
-        setCanAddStep1(false)
-        setIsDuplicateEntry(false)
-        setSelectedDuplicateAssigneeId(null)
-        
-        // Reset to default values
-        const defaultProcess = processTypes?.find(p => p.isActive)
-        if (defaultProcess) {
-          setSelectedProcessTypeId(defaultProcess.id)
-        } else {
-          setSelectedProcessTypeId(null)
-        }
-        
-        const activeStatus = orderStatuses?.find(s => s.isActive)
-        if (activeStatus) {
-          setSelectedOrderStatusId(activeStatus.id)
-        } else {
-          setSelectedOrderStatusId(null)
-        }
-        
-        if (divisions?.length) {
-          setSelectedDivisionId(divisions[0].id)
-        } else {
-          setSelectedDivisionId(null)
-        }
+
+        // Keep the form truly blank for the next entry.
+        resetCreateForm()
       }
       
       onSuccess?.()
