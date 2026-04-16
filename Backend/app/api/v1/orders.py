@@ -1227,6 +1227,16 @@ async def update_order(
         )
     
     update_data = order_data.model_dump(exclude_unset=True)
+
+    # Entry date can be edited only by admin/superadmin.
+    if 'entry_date' in update_data:
+        if current_user.user_role.lower() not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
+            if update_data['entry_date'] != order.entry_date:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only admin and superadmin can edit entry date"
+                )
+            del update_data['entry_date']
     
     # Define field categories
     order_detail_fields = ['file_number', 'entry_date', 'transaction_type_id', 'process_type_id', 

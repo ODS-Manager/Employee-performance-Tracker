@@ -656,7 +656,6 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           // Sole Single Seat examiner — can edit everything, send all fields like admin
           orderData = {
             fileNumber: fileNumber.trim(),
-            entryDate,
             transactionTypeId: selectedTransactionTypeId!,
             processTypeId: selectedProcessTypeId!,
             orderStatusId: selectedOrderStatusId!,
@@ -710,7 +709,6 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         // Admin/Team Lead OR new order creation - send all fields
         orderData = {
           fileNumber: fileNumber.trim(),
-          entryDate,
           transactionTypeId: selectedTransactionTypeId!,
           processTypeId: selectedProcessTypeId!,
           orderStatusId: selectedOrderStatusId!,
@@ -722,6 +720,12 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           productionType: selectedProductionType,
           teamId: selectedTeamId!,
           orgId: effectiveOrgId || user?.orgId || 0,
+        }
+
+        // Entry date is editable only on edit page for admins/superadmins.
+        // For create mode, keep sending entry date (auto-generated default).
+        if (!isEditMode || isAdminOrSuperadmin) {
+          orderData.entryDate = entryDate
         }
         
         // Determine step user assignment
@@ -1145,17 +1149,19 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       )}
                     </div>
 
-                    <div className="mt-3 space-y-1.5">
-                      <Label htmlFor="entryDate" className="text-xs font-semibold text-gray-700">Entry Date *</Label>
-                      <Input
-                        id="entryDate"
-                        type="date"
-                        value={entryDate}
-                        onChange={(e) => setEntryDate(e.target.value)}
-                        disabled={!canEditOrderDetails || canAddStep2 || canAddStep1}
-                        className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!canEditOrderDetails || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}
-                      />
-                    </div>
+                    {isEditMode && isAdminOrSuperadmin && (
+                      <div className="mt-3 space-y-1.5">
+                        <Label htmlFor="entryDate" className="text-xs font-semibold text-gray-700">Entry Date *</Label>
+                        <Input
+                          id="entryDate"
+                          type="date"
+                          value={entryDate}
+                          onChange={(e) => setEntryDate(e.target.value)}
+                          disabled={!canEditOrderDetails}
+                          className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${!canEditOrderDetails ? 'bg-gray-50' : ''}`}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
