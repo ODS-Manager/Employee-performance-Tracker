@@ -4,8 +4,17 @@ Core order tracking with step-based workflow
 """
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Index, CheckConstraint
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from app.database import Base
+
+
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def pacific_now_naive() -> datetime:
+    """Return current Pacific time as naive datetime for DB storage."""
+    return datetime.now(timezone.utc).astimezone(PACIFIC_TZ).replace(tzinfo=None)
 
 
 class Order(Base):
@@ -56,8 +65,8 @@ class Order(Base):
     modified_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     deleted_at = Column(DateTime, nullable=True)  # Soft delete timestamp
     deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
-    modified_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=pacific_now_naive)
+    modified_at = Column(DateTime, default=pacific_now_naive, onupdate=pacific_now_naive)
     
     # Relationships
     organization = relationship("Organization", back_populates="orders")

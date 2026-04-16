@@ -26,7 +26,24 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const isEditMode = !!order
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const getTodayDate = () => new Date().toISOString().split('T')[0]
+  const getTodayDate = () => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+
+    const year = parts.find((part) => part.type === 'year')?.value
+    const month = parts.find((part) => part.type === 'month')?.value
+    const day = parts.find((part) => part.type === 'day')?.value
+
+    if (!year || !month || !day) {
+      return new Date().toISOString().split('T')[0]
+    }
+
+    return `${year}-${month}-${day}`
+  }
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
@@ -524,7 +541,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     }
     
     if (!fileNumber.trim()) newErrors.push('File number is required')
-    // Entry date is auto-generated, no validation needed
+    if (!entryDate) newErrors.push('Entry date is required')
     if (!selectedTeamId) newErrors.push('Team is required')
     if (!selectedState) newErrors.push('State is required')
     if (!county.trim()) newErrors.push('County is required')
@@ -945,6 +962,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     // Basic required fields
     if (!selectedTeamId) return false
     if (!fileNumber.trim()) return false
+    if (!entryDate) return false
     if (!selectedState) return false
     if (!county.trim()) return false
     if (!selectedProductType) return false
@@ -997,7 +1015,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     
     return true
   }, [
-    selectedTeamId, fileNumber, selectedState, county, selectedProductType,
+    selectedTeamId, fileNumber, entryDate, selectedState, county, selectedProductType,
     selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
     fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
@@ -1125,6 +1143,18 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       {isCheckingFileNumber && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
                       )}
+                    </div>
+
+                    <div className="mt-3 space-y-1.5">
+                      <Label htmlFor="entryDate" className="text-xs font-semibold text-gray-700">Entry Date *</Label>
+                      <Input
+                        id="entryDate"
+                        type="date"
+                        value={entryDate}
+                        onChange={(e) => setEntryDate(e.target.value)}
+                        disabled={!canEditOrderDetails || canAddStep2 || canAddStep1}
+                        className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${(!canEditOrderDetails || canAddStep2 || canAddStep1) ? 'bg-gray-50' : ''}`}
+                      />
                     </div>
                   </div>
 

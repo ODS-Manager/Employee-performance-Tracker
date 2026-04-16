@@ -6,9 +6,10 @@ Billing is done organization-wide grouped by product types with shortened team n
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict
 from io import BytesIO
+from zoneinfo import ZoneInfo
 from app.models.billing import BillingReport, BillingDetail
 from app.models.order import Order
 from app.models.team import Team
@@ -29,6 +30,14 @@ try:
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
+
+
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def pacific_now_naive() -> datetime:
+    """Return current Pacific time as naive datetime for DB storage."""
+    return datetime.now(timezone.utc).astimezone(PACIFIC_TZ).replace(tzinfo=None)
 
 
 def get_team_short_name(team_name: str) -> str:
@@ -522,15 +531,15 @@ def finalize_billing_report(
         Order.deleted_at.is_(None)
     ).update({
         Order.billing_status: 'done',
-        Order.modified_at: datetime.now(),
+        Order.modified_at: pacific_now_naive(),
         Order.modified_by: current_user_id
     }, synchronize_session=False)
     
     # Update report status
     report.status = 'finalized'
     report.finalized_by = current_user_id
-    report.finalized_at = datetime.now()
-    report.modified_at = datetime.now()
+    report.finalized_at = pacific_now_naive()
+    report.modified_at = pacific_now_naive()
     
     db.commit()
     db.refresh(report)

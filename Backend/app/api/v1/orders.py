@@ -66,12 +66,17 @@ def is_duplicate_allowed_product(product_type: Optional[str], db: Session) -> bo
 
 
 def can_create_duplicate_for_product(user: User, product_type: Optional[str], db: Session) -> bool:
-    """Allow duplicate orders for all roles on configured product types."""
+    role = user.user_role.lower() if user.user_role else ""
+
+    # Admins and superadmins can create duplicates for all product types.
+    if role in {ROLE_SUPERADMIN, ROLE_ADMIN}:
+        return True
+
+    # Team leads and examiners can create duplicates only for configured product types.
     if not is_duplicate_allowed_product(product_type, db):
         return False
 
-    role = user.user_role.lower() if user.user_role else ""
-    return role in {ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER}
+    return role in {ROLE_TEAM_LEAD, ROLE_EXAMINER}
 
 
 # ============ Serializer Functions ============
@@ -648,10 +653,24 @@ async def check_file_number(
             detail="Cannot access this team"
         )
     
-    # For specific product types, duplicates are explicitly allowed only for
-    # superadmin/admin/team lead users.
+    # Determine if this user can create duplicates for this product.
     duplicates_allowed = can_create_duplicate_for_product(current_user, product_type, db)
-    if duplicates_allowed:
+
+    # Check if file_number + product_type + team_id combination exists.
+    existing = db.query(Order).options(
+        joinedload(Order.step1_user),
+        joinedload(Order.step2_user),
+        joinedload(Order.process_type)
+    ).filter(
+        Order.file_number == file_number,
+        Order.product_type == product_type,
+        Order.team_id == team_id,
+        Order.deleted_at == None
+    ).first()
+
+    # Duplicate entry mode applies only when the combination already exists.
+    # If user can create duplicates, frontend should treat this as a duplicate-entry flow.
+    if duplicates_allowed and existing:
         return {
             "exists": False,
             "fileNumber": file_number,
@@ -663,18 +682,6 @@ async def check_file_number(
             "duplicatesAllowed": True,
         }
 
-    # Check if file_number + product_type + team_id combination exists
-    existing = db.query(Order).options(
-        joinedload(Order.step1_user),
-        joinedload(Order.step2_user),
-        joinedload(Order.process_type)
-    ).filter(
-        Order.file_number == file_number,
-        Order.product_type == product_type,
-        Order.team_id == team_id,
-        Order.deleted_at == None
-    ).first()
-    
     if not existing:
         # File + product_type + team combination doesn't exist - new order allowed
         return {

@@ -552,7 +552,7 @@ export const ReferenceDataPage = () => {
                   <Info className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-amber-700">
                     <p className="font-medium">Duplicate File Numbers</p>
-                    <p>Product types listed here can have duplicate file numbers. Only Superadmins, Admins, and Team Leads can create duplicates for these product types.</p>
+                    <p>Product types listed here can have duplicate file numbers for Team Leads and Examiners. Superadmins and Admins can create duplicates for all product types.</p>
                   </div>
                 </div>
                 {duplicateProductsLoading ? (
