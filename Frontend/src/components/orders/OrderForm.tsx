@@ -244,11 +244,23 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     return withYouLabel
   }, [teamMembersData?.items, user])
 
-  // Fetch active examiners for duplicate order assignment
+  // Fetch active examiners for duplicate order assignment.
+  // Admin/superadmin can assign duplicates to any examiner in the organization.
+  // Team leads are restricted to examiners in the selected team.
   const { data: duplicateAssigneesData, isLoading: loadingDuplicateAssignees } = useQuery({
-    queryKey: ['duplicateAssignees', selectedTeamId],
-    queryFn: () => usersApi.list({ teamId: selectedTeamId!, role: 'examiner', isActive: true }),
-    enabled: !!selectedTeamId && canAssignToOthers && !isEditMode,
+    queryKey: ['duplicateAssignees', selectedTeamId, effectiveOrgId, isAdminOrSuperadmin],
+    queryFn: () => {
+      if (isAdminOrSuperadmin) {
+        return usersApi.list({
+          role: 'examiner',
+          isActive: true,
+          orgId: effectiveOrgId || undefined,
+        })
+      }
+
+      return usersApi.list({ teamId: selectedTeamId!, role: 'examiner', isActive: true })
+    },
+    enabled: !!selectedTeamId && canAssignToOthers && !isEditMode && (!!effectiveOrgId || !isAdminOrSuperadmin),
   })
 
   const duplicateAssigneeOptions = useMemo(() => {
@@ -390,8 +402,10 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
         setFileNumberExists(false)
         setCanAddStep2(false)
         setCanAddStep1(false)
-        setIsDuplicateEntry(false)
-        setSelectedDuplicateAssigneeId(null)
+        setIsDuplicateEntry(duplicateEntryAllowed)
+        if (!duplicateEntryAllowed) {
+          setSelectedDuplicateAssigneeId(null)
+        }
         setExistingOrderId(null)
       }
     } catch (error) {
@@ -1359,7 +1373,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           </SelectContent>
                         </Select>
                         {duplicateAssigneeOptions.length === 0 && !loadingDuplicateAssignees && (
-                          <p className="text-[11px] text-red-600">No users available for duplicate assignment in this team.</p>
+                          <p className="text-[11px] text-red-600">
+                            {isAdminOrSuperadmin
+                              ? 'No active examiners available in this center.'
+                              : 'No users available for duplicate assignment in this team.'}
+                          </p>
                         )}
                       </div>
                     )}
