@@ -1071,6 +1071,8 @@ export const billingApi = {
   // List billing reports with filters
   list: async (params?: {
     teamId?: number
+    startDate?: string
+    endDate?: string
     billingMonth?: number
     billingYear?: number
     status?: string
@@ -1078,6 +1080,8 @@ export const billingApi = {
   }): Promise<BillingReportListResponse> => {
     const queryParams: Record<string, unknown> = {}
     if (params?.teamId !== undefined) queryParams.team_id = params.teamId
+    if (params?.startDate !== undefined) queryParams.start_date = params.startDate
+    if (params?.endDate !== undefined) queryParams.end_date = params.endDate
     if (params?.billingMonth !== undefined) queryParams.billing_month = params.billingMonth
     if (params?.billingYear !== undefined) queryParams.billing_year = params.billingYear
     if (params?.status !== undefined) queryParams.status = params.status

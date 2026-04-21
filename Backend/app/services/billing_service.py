@@ -197,22 +197,36 @@ def preview_billing_data(
     start_date = request.start_date
     end_date = request.end_date
     
-    # Get all active teams in the organization (eager-load their products from team_products table)
-    teams = db.query(Team).filter(
+    # Get active teams in the organization (optionally scoped to one team)
+    teams_query = db.query(Team).filter(
         Team.org_id == org_id,
         Team.is_active == True
-    ).order_by(Team.name).all()
+    )
+    if request.team_id is not None:
+        teams_query = teams_query.filter(Team.id == request.team_id)
+
+    teams = teams_query.order_by(Team.name).all()
+
+    if request.team_id is not None and not teams:
+        raise HTTPException(
+            status_code=400,
+            detail="Selected team is not active or does not belong to this organization"
+        )
     
     # Query ALL pending orders with Completed status in the organization for this period
     # ONLY include Completed orders (order_status_id = 1) for billing
-    orders = db.query(Order).filter(
+    orders_query = db.query(Order).filter(
         Order.org_id == org_id,
         Order.billing_status == 'pending',
         Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
-        Order.entry_date < end_date,
+        Order.entry_date <= end_date,
         Order.deleted_at.is_(None)
-    ).all()
+    )
+    if request.team_id is not None:
+        orders_query = orders_query.filter(Order.team_id == request.team_id)
+
+    orders = orders_query.all()
     
     # Initialize billing_data using each team's configured products from team_products table
     # Key format: "product_type|division_id"
@@ -315,7 +329,7 @@ def create_billing_report(
     # Check if report already exists for this period
     existing = db.query(BillingReport).filter(
         BillingReport.org_id == org_id,
-        BillingReport.team_id.is_(None),  # Org-wide reports have null team_id
+        BillingReport.team_id == data.team_id,
         BillingReport.start_date == data.start_date,
         BillingReport.end_date == data.end_date
     ).first()
@@ -330,27 +344,40 @@ def create_billing_report(
     start_date = data.start_date
     end_date = data.end_date
     
-    # Get all active teams in the organization (eager-load their products from team_products table)
-    teams = db.query(Team).filter(
+    # Get active teams in the organization (optionally scoped to one team)
+    teams_query = db.query(Team).filter(
         Team.org_id == org_id,
         Team.is_active == True
-    ).order_by(Team.name).all()
+    )
+    if data.team_id is not None:
+        teams_query = teams_query.filter(Team.id == data.team_id)
+
+    teams = teams_query.order_by(Team.name).all()
+
+    if data.team_id is not None and not teams:
+        raise HTTPException(
+            status_code=400,
+            detail="Selected team is not active or does not belong to this organization"
+        )
     
-    # Query pending orders with Completed or BP & RTI status for this period
-    # Include both Completed (ID 1) and BP & RTI (ID 3) for billing
-    orders = db.query(Order).filter(
+    # Query pending orders with Completed status for this period
+    orders_query = db.query(Order).filter(
         Order.org_id == org_id,
         Order.billing_status == 'pending',
-        Order.order_status_id.in_([1, 3]),  # "Completed" and "BP & RTI" status
+        Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
-        Order.entry_date < end_date,
+        Order.entry_date <= end_date,
         Order.deleted_at.is_(None)
-    ).all()
+    )
+    if data.team_id is not None:
+        orders_query = orders_query.filter(Order.team_id == data.team_id)
+
+    orders = orders_query.all()
     
-    # Create billing report (team_id is NULL for org-wide)
+    # Create billing report (team_id NULL = org-wide, otherwise team-scoped)
     report = BillingReport(
         org_id=org_id,
-        team_id=None,  # Org-wide report
+        team_id=data.team_id,
         start_date=start_date,
         end_date=end_date,
         status='draft',
@@ -481,8 +508,8 @@ def get_billing_report_by_id(db: Session, report_id: int) -> BillingReportRespon
     return BillingReportResponse(
         id=report.id,
         org_id=report.org_id,
-        team_id=None,
-        team_name="All Teams",
+        team_id=report.team_id,
+        team_name=report.team.name if report.team else "All Teams",
         start_date=report.start_date,
         end_date=report.end_date,
         status=report.status,
@@ -522,14 +549,18 @@ def finalize_billing_report(
     
     # Update all pending Completed orders for this organization and period to 'done'
     # ONLY update Completed orders (order_status_id = 1)
-    updated_count = db.query(Order).filter(
+    orders_query = db.query(Order).filter(
         Order.org_id == report.org_id,
         Order.billing_status == 'pending',
         Order.order_status_id == 1,  # Only "Completed" status
         Order.entry_date >= start_date,
-        Order.entry_date < end_date,
+        Order.entry_date <= end_date,
         Order.deleted_at.is_(None)
-    ).update({
+    )
+    if report.team_id is not None:
+        orders_query = orders_query.filter(Order.team_id == report.team_id)
+
+    updated_count = orders_query.update({
         Order.billing_status: 'done',
         Order.modified_at: pacific_now_naive(),
         Order.modified_by: current_user_id

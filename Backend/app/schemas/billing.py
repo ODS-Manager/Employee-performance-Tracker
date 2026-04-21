@@ -60,6 +60,7 @@ class BillingReportCreate(BaseModel):
     start_date: date = Field(alias="startDate")
     end_date: date = Field(alias="endDate")
     org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
+    team_id: Optional[int] = Field(default=None, alias="teamId")  # Optional team-scoped billing
 
 
 class BillingReportFinalize(BaseModel):
@@ -72,6 +73,7 @@ class BillingPreviewRequest(BaseModel):
     start_date: date = Field(alias="startDate")
     end_date: date = Field(alias="endDate")
     org_id: Optional[int] = Field(default=None, alias="orgId")  # Required for superadmin
+    team_id: Optional[int] = Field(default=None, alias="teamId")  # Optional team-scoped preview
 
 
 class BillingPreviewDetail(BaseModel):
