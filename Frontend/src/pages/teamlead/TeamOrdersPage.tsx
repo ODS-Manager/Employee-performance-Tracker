@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { teamsApi, ordersApi, referenceApi } from '../../services/api'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { OrderSimple, ProcessType, Division, OrderStatus } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -353,7 +353,7 @@ export const TeamOrdersPage = () => {
 
         return {
           'File Number': order.fileNumber,
-          'Entry Date': new Date(order.entryDate).toLocaleDateString(),
+          'Entry Date': formatStoredDate(order.entryDate),
           'State': order.state,
           'County': order.county,
           'Product Type': order.productType,
@@ -877,7 +877,7 @@ export const TeamOrdersPage = () => {
                             {order.fileNumber}
                           </TableCell>
                           <TableCell>
-                            {new Date(order.entryDate).toLocaleDateString()}
+                            {formatStoredDate(order.entryDate)}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{order.state}</Badge>

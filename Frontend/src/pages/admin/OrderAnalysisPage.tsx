@@ -25,6 +25,7 @@ import {
 import { ordersApi, teamsApi, referenceApi, metricsApi } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
+import { formatStoredDate } from '../../utils/helpers'
 import toast from 'react-hot-toast'
 import * as XLSX from 'xlsx'
 import {
@@ -289,8 +290,7 @@ export const OrderAnalysisPage = () => {
   }
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatStoredDate(dateString, 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -384,7 +384,7 @@ export const OrderAnalysisPage = () => {
       // Prepare data for export with complete details in specified column order
       const exportData = fullOrders.map((order) => {
         return {
-          'Date': new Date(order.entryDate).toLocaleDateString(),
+          'Date': formatStoredDate(order.entryDate),
           'Order': order.fileNumber,
           'Product Type': order.productType || '-',
           'Production Type': order.productionType || 'regular',

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, referenceApi, usersApi, ordersApi, organizationsApi } from '../../services/api'
+import { getPstDateInputValue } from '../../utils/helpers'
 import type { 
   OrderCreate, 
   OrderUpdate,
@@ -26,24 +27,6 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const isEditMode = !!order
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const getTodayDate = () => {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Los_Angeles',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(new Date())
-
-    const year = parts.find((part) => part.type === 'year')?.value
-    const month = parts.find((part) => part.type === 'month')?.value
-    const day = parts.find((part) => part.type === 'day')?.value
-
-    if (!year || !month || !day) {
-      return new Date().toISOString().split('T')[0]
-    }
-
-    return `${year}-${month}-${day}`
-  }
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
@@ -58,7 +41,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Form state
   const [fileNumber, setFileNumber] = useState('')
-  const [entryDate, setEntryDate] = useState(getTodayDate())
+  const [entryDate, setEntryDate] = useState(getPstDateInputValue())
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [selectedState, setSelectedState] = useState('')
@@ -103,7 +86,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     setSelectedOrgId(null)
     setSelectedTeamId(null)
     setFileNumber('')
-    setEntryDate(getTodayDate())
+    setEntryDate(getPstDateInputValue())
     setSelectedState('')
     setCounty('')
     setSelectedProductType('')

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { ordersApi, usersApi, referenceApi, qualityAuditApi, productivityApi, teamsApi } from '../../services/api'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -433,8 +433,7 @@ export const TeamLeadPersonalDashboard = () => {
   }
 
   const formatDateOnly = (dateString: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatStoredDate(dateString, 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'

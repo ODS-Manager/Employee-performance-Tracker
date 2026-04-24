@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { teamsApi, metricsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { DashboardStats, TeamProductivity } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -682,7 +682,7 @@ export const TeamLeadDashboard = () => {
                         return <Badge className="bg-gray-100 text-gray-800">{order.orderStatusName || 'Unknown'}</Badge>
                       })()}
                       <span className="text-xs text-muted-foreground">
-                        {new Date(order.entryDate).toLocaleDateString()}
+                        {formatStoredDate(order.entryDate)}
                       </span>
                     </div>
                   </div>

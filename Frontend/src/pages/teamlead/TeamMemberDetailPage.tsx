@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { usersApi, teamsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
+import { formatStoredDate } from '../../utils/helpers'
 import type { UserWithTeams, Team, ExaminerProductivity, OrderSimple, QualityAudit } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -210,8 +211,11 @@ export const TeamMemberDetailPage = () => {
   }
 
   const formatShortDate = (dateString: string | null | undefined) => {
-    if (!dateString) return '-'
-    return format(new Date(dateString), 'MMM dd, yyyy')
+    return formatStoredDate(dateString, 'en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    })
   }
 
   const getStatusBadge = (statusName: string | null | undefined) => {

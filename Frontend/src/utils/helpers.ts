@@ -116,3 +116,65 @@ export const getRoleBadgeColor = (role: string): string => {
       return 'bg-gray-100 text-gray-700 border-gray-200'
   }
 }
+
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})/
+
+const parseStoredDateParts = (dateString: string): [number, number, number] | null => {
+  const match = dateString.match(DATE_ONLY_PATTERN)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+
+  if (!year || !month || !day) return null
+  return [year, month, day]
+}
+
+export const formatStoredDate = (
+  dateString: string | null | undefined,
+  locale: string = 'en-US',
+  options?: Intl.DateTimeFormatOptions
+): string => {
+  if (!dateString) return '-'
+
+  const parsedParts = parseStoredDateParts(dateString)
+  if (parsedParts) {
+    const [year, month, day] = parsedParts
+    const stableDate = new Date(Date.UTC(year, month - 1, day))
+    return new Intl.DateTimeFormat(locale, {
+      ...options,
+      timeZone: 'UTC',
+    }).format(stableDate)
+  }
+
+  const fallbackDate = new Date(dateString)
+  if (Number.isNaN(fallbackDate.getTime())) return '-'
+
+  return new Intl.DateTimeFormat(locale, {
+    ...options,
+    timeZone: 'UTC',
+  }).format(fallbackDate)
+}
+
+export const getPstDateInputValue = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+
+  if (!year || !month || !day) {
+    const localYear = date.getFullYear()
+    const localMonth = String(date.getMonth() + 1).padStart(2, '0')
+    const localDay = String(date.getDate()).padStart(2, '0')
+    return `${localYear}-${localMonth}-${localDay}`
+  }
+
+  return `${year}-${month}-${day}`
+}
