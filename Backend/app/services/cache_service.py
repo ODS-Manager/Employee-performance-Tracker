@@ -32,6 +32,9 @@ class CacheService:
     PREFIX_USERS = "users"
     PREFIX_TEAMS = "teams"
     PREFIX_ORGS = "orgs"
+    PREFIX_ORDERS = "orders"
+    PREFIX_PRODUCTIVITY = "productivity"
+    PREFIX_BILLING = "billing"
     
     _instance: Optional['CacheService'] = None
     _redis_client: Optional[redis.Redis] = None
@@ -159,6 +162,18 @@ class CacheService:
             self.delete_pattern(f"{self.PREFIX_TEAMS}:*:org:{org_id}*")
         else:
             self.delete_pattern(f"{self.PREFIX_TEAMS}:*")
+
+    def invalidate_order_cache(self):
+        """Invalidate cached order lists and exports"""
+        self.delete_pattern(f"{self.PREFIX_ORDERS}:*")
+
+    def invalidate_productivity_cache(self):
+        """Invalidate cached productivity calculations"""
+        self.delete_pattern(f"{self.PREFIX_PRODUCTIVITY}:*")
+
+    def invalidate_billing_cache(self):
+        """Invalidate cached billing lists and previews"""
+        self.delete_pattern(f"{self.PREFIX_BILLING}:*")
     
     def invalidate_all(self):
         """Clear all application cache"""

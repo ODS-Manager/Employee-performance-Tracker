@@ -141,19 +141,21 @@ async def list_teams(
 ):
     """List teams with organization-based filtering"""
     
-    # TEMPORARY FIX: Disable cache and complex joins to debug issue
-    # cache_org_id = org_id if current_user.user_role.lower() == ROLE_SUPERADMIN else current_user.org_id
-    # cache_key = cache._build_key(
-    #     cache.PREFIX_TEAMS,
-    #     "list",
-    #     f"org:{cache_org_id}",
-    #     f"active:{is_active}" if is_active is not None else None
-    # )
+    # Build cache key based on user role and filters
+    cache_org_id = org_id if current_user.user_role.lower() == ROLE_SUPERADMIN else current_user.org_id
+    cache_key = cache._build_key(
+        cache.PREFIX_TEAMS,
+        "list",
+        f"org:{cache_org_id}",
+        f"active:{is_active}" if is_active is not None else None,
+        f"members:{include_member_count}",
+        f"fa:{include_fa_names}"
+    )
     
-    # # Try to get from cache
-    # cached_result = cache.get(cache_key)
-    # if cached_result is not None:
-    #     return cached_result
+    # Try to get from cache
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
     
     # Query with necessary joins to load states, products, and FA names
     query = db.query(Team).options(
@@ -203,8 +205,8 @@ async def list_teams(
         "total": len(teams)
     }
     
-    # TEMPORARY: Disable caching during debug
-    # cache.set(cache_key, result, cache.TTL_USER_LIST)
+    # Cache the result
+    cache.set(cache_key, result, cache.TTL_USER_LIST)
     
     return result
 
@@ -309,6 +311,8 @@ async def create_team(
     
     # Invalidate teams cache for the organization
     cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     return serialize_team(team)
 
@@ -533,6 +537,8 @@ async def update_team(
     
     # Invalidate teams cache for the organization
     cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     # Return the updated team data
     return serialize_team(team)
@@ -580,6 +586,8 @@ async def delete_team(
     
     # Invalidate teams cache for the organization
     cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
 
 
 @router.post("/{team_id}/activate")
@@ -611,6 +619,8 @@ async def activate_team(
     
     # Invalidate teams cache for the organization
     cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     return {"message": "Team activated successfully"}
 
@@ -679,6 +689,7 @@ async def add_team_state(
     db.add(team_state)
     db.commit()
     db.refresh(team_state)
+    cache.invalidate_team_cache(team.org_id)
     
     return serialize_team_state(team_state)
 
@@ -712,6 +723,7 @@ async def remove_team_state(
     
     db.delete(team_state)
     db.commit()
+    cache.invalidate_team_cache(team.org_id)
     
     return {"message": "State removed from team"}
 
@@ -780,6 +792,7 @@ async def add_team_product(
     db.add(team_product)
     db.commit()
     db.refresh(team_product)
+    cache.invalidate_team_cache(team.org_id)
     
     return serialize_team_product(team_product)
 
@@ -813,6 +826,7 @@ async def remove_team_product(
     
     db.delete(team_product)
     db.commit()
+    cache.invalidate_team_cache(team.org_id)
     
     return {"message": "Product removed from team"}
 
@@ -909,6 +923,9 @@ async def add_team_member(
         existing.modified_at = datetime.utcnow()
         db.commit()
         db.refresh(existing)
+        cache.invalidate_team_cache(team.org_id)
+        cache.invalidate_order_cache()
+        cache.invalidate_productivity_cache()
         return serialize_team_member(user, existing)
     
     # Create new membership
@@ -923,6 +940,9 @@ async def add_team_member(
     db.add(user_team)
     db.commit()
     db.refresh(user_team)
+    cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     return serialize_team_member(user, user_team)
 
@@ -968,6 +988,9 @@ async def remove_team_member(
     user_team.left_at = datetime.utcnow()
     user_team.modified_at = datetime.utcnow()
     db.commit()
+    cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     return {"message": "User removed from team"}
 
@@ -1023,6 +1046,9 @@ async def update_team_member_role(
     user_team.role = role
     user_team.modified_at = datetime.utcnow()
     db.commit()
+    cache.invalidate_team_cache(team.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
     
     return serialize_team_member(target_user, user_team)
 

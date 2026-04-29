@@ -331,12 +331,42 @@ async def list_orders(
     end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
     include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=10000, alias="pageSize"),
+    page_size: int = Query(1000, ge=1, le=100000, alias="pageSize"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """List orders with filtering based on role"""
     from sqlalchemy import or_
+    
+    # Build cache key based on user role and filters
+    cache_key = cache._build_key(
+        cache.PREFIX_ORDERS,
+        "list",
+        f"role:{current_user.user_role}",
+        f"user:{current_user.id}",
+        f"org:{org_id}" if org_id else None,
+        f"team:{team_id}" if team_id else None,
+        f"status:{order_status_id}" if order_status_id else None,
+        f"step1:{step1_user_id}" if step1_user_id else None,
+        f"step2:{step2_user_id}" if step2_user_id else None,
+        f"my:{my_orders}" if my_orders else None,
+        f"proc:{process_type_id}" if process_type_id else None,
+        f"div:{division_id}" if division_id else None,
+        f"bill:{billing_status}" if billing_status else None,
+        f"state:{state}" if state else None,
+        f"search:{search}" if search else None,
+        f"fa:{fa_name}" if fa_name else None,
+        f"start:{start_date}" if start_date else None,
+        f"end:{end_date}" if end_date else None,
+        f"del:{include_deleted}" if include_deleted else None,
+        f"page:{page}",
+        f"size:{page_size}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
     
     query = db.query(Order).options(
         joinedload(Order.transaction_type),
@@ -429,10 +459,15 @@ async def list_orders(
     offset = (page - 1) * page_size
     orders = query.order_by(Order.modified_at.desc(), Order.id.desc()).offset(offset).limit(page_size).all()
     
-    return {
+    result = {
         "items": [serialize_simple_order(o) for o in orders],
         "total": total
     }
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_SHORT)
+    
+    return result
 
 
 @router.get("/export")
@@ -452,7 +487,7 @@ async def export_orders(
     start_date: Optional[date] = Query(None, alias="startDate", description="Filter by entry date start"),
     end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
     include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
-    max_records: int = Query(10000, ge=1, le=50000, alias="maxRecords", description="Maximum records to export"),
+    max_records: int = Query(100000, ge=1, le=500000, alias="maxRecords", description="Maximum records to export"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -462,6 +497,35 @@ async def export_orders(
     in a single API call. Use the same filters as list_orders.
     """
     from sqlalchemy import or_
+    
+    # Build cache key based on filters
+    cache_key = cache._build_key(
+        cache.PREFIX_ORDERS,
+        "export",
+        f"role:{current_user.user_role}",
+        f"user:{current_user.id}",
+        f"org:{org_id}" if org_id else None,
+        f"team:{team_id}" if team_id else None,
+        f"status:{order_status_id}" if order_status_id else None,
+        f"step1:{step1_user_id}" if step1_user_id else None,
+        f"step2:{step2_user_id}" if step2_user_id else None,
+        f"my:{my_orders}" if my_orders else None,
+        f"proc:{process_type_id}" if process_type_id else None,
+        f"div:{division_id}" if division_id else None,
+        f"bill:{billing_status}" if billing_status else None,
+        f"state:{state}" if state else None,
+        f"search:{search}" if search else None,
+        f"fa:{fa_name}" if fa_name else None,
+        f"start:{start_date}" if start_date else None,
+        f"end:{end_date}" if end_date else None,
+        f"del:{include_deleted}" if include_deleted else None,
+        f"max:{max_records}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
     
     # Build query with all necessary joins for full details
     query = db.query(Order).options(
@@ -556,11 +620,16 @@ async def export_orders(
     orders = query.order_by(Order.entry_date.desc(), Order.id.desc()).limit(max_records).all()
     
     # Serialize with full details
-    return {
+    result = {
         "items": [serialize_order(o) for o in orders],
         "total": total,
         "exported": len(orders)
     }
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_MEDIUM)
+    
+    return result
 
 
 @router.get("/filter-options/states")
@@ -895,6 +964,9 @@ async def create_order(
         
         # Invalidate dashboard caches for this organization
         cache.invalidate_dashboard_cache(org_id=order_data.org_id)
+        cache.invalidate_order_cache()
+        cache.invalidate_productivity_cache()
+        cache.invalidate_billing_cache()
         
         # Reload with relationships
         order = db.query(Order).options(
@@ -965,6 +1037,9 @@ async def create_order(
     
     # Invalidate dashboard caches for this organization
     cache.invalidate_dashboard_cache(org_id=order_data.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
+    cache.invalidate_billing_cache()
     
     # Reload with relationships
     order = db.query(Order).options(
@@ -1365,6 +1440,9 @@ async def update_order(
     
     # Invalidate dashboard caches for this organization
     cache.invalidate_dashboard_cache(org_id=order.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
+    cache.invalidate_billing_cache()
     
     # Return with updated edit permissions
     order_dict = serialize_order(order)
@@ -1426,6 +1504,8 @@ async def bulk_update_billing_status(
     # Invalidate dashboard caches for affected organizations
     if updated_count > 0:
         cache.invalidate_dashboard_cache()  # Invalidate all dashboard caches since orders could be from different orgs
+        cache.invalidate_order_cache()
+        cache.invalidate_billing_cache()
     
     return {"message": f"Updated billing status for {updated_count} orders"}
 
@@ -1468,6 +1548,9 @@ async def delete_order(
     
     # Invalidate dashboard caches for this organization
     cache.invalidate_dashboard_cache(org_id=order.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
+    cache.invalidate_billing_cache()
 
 
 @router.post("/{order_id}/restore")
@@ -1502,6 +1585,9 @@ async def restore_order(
     
     # Invalidate dashboard caches for this organization
     cache.invalidate_dashboard_cache(org_id=order.org_id)
+    cache.invalidate_order_cache()
+    cache.invalidate_productivity_cache()
+    cache.invalidate_billing_cache()
     
     # Reload with relationships
     order = db.query(Order).options(

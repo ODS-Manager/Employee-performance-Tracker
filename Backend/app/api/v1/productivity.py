@@ -15,6 +15,7 @@ from app.database import get_db
 from app.core.dependencies import get_current_user, RoleChecker
 from app.models.user import User
 from app.services.productivity_service import ProductivityService
+from app.services.cache_service import cache
 
 router = APIRouter()
 
@@ -46,6 +47,21 @@ async def get_examiner_productivity(
     if current_user.user_role == 'examiner' and current_user.id != user_id:  # type: ignore
         raise HTTPException(status_code=403, detail="Can only view your own productivity")
     
+    # Build cache key
+    cache_key = cache._build_key(
+        cache.PREFIX_PRODUCTIVITY,
+        "examiner",
+        f"requester:{current_user.id}",
+        f"user:{user_id}",
+        f"start:{start_date}",
+        f"end:{end_date}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
     service = ProductivityService(db)
     result = service.calculate_examiner_score(
         user_id=user_id,
@@ -55,6 +71,9 @@ async def get_examiner_productivity(
     
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_SHORT)
     
     return result
 
@@ -107,6 +126,21 @@ async def get_team_productivity(
     
     Returns team summary and individual examiner scores.
     """
+    # Build cache key
+    cache_key = cache._build_key(
+        cache.PREFIX_PRODUCTIVITY,
+        "team",
+        f"requester:{current_user.id}",
+        f"team:{team_id}",
+        f"start:{start_date}",
+        f"end:{end_date}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
     service = ProductivityService(db)
     result = service.calculate_team_productivity(
         team_id=team_id,
@@ -116,6 +150,9 @@ async def get_team_productivity(
     
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_SHORT)
     
     return result
 
@@ -136,6 +173,23 @@ async def get_productivity_leaderboard(
     # For admin, default to their org
     if current_user.user_role == 'admin' and org_id is None:  # type: ignore
         org_id = current_user.org_id  # type: ignore
+
+    # Build cache key
+    cache_key = cache._build_key(
+        cache.PREFIX_PRODUCTIVITY,
+        "leaderboard",
+        f"requester:{current_user.id}",
+        f"org:{org_id}" if org_id else None,
+        f"team:{team_id}" if team_id else None,
+        f"start:{start_date}",
+        f"end:{end_date}",
+        f"limit:{limit}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
     
     service = ProductivityService(db)
     result = service.get_leaderboard(
@@ -146,7 +200,12 @@ async def get_productivity_leaderboard(
         limit=limit
     )
     
-    return {"items": result, "total": len(result)}
+    output = {"items": result, "total": len(result)}
+    
+    # Cache the result
+    cache.set(cache_key, output, ttl=cache.TTL_SHORT)
+    
+    return output
 
 
 @router.get("/admin-overview")
@@ -168,8 +227,26 @@ async def get_admin_productivity_overview(
     if current_user.user_role == 'admin' and org_id is None:  # type: ignore
         org_id = current_user.org_id  # type: ignore
 
+    # Build cache key
+    cache_key = cache._build_key(
+        cache.PREFIX_PRODUCTIVITY,
+        "admin_overview",
+        f"requester:{current_user.id}",
+        f"org:{org_id}" if org_id else None,
+        f"team:{team_id}" if team_id else None,
+        f"start:{start_date}",
+        f"end:{end_date}",
+        f"team_limit:{team_limit}",
+        f"leaderboard_limit:{leaderboard_limit}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
     service = ProductivityService(db)
-    return service.get_admin_overview(
+    result = service.get_admin_overview(
         org_id=org_id,
         team_id=team_id,
         start_date=start_date,
@@ -177,6 +254,11 @@ async def get_admin_productivity_overview(
         team_limit=team_limit,
         leaderboard_limit=leaderboard_limit,
     )
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_MEDIUM)
+    
+    return result
 
 
 @router.get("/my")
@@ -195,6 +277,20 @@ async def get_my_productivity(
     For team leads: Calculates scores from orders worked on,
     compared against their weekly target set by admin.
     """
+    # Build cache key - use current user ID
+    cache_key = cache._build_key(
+        cache.PREFIX_PRODUCTIVITY,
+        "my",
+        f"user:{current_user.id}",
+        f"start:{start_date}",
+        f"end:{end_date}"
+    )
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
     service = ProductivityService(db)
     
     # Check user role and call appropriate method
@@ -215,5 +311,8 @@ async def get_my_productivity(
     
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    
+    # Cache the result
+    cache.set(cache_key, result, ttl=cache.TTL_SHORT)
     
     return result
