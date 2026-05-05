@@ -680,18 +680,29 @@ export const TeamOrdersPage = () => {
                   <div className="mt-4 pt-4 border-t">
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-4">
                       {/* Date Range */}
-                      <div className="space-y-2">
-                        <Label htmlFor="startDate" className="text-xs font-medium text-slate-600">
-                          <CalendarIcon className="h-3 w-3 inline mr-1" />
-                          From Date
-                        </Label>
-                        <Popover>
+                      <Popover>
+                        <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="startDate" className="text-xs font-medium text-slate-600">
+                              From Date
+                            </Label>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-600"
+                                aria-label="Pick start date"
+                              >
+                                <CalendarIcon className="h-3 w-3" />
+                              </Button>
+                            </PopoverTrigger>
+                          </div>
                           <PopoverTrigger asChild>
                             <Button
                               id="startDate"
                               variant="outline"
                               className={cn(
-                                "h-9 w-full justify-start text-left font-normal",
+                                "h-9 w-full min-w-[220px] justify-start text-left font-normal",
                                 !startDate && "text-muted-foreground"
                               )}
                             >
@@ -710,21 +721,32 @@ export const TeamOrdersPage = () => {
                               initialFocus
                             />
                           </PopoverContent>
-                        </Popover>
-                      </div>
+                        </div>
+                      </Popover>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="endDate" className="text-xs font-medium text-slate-600">
-                          <CalendarIcon className="h-3 w-3 inline mr-1" />
-                          To Date
-                        </Label>
-                        <Popover>
+                      <Popover>
+                        <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="endDate" className="text-xs font-medium text-slate-600">
+                              To Date
+                            </Label>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-600"
+                                aria-label="Pick end date"
+                              >
+                                <CalendarIcon className="h-3 w-3" />
+                              </Button>
+                            </PopoverTrigger>
+                          </div>
                           <PopoverTrigger asChild>
                             <Button
                               id="endDate"
                               variant="outline"
                               className={cn(
-                                "h-9 w-full justify-start text-left font-normal",
+                                "h-9 w-full min-w-[220px] justify-start text-left font-normal",
                                 !endDate && "text-muted-foreground"
                               )}
                             >
@@ -744,8 +766,8 @@ export const TeamOrdersPage = () => {
                               initialFocus
                             />
                           </PopoverContent>
-                        </Popover>
-                      </div>
+                        </div>
+                      </Popover>
 
                       {/* Work Status Filter */}
                       <div className="space-y-2">

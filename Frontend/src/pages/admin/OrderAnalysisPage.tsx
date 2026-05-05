@@ -602,26 +602,26 @@ export const OrderAnalysisPage = () => {
             </div>
 
             {/* Row 2: Column-specific filters */}
-            <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
-              {/* Entry Date Range */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500 font-medium">Start Date</label>
-                <Input
-                  type="date"
-                  value={startDateFilter}
-                  onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500 font-medium">End Date</label>
-                <Input
-                  type="date"
-                  value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="h-9"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
+                {/* Entry Date Range */}
+                <div className="flex flex-col gap-1 md:col-span-2 lg:col-span-2">
+                  <label className="text-xs text-slate-500 font-medium">Start Date</label>
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2 lg:col-span-2">
+                  <label className="text-xs text-slate-500 font-medium">End Date</label>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
 
               {/* State Filter */}
               <div className="flex flex-col gap-1">
