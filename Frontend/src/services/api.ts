@@ -492,8 +492,24 @@ export const faNamesApi = {
 
 // ============ Orders API ============
 export const ordersApi = {
+  buildOrderParams: (params?: OrderFilterParams & { maxRecords?: number }) => {
+    if (!params) return undefined
+    const searchParams = new URLSearchParams()
+    const addParam = (key: string, value: unknown) => {
+      if (value === undefined || value === null || value === '') return
+      if (Array.isArray(value)) {
+        value.forEach((item) => addParam(key, item))
+        return
+      }
+      searchParams.append(key, String(value))
+    }
+    Object.entries(params).forEach(([key, value]) => addParam(key, value))
+    return searchParams
+  },
   list: async (params?: OrderFilterParams): Promise<OrderListResponse> => {
-    const response = await api.get('/orders', { params })
+    const response = await api.get('/orders', {
+      params: ordersApi.buildOrderParams(params) || params,
+    })
     return response.data
   },
 
@@ -504,7 +520,9 @@ export const ordersApi = {
 
   // Export orders with full details for Excel export
   export: async (params?: OrderFilterParams & { maxRecords?: number }): Promise<{ items: Order[], total: number, exported: number }> => {
-    const response = await api.get('/orders/export', { params })
+    const response = await api.get('/orders/export', {
+      params: ordersApi.buildOrderParams(params) || params,
+    })
     return response.data
   },
 

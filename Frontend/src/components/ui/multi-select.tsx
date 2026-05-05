@@ -10,8 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu"
 
+type MultiSelectOption = string | { value: string; label: string }
+
 interface MultiSelectProps {
-  options: string[]
+  options: MultiSelectOption[]
   selected: string[]
   onChange: (selected: string[]) => void
   placeholder?: string
@@ -30,6 +32,16 @@ export function MultiSelect({
   disabled = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+
+  const getOptionValue = (option: MultiSelectOption) =>
+    typeof option === 'string' ? option : option.value
+
+  const getOptionLabel = (option: MultiSelectOption) =>
+    typeof option === 'string' ? option : option.label
+
+  const labelMap = React.useMemo(() => {
+    return new Map(options.map((option) => [getOptionValue(option), getOptionLabel(option)]))
+  }, [options])
 
   const handleToggle = (option: string) => {
     if (selected.includes(option)) {
@@ -73,16 +85,16 @@ export function MultiSelect({
           align="start"
         >
            {options.map((option) => {
-            // Safety check: ensure option is a string, not an object
-            const displayValue = typeof option === 'string' ? option : (option?.name || option?.faName || String(option))
+            const optionValue = getOptionValue(option)
+            const optionLabel = getOptionLabel(option)
             return (
               <DropdownMenuCheckboxItem
-                key={displayValue}
-                checked={selected.includes(option)}
-                onCheckedChange={() => handleToggle(option)}
+                key={optionValue}
+                checked={selected.includes(optionValue)}
+                onCheckedChange={() => handleToggle(optionValue)}
                 onSelect={(e) => e.preventDefault()}
               >
-                {displayValue}
+                {optionLabel}
               </DropdownMenuCheckboxItem>
             )
           })}
@@ -93,11 +105,10 @@ export function MultiSelect({
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 p-2 border rounded-md bg-slate-50">
           {selected.slice(0, maxDisplayed).map((item) => {
-            // Safety check: ensure item is a string, not an object
-            const displayValue = typeof item === 'string' ? item : (item?.name || item?.faName || String(item))
+            const displayValue = labelMap.get(item) || item
             return (
               <Badge
-                key={displayValue}
+                key={item}
                 variant="secondary"
                 className="text-xs pr-1 gap-1"
               >

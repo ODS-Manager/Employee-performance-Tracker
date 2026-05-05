@@ -318,15 +318,21 @@ async def list_orders(
     org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
     team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team"),
     order_status_id: Optional[int] = Query(None, alias="orderStatusId", description="Filter by status"),
+    order_status_ids: Optional[List[int]] = Query(None, alias="orderStatusIds", description="Filter by multiple statuses"),
     step1_user_id: Optional[int] = Query(None, alias="step1UserId", description="Filter by step1 user"),
     step2_user_id: Optional[int] = Query(None, alias="step2UserId", description="Filter by step2 user"),
     my_orders: bool = Query(False, alias="myOrders", description="Filter orders where current user worked on step1 OR step2"),
     process_type_id: Optional[int] = Query(None, alias="processTypeId", description="Filter by process type"),
+    process_type_ids: Optional[List[int]] = Query(None, alias="processTypeIds", description="Filter by multiple process types"),
     division_id: Optional[int] = Query(None, alias="divisionId", description="Filter by division"),
+    division_ids: Optional[List[int]] = Query(None, alias="divisionIds", description="Filter by multiple divisions"),
     billing_status: Optional[str] = Query(None, alias="billingStatus", description="Filter by billing status"),
+    billing_statuses: Optional[List[str]] = Query(None, alias="billingStatuses", description="Filter by multiple billing statuses"),
     state: Optional[str] = Query(None, description="Filter by state"),
+    states: Optional[List[str]] = Query(None, description="Filter by multiple states"),
     search: Optional[str] = Query(None, alias="search", description="Search by file number, state, county, status, or product"),
     fa_name: Optional[str] = Query(None, alias="faName", description="Filter by FA name (step1 or step2)"),
+    fa_names: Optional[List[str]] = Query(None, alias="faNames", description="Filter by multiple FA names (step1 or step2)"),
     start_date: Optional[date] = Query(None, alias="startDate", description="Filter by entry date start"),
     end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
     include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
@@ -347,15 +353,21 @@ async def list_orders(
         f"org:{org_id}" if org_id else None,
         f"team:{team_id}" if team_id else None,
         f"status:{order_status_id}" if order_status_id else None,
+        f"statuses:{','.join(map(str, order_status_ids))}" if order_status_ids else None,
         f"step1:{step1_user_id}" if step1_user_id else None,
         f"step2:{step2_user_id}" if step2_user_id else None,
         f"my:{my_orders}" if my_orders else None,
         f"proc:{process_type_id}" if process_type_id else None,
+        f"procs:{','.join(map(str, process_type_ids))}" if process_type_ids else None,
         f"div:{division_id}" if division_id else None,
+        f"divs:{','.join(map(str, division_ids))}" if division_ids else None,
         f"bill:{billing_status}" if billing_status else None,
+        f"bills:{','.join(billing_statuses)}" if billing_statuses else None,
         f"state:{state}" if state else None,
+        f"states:{','.join(states)}" if states else None,
         f"search:{search}" if search else None,
         f"fa:{fa_name}" if fa_name else None,
+        f"fas:{','.join(fa_names)}" if fa_names else None,
         f"start:{start_date}" if start_date else None,
         f"end:{end_date}" if end_date else None,
         f"del:{include_deleted}" if include_deleted else None,
@@ -402,7 +414,9 @@ async def list_orders(
     # Apply additional filters
     if team_id:
         query = query.filter(Order.team_id == team_id)
-    if order_status_id:
+    if order_status_ids:
+        query = query.filter(Order.order_status_id.in_(order_status_ids))
+    elif order_status_id:
         query = query.filter(Order.order_status_id == order_status_id)
     
     # myOrders filter - show orders where user worked on step1 OR step2
@@ -420,13 +434,24 @@ async def list_orders(
         if step2_user_id:
             query = query.filter(Order.step2_user_id == step2_user_id)
     
-    if billing_status:
+    if billing_statuses:
+        query = query.filter(Order.billing_status.in_(billing_statuses))
+    elif billing_status:
         query = query.filter(Order.billing_status == billing_status)
-    if process_type_id:
+
+    if process_type_ids:
+        query = query.filter(Order.process_type_id.in_(process_type_ids))
+    elif process_type_id:
         query = query.filter(Order.process_type_id == process_type_id)
-    if division_id:
+
+    if division_ids:
+        query = query.filter(Order.division_id.in_(division_ids))
+    elif division_id:
         query = query.filter(Order.division_id == division_id)
-    if state:
+
+    if states:
+        query = query.filter(Order.state.in_([s.upper() for s in states]))
+    elif state:
         query = query.filter(Order.state == state.upper())
     if search:
         search_term = f"%{search.strip()}%"
@@ -439,7 +464,14 @@ async def list_orders(
                 Order.order_status.has(OrderStatusType.name.ilike(search_term))
             )
         )
-    if fa_name:
+    if fa_names:
+        query = query.filter(
+            or_(
+                Order.step1_fa_name.has(FAName.name.in_(fa_names)),
+                Order.step2_fa_name.has(FAName.name.in_(fa_names))
+            )
+        )
+    elif fa_name:
         # Filter by FA name string (either step1 or step2) via the fa_names relationship
         query = query.filter(
             or_(
@@ -475,15 +507,21 @@ async def export_orders(
     org_id: Optional[int] = Query(None, alias="orgId", description="Filter by organization"),
     team_id: Optional[int] = Query(None, alias="teamId", description="Filter by team"),
     order_status_id: Optional[int] = Query(None, alias="orderStatusId", description="Filter by status"),
+    order_status_ids: Optional[List[int]] = Query(None, alias="orderStatusIds", description="Filter by multiple statuses"),
     step1_user_id: Optional[int] = Query(None, alias="step1UserId", description="Filter by step1 user"),
     step2_user_id: Optional[int] = Query(None, alias="step2UserId", description="Filter by step2 user"),
     my_orders: bool = Query(False, alias="myOrders", description="Filter orders where current user worked on step1 OR step2"),
     process_type_id: Optional[int] = Query(None, alias="processTypeId", description="Filter by process type"),
+    process_type_ids: Optional[List[int]] = Query(None, alias="processTypeIds", description="Filter by multiple process types"),
     division_id: Optional[int] = Query(None, alias="divisionId", description="Filter by division"),
+    division_ids: Optional[List[int]] = Query(None, alias="divisionIds", description="Filter by multiple divisions"),
     billing_status: Optional[str] = Query(None, alias="billingStatus", description="Filter by billing status"),
+    billing_statuses: Optional[List[str]] = Query(None, alias="billingStatuses", description="Filter by multiple billing statuses"),
     state: Optional[str] = Query(None, description="Filter by state"),
+    states: Optional[List[str]] = Query(None, description="Filter by multiple states"),
     search: Optional[str] = Query(None, alias="search", description="Search by file number, state, county, status, or product"),
     fa_name: Optional[str] = Query(None, alias="faName", description="Filter by FA name (step1 or step2)"),
+    fa_names: Optional[List[str]] = Query(None, alias="faNames", description="Filter by multiple FA names (step1 or step2)"),
     start_date: Optional[date] = Query(None, alias="startDate", description="Filter by entry date start"),
     end_date: Optional[date] = Query(None, alias="endDate", description="Filter by entry date end"),
     include_deleted: bool = Query(False, alias="includeDeleted", description="Include soft-deleted orders"),
@@ -507,15 +545,21 @@ async def export_orders(
         f"org:{org_id}" if org_id else None,
         f"team:{team_id}" if team_id else None,
         f"status:{order_status_id}" if order_status_id else None,
+        f"statuses:{','.join(map(str, order_status_ids))}" if order_status_ids else None,
         f"step1:{step1_user_id}" if step1_user_id else None,
         f"step2:{step2_user_id}" if step2_user_id else None,
         f"my:{my_orders}" if my_orders else None,
         f"proc:{process_type_id}" if process_type_id else None,
+        f"procs:{','.join(map(str, process_type_ids))}" if process_type_ids else None,
         f"div:{division_id}" if division_id else None,
+        f"divs:{','.join(map(str, division_ids))}" if division_ids else None,
         f"bill:{billing_status}" if billing_status else None,
+        f"bills:{','.join(billing_statuses)}" if billing_statuses else None,
         f"state:{state}" if state else None,
+        f"states:{','.join(states)}" if states else None,
         f"search:{search}" if search else None,
         f"fa:{fa_name}" if fa_name else None,
+        f"fas:{','.join(fa_names)}" if fa_names else None,
         f"start:{start_date}" if start_date else None,
         f"end:{end_date}" if end_date else None,
         f"del:{include_deleted}" if include_deleted else None,
@@ -565,7 +609,9 @@ async def export_orders(
     # Apply additional filters
     if team_id:
         query = query.filter(Order.team_id == team_id)
-    if order_status_id:
+    if order_status_ids:
+        query = query.filter(Order.order_status_id.in_(order_status_ids))
+    elif order_status_id:
         query = query.filter(Order.order_status_id == order_status_id)
     
     # myOrders filter
@@ -582,13 +628,24 @@ async def export_orders(
         if step2_user_id:
             query = query.filter(Order.step2_user_id == step2_user_id)
     
-    if billing_status:
+    if billing_statuses:
+        query = query.filter(Order.billing_status.in_(billing_statuses))
+    elif billing_status:
         query = query.filter(Order.billing_status == billing_status)
-    if process_type_id:
+
+    if process_type_ids:
+        query = query.filter(Order.process_type_id.in_(process_type_ids))
+    elif process_type_id:
         query = query.filter(Order.process_type_id == process_type_id)
-    if division_id:
+
+    if division_ids:
+        query = query.filter(Order.division_id.in_(division_ids))
+    elif division_id:
         query = query.filter(Order.division_id == division_id)
-    if state:
+
+    if states:
+        query = query.filter(Order.state.in_([s.upper() for s in states]))
+    elif state:
         query = query.filter(Order.state == state.upper())
     if search:
         search_term = f"%{search.strip()}%"
@@ -601,7 +658,14 @@ async def export_orders(
                 Order.order_status.has(OrderStatusType.name.ilike(search_term))
             )
         )
-    if fa_name:
+    if fa_names:
+        query = query.filter(
+            or_(
+                Order.step1_fa_name.has(FAName.name.in_(fa_names)),
+                Order.step2_fa_name.has(FAName.name.in_(fa_names))
+            )
+        )
+    elif fa_name:
         query = query.filter(
             or_(
                 Order.step1_fa_name.has(FAName.name == fa_name),

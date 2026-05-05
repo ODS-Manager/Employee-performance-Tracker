@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select'
+import { MultiSelect } from '../../components/ui/multi-select'
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -75,15 +76,15 @@ export const TeamOrdersPage = () => {
   const [deleting, setDeleting] = useState(false)
   
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [billingFilter, setBillingFilter] = useState<string>('all')
-  const [stateFilter, setStateFilter] = useState<string>('all')
-  const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
-  const [productionTypeFilter, setProductionTypeFilter] = useState<string>('all')
-  const [processTypeFilter, setProcessTypeFilter] = useState<string>('all')
-  const [divisionFilter, setDivisionFilter] = useState<string>('all')
-  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all')
-  const [faNameFilter, setFaNameFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [billingFilter, setBillingFilter] = useState<string[]>([])
+  const [stateFilter, setStateFilter] = useState<string[]>([])
+  const [productTypeFilter, setProductTypeFilter] = useState<string[]>([])
+  const [productionTypeFilter, setProductionTypeFilter] = useState<string[]>([])
+  const [processTypeFilter, setProcessTypeFilter] = useState<string[]>([])
+  const [divisionFilter, setDivisionFilter] = useState<string[]>([])
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string[]>([])
+  const [faNameFilter, setFaNameFilter] = useState<string[]>([])
   
   // Date range - derived from global filters, with optional local overrides
   const [startDateOverride, setStartDateOverride] = useState<string>('')
@@ -182,17 +183,32 @@ export const TeamOrdersPage = () => {
 
   // Fetch team orders
   const { data: ordersData, isLoading: loadingOrders, refetch: refetchOrders } = useQuery({
-    queryKey: ['orders', 'team', teamId, startDate, endDate, statusFilter, billingFilter, stateFilter, processTypeFilter, divisionFilter, orderStatusFilter, faNameFilter],
+    queryKey: [
+      'orders',
+      'team',
+      teamId,
+      startDate,
+      endDate,
+      statusFilter,
+      billingFilter,
+      stateFilter,
+      processTypeFilter,
+      divisionFilter,
+      orderStatusFilter,
+      faNameFilter,
+      productTypeFilter,
+      productionTypeFilter,
+    ],
     queryFn: () => ordersApi.list({
       teamId: teamId!,
       startDate,
       endDate,
-      billingStatus: billingFilter !== 'all' ? (billingFilter as 'pending' | 'done') : undefined,
-      state: stateFilter !== 'all' ? stateFilter : undefined,
-      processTypeId: processTypeFilter !== 'all' ? parseInt(processTypeFilter) : undefined,
-      divisionId: divisionFilter !== 'all' ? parseInt(divisionFilter) : undefined,
-      orderStatusId: orderStatusFilter !== 'all' ? parseInt(orderStatusFilter) : undefined,
-      faName: faNameFilter !== 'all' ? faNameFilter : undefined,
+      billingStatuses: billingFilter.length ? (billingFilter as Array<'pending' | 'done'>) : undefined,
+      states: stateFilter.length ? stateFilter : undefined,
+      processTypeIds: processTypeFilter.length ? processTypeFilter.map(id => parseInt(id)) : undefined,
+      divisionIds: divisionFilter.length ? divisionFilter.map(id => parseInt(id)) : undefined,
+      orderStatusIds: orderStatusFilter.length ? orderStatusFilter.map(id => parseInt(id)) : undefined,
+      faNames: faNameFilter.length ? faNameFilter : undefined,
       pageSize: 10000, // Increased to fetch more orders
     }),
     enabled: !!teamId,
@@ -200,24 +216,22 @@ export const TeamOrdersPage = () => {
 
   const orders = ordersData?.items || []
 
+  const getWorkStatus = (order: OrderSimple) => {
+    if (order.step1UserId && order.step2UserId) return 'completed'
+    if (order.step1UserId || order.step2UserId) return 'in_progress'
+    return 'pending'
+  }
+
   // Filter orders based on work status (completed/in-progress/pending based on step assignments)
   const filteredOrders = orders.filter(order => {
     // Work Status filter
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'completed') {
-        if (!order.step1UserId || !order.step2UserId) return false
-      } else if (statusFilter === 'in_progress') {
-        if ((order.step1UserId && order.step2UserId) || (!order.step1UserId && !order.step2UserId)) return false
-      } else if (statusFilter === 'pending') {
-        if (order.step1UserId || order.step2UserId) return false
-      }
-    }
+    if (statusFilter.length > 0 && !statusFilter.includes(getWorkStatus(order))) return false
     
     // Product Type filter
-    if (productTypeFilter !== 'all' && order.productType !== productTypeFilter) return false
+    if (productTypeFilter.length > 0 && !productTypeFilter.includes(order.productType)) return false
     
     // Production Type filter
-    if (productionTypeFilter !== 'all' && order.productionType !== productionTypeFilter) return false
+    if (productionTypeFilter.length > 0 && !productionTypeFilter.includes(order.productionType)) return false
     
     return true
   })
@@ -271,15 +285,15 @@ export const TeamOrdersPage = () => {
 
   // Reset all filters
   const resetFilters = () => {
-    setStatusFilter('all')
-    setBillingFilter('all')
-    setStateFilter('all')
-    setProductTypeFilter('all')
-    setProductionTypeFilter('all')
-    setProcessTypeFilter('all')
-    setDivisionFilter('all')
-    setOrderStatusFilter('all')
-    setFaNameFilter('all')
+    setStatusFilter([])
+    setBillingFilter([])
+    setStateFilter([])
+    setProductTypeFilter([])
+    setProductionTypeFilter([])
+    setProcessTypeFilter([])
+    setDivisionFilter([])
+    setOrderStatusFilter([])
+    setFaNameFilter([])
     setStartDateOverride('')
     setEndDateOverride('')
   }
@@ -299,35 +313,37 @@ export const TeamOrdersPage = () => {
         teamId: teamId!,
         startDate,
         endDate,
-        billingStatus: billingFilter !== 'all' ? (billingFilter as 'pending' | 'done') : undefined,
-        state: stateFilter !== 'all' ? stateFilter : undefined,
-        processTypeId: processTypeFilter !== 'all' ? parseInt(processTypeFilter) : undefined,
-        divisionId: divisionFilter !== 'all' ? parseInt(divisionFilter) : undefined,
-        orderStatusId: orderStatusFilter !== 'all' ? parseInt(orderStatusFilter) : undefined,
-        faName: faNameFilter !== 'all' ? faNameFilter : undefined,
+        billingStatuses: billingFilter.length ? (billingFilter as Array<'pending' | 'done'>) : undefined,
+        states: stateFilter.length ? stateFilter : undefined,
+        processTypeIds: processTypeFilter.length ? processTypeFilter.map(id => parseInt(id)) : undefined,
+        divisionIds: divisionFilter.length ? divisionFilter.map(id => parseInt(id)) : undefined,
+        orderStatusIds: orderStatusFilter.length ? orderStatusFilter.map(id => parseInt(id)) : undefined,
+        faNames: faNameFilter.length ? faNameFilter : undefined,
         maxRecords: 50000,
       })
 
       let fullOrders = exportResult.items
 
       // Apply client-side filters
-      if (statusFilter !== 'all') {
+      if (statusFilter.length > 0) {
         fullOrders = fullOrders.filter(order => {
-          if (statusFilter === 'completed') return order.step1?.userId && order.step2?.userId
-          if (statusFilter === 'in_progress') return (order.step1?.userId && !order.step2?.userId) || (!order.step1?.userId && order.step2?.userId)
-          if (statusFilter === 'pending') return !order.step1?.userId && !order.step2?.userId
-          return true
+          const workStatus = order.step1?.userId && order.step2?.userId
+            ? 'completed'
+            : (order.step1?.userId || order.step2?.userId)
+              ? 'in_progress'
+              : 'pending'
+          return statusFilter.includes(workStatus)
         })
       }
       
       // Apply product type filter
-      if (productTypeFilter !== 'all') {
-        fullOrders = fullOrders.filter(order => order.productType === productTypeFilter)
+      if (productTypeFilter.length > 0) {
+        fullOrders = fullOrders.filter(order => productTypeFilter.includes(order.productType))
       }
       
       // Apply production type filter
-      if (productionTypeFilter !== 'all') {
-        fullOrders = fullOrders.filter(order => order.productionType === productionTypeFilter)
+      if (productionTypeFilter.length > 0) {
+        fullOrders = fullOrders.filter(order => productionTypeFilter.includes(order.productionType))
       }
 
       if (fullOrders.length === 0) {
@@ -434,15 +450,15 @@ export const TeamOrdersPage = () => {
 
   // Count active filters
   const activeFilterCount = [
-    statusFilter !== 'all',
-    billingFilter !== 'all',
-    stateFilter !== 'all',
-    productTypeFilter !== 'all',
-    productionTypeFilter !== 'all',
-    processTypeFilter !== 'all',
-    divisionFilter !== 'all',
-    orderStatusFilter !== 'all',
-    faNameFilter !== 'all',
+    statusFilter.length > 0,
+    billingFilter.length > 0,
+    stateFilter.length > 0,
+    productTypeFilter.length > 0,
+    productionTypeFilter.length > 0,
+    processTypeFilter.length > 0,
+    divisionFilter.length > 0,
+    orderStatusFilter.length > 0,
+    faNameFilter.length > 0,
   ].filter(Boolean).length
 
   return (
@@ -679,6 +695,7 @@ export const TeamOrdersPage = () => {
                         <Input
                           id="endDate"
                           type="date"
+                          min={startDateOverride || startDate}
                           value={endDate}
                           onChange={(e) => setEndDateOverride(e.target.value)}
                           className="h-9"
@@ -688,159 +705,124 @@ export const TeamOrdersPage = () => {
                       {/* Work Status Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Work Status</Label>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={[
+                            { value: 'completed', label: 'Completed' },
+                            { value: 'in_progress', label: 'In Progress' },
+                            { value: 'pending', label: 'Pending' },
+                          ]}
+                          selected={statusFilter}
+                          onChange={setStatusFilter}
+                          placeholder="All Status"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Billing Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Billing Status</Label>
-                        <Select value={billingFilter} onValueChange={setBillingFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Billing Statuses" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Billing Statuses</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="done">Done</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={[
+                            { value: 'pending', label: 'Pending' },
+                            { value: 'done', label: 'Done' },
+                          ]}
+                          selected={billingFilter}
+                          onChange={setBillingFilter}
+                          placeholder="All Billing Statuses"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* State Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">State</Label>
-                        <Select value={stateFilter} onValueChange={setStateFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All States" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All States</SelectItem>
-                            {availableStates.map((stateObj) => (
-                              <SelectItem key={stateObj.id} value={stateObj.state}>
-                                {stateObj.state}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={availableStates.map((stateObj) => stateObj.state)}
+                          selected={stateFilter}
+                          onChange={setStateFilter}
+                          placeholder="All States"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Product Type Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Product</Label>
-                        <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Products" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Products</SelectItem>
-                            {productOptions.map((productType) => (
-                              <SelectItem key={productType} value={productType}>
-                                {productType}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={productOptions}
+                          selected={productTypeFilter}
+                          onChange={setProductTypeFilter}
+                          placeholder="All Products"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Production Type Filter (Regular/OT) */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Production Type</Label>
-                        <Select value={productionTypeFilter} onValueChange={setProductionTypeFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Types" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="regular">Regular</SelectItem>
-                            <SelectItem value="OT">OT</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={[
+                            { value: 'regular', label: 'Regular' },
+                            { value: 'OT', label: 'OT' },
+                          ]}
+                          selected={productionTypeFilter}
+                          onChange={setProductionTypeFilter}
+                          placeholder="All Types"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Process Type Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Process Type</Label>
-                        <Select value={processTypeFilter} onValueChange={setProcessTypeFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Process Types" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Process Types</SelectItem>
-                            {processTypes.filter(pt => pt.isActive !== false).map((pt) => (
-                              <SelectItem key={pt.id} value={pt.id.toString()}>
-                                {pt.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={processTypes
+                            .filter(pt => pt.isActive !== false)
+                            .map(pt => ({ value: pt.id.toString(), label: pt.name }))}
+                          selected={processTypeFilter}
+                          onChange={setProcessTypeFilter}
+                          placeholder="All Process Types"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Division Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Division</Label>
-                        <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Divisions" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Divisions</SelectItem>
-                            {divisions.map((div) => (
-                              <SelectItem key={div.id} value={div.id.toString()}>
-                                {div.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={divisions.map(div => ({ value: div.id.toString(), label: div.name }))}
+                          selected={divisionFilter}
+                          onChange={setDivisionFilter}
+                          placeholder="All Divisions"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* Order Status Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">Order Status</Label>
-                        <Select value={orderStatusFilter} onValueChange={setOrderStatusFilter}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Order Statuses" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Order Statuses</SelectItem>
-                            {orderStatuses.filter(os => os.isActive !== false).map((os) => (
-                              <SelectItem key={os.id} value={os.id.toString()}>
-                                {os.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiSelect
+                          options={orderStatuses
+                            .filter(os => os.isActive !== false)
+                            .map(os => ({ value: os.id.toString(), label: os.name }))}
+                          selected={orderStatusFilter}
+                          onChange={setOrderStatusFilter}
+                          placeholder="All Order Statuses"
+                          className="w-full"
+                        />
                       </div>
 
                       {/* FA Name Filter */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-slate-600">FA Name</Label>
-                        <Select 
-                          value={faNameFilter} 
-                          onValueChange={setFaNameFilter}
+                        <MultiSelect
+                          options={faNames.map((fn) => fn.faName)}
+                          selected={faNameFilter}
+                          onChange={setFaNameFilter}
+                          placeholder="All FA Names"
+                          className="w-full"
                           disabled={faNamesLoading}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All FA Names" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All FA Names</SelectItem>
-                            {faNames.map((fn) => (
-                              <SelectItem key={fn.id} value={fn.faName}>
-                                {fn.faName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                       </div>
                     </div>
                   </div>

@@ -453,6 +453,12 @@ export interface OrderFilterParams {
   orderStatusId?: number
   processTypeId?: number
   divisionId?: number
+  orderStatusIds?: number[]
+  processTypeIds?: number[]
+  divisionIds?: number[]
+  billingStatuses?: Array<'pending' | 'done'>
+  states?: string[]
+  faNames?: string[]  // Filter by FA name (step1 or step2)
   step1UserId?: number
   step2UserId?: number
   myOrders?: boolean  // Filter orders where current user worked on step1 OR step2

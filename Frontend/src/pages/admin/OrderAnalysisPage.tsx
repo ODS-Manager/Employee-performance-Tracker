@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
+import { MultiSelect } from '../../components/ui/multi-select'
 import { 
   TrendingUp, 
   Clock, 
@@ -57,14 +58,14 @@ export const OrderAnalysisPage = () => {
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
-  const [selectedStatusId, setSelectedStatusId] = useState<string>('')
-  const [billingStatusFilter, setBillingStatusFilter] = useState<string>('')
-  const [stateFilter, setStateFilter] = useState<string>('')
-  const [productFilter, setProductFilter] = useState<string>('')
-  const [productionTypeFilter, setProductionTypeFilter] = useState<string>('')
-  const [processTypeFilter, setProcessTypeFilter] = useState<string>('')
-  const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('')
-  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('')
+  const [selectedStatusIds, setSelectedStatusIds] = useState<string[]>([])
+  const [billingStatusFilter, setBillingStatusFilter] = useState<string[]>([])
+  const [stateFilter, setStateFilter] = useState<string[]>([])
+  const [productFilter, setProductFilter] = useState<string[]>([])
+  const [productionTypeFilter, setProductionTypeFilter] = useState<string[]>([])
+  const [processTypeFilter, setProcessTypeFilter] = useState<string[]>([])
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<string[]>([])
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string[]>([])
   const [startDateFilter, setStartDateFilter] = useState<string>('')
   const [endDateFilter, setEndDateFilter] = useState<string>('')
   
@@ -101,14 +102,29 @@ export const OrderAnalysisPage = () => {
 
   // Fetch orders
   const { data: ordersData, isLoading: loadingOrders, refetch: refetchOrders } = useQuery({
-    queryKey: ['orders', page, searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, effectiveStartDate, effectiveEndDate, filterMonth, filterYear, user?.orgId],
+    queryKey: [
+      'orders',
+      page,
+      searchQuery,
+      selectedTeamId,
+      selectedStatusIds,
+      billingStatusFilter,
+      stateFilter,
+      effectiveStartDate,
+      effectiveEndDate,
+      filterMonth,
+      filterYear,
+      user?.orgId,
+    ],
     queryFn: () => ordersApi.list({
       orgId: user?.orgId || undefined,
       search: searchQuery || undefined,
       teamId: selectedTeamId ? parseInt(selectedTeamId) : undefined,
-      orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
-      billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
-      state: stateFilter || undefined,
+      orderStatusIds: selectedStatusIds.length ? selectedStatusIds.map(id => parseInt(id)) : undefined,
+      billingStatuses: billingStatusFilter.length
+        ? (billingStatusFilter as Array<'pending' | 'done'>)
+        : undefined,
+      states: stateFilter.length ? stateFilter : undefined,
       startDate: effectiveStartDate,
       endDate: effectiveEndDate,
       page,
@@ -118,14 +134,29 @@ export const OrderAnalysisPage = () => {
 
   // Fetch ALL orders for stats calculation (no pagination)
   const { data: allOrdersData } = useQuery({
-    queryKey: ['orders', 'all-for-stats', searchQuery, selectedTeamId, selectedStatusId, billingStatusFilter, stateFilter, effectiveStartDate, effectiveEndDate, filterMonth, filterYear, user?.orgId],
+    queryKey: [
+      'orders',
+      'all-for-stats',
+      searchQuery,
+      selectedTeamId,
+      selectedStatusIds,
+      billingStatusFilter,
+      stateFilter,
+      effectiveStartDate,
+      effectiveEndDate,
+      filterMonth,
+      filterYear,
+      user?.orgId,
+    ],
     queryFn: () => ordersApi.list({
       orgId: user?.orgId || undefined,
       search: searchQuery || undefined,
       teamId: selectedTeamId ? parseInt(selectedTeamId) : undefined,
-      orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
-      billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
-      state: stateFilter || undefined,
+      orderStatusIds: selectedStatusIds.length ? selectedStatusIds.map(id => parseInt(id)) : undefined,
+      billingStatuses: billingStatusFilter.length
+        ? (billingStatusFilter as Array<'pending' | 'done'>)
+        : undefined,
+      states: stateFilter.length ? stateFilter : undefined,
       startDate: effectiveStartDate,
       endDate: effectiveEndDate,
       page: 1,
@@ -216,7 +247,7 @@ export const OrderAnalysisPage = () => {
   }, [
     searchQuery,
     selectedTeamId,
-    selectedStatusId,
+    selectedStatusIds,
     billingStatusFilter,
     stateFilter,
     startDateFilter,
@@ -233,19 +264,19 @@ export const OrderAnalysisPage = () => {
   // Filter orders by client-side filters only (server-side filters already applied)
   const filteredOrders = orders.filter(order => {
     // Product filter (client-side)
-    if (productFilter && order.productType !== productFilter) return false
+    if (productFilter.length > 0 && !productFilter.includes(order.productType)) return false
     
     // Production Type filter (client-side)
-    if (productionTypeFilter && order.productionType !== productionTypeFilter) return false
+    if (productionTypeFilter.length > 0 && !productionTypeFilter.includes(order.productionType)) return false
     
     // Process Type filter (client-side)
-    if (processTypeFilter && order.processTypeName !== processTypeFilter) return false
+    if (processTypeFilter.length > 0 && !processTypeFilter.includes(order.processTypeName || '')) return false
     
     // Transaction Type filter (client-side)
-    if (transactionTypeFilter && order.transactionTypeName !== transactionTypeFilter) return false
+    if (transactionTypeFilter.length > 0 && !transactionTypeFilter.includes(order.transactionTypeName || '')) return false
     
     // Property Type filter (client-side)
-    if (propertyTypeFilter && order.propertyTypeName !== propertyTypeFilter) return false
+    if (propertyTypeFilter.length > 0 && !propertyTypeFilter.includes(order.propertyTypeName || '')) return false
     
     return true
   })
@@ -253,19 +284,19 @@ export const OrderAnalysisPage = () => {
   // Filter ALL orders for stats calculation (client-side filters only)
   const allFilteredOrders = allOrders.filter(order => {
     // Product filter (client-side)
-    if (productFilter && order.productType !== productFilter) return false
+    if (productFilter.length > 0 && !productFilter.includes(order.productType)) return false
     
     // Production Type filter (client-side)
-    if (productionTypeFilter && order.productionType !== productionTypeFilter) return false
+    if (productionTypeFilter.length > 0 && !productionTypeFilter.includes(order.productionType)) return false
     
     // Process Type filter (client-side)
-    if (processTypeFilter && order.processTypeName !== processTypeFilter) return false
+    if (processTypeFilter.length > 0 && !processTypeFilter.includes(order.processTypeName || '')) return false
     
     // Transaction Type filter (client-side)
-    if (transactionTypeFilter && order.transactionTypeName !== transactionTypeFilter) return false
+    if (transactionTypeFilter.length > 0 && !transactionTypeFilter.includes(order.transactionTypeName || '')) return false
     
     // Property Type filter (client-side)
-    if (propertyTypeFilter && order.propertyTypeName !== propertyTypeFilter) return false
+    if (propertyTypeFilter.length > 0 && !propertyTypeFilter.includes(order.propertyTypeName || '')) return false
     
     return true
   })
@@ -351,9 +382,11 @@ export const OrderAnalysisPage = () => {
         orgId: user?.orgId || undefined,
         search: searchQuery || undefined,
         teamId: selectedTeamId ? parseInt(selectedTeamId) : undefined,
-        orderStatusId: selectedStatusId ? parseInt(selectedStatusId) : undefined,
-        billingStatus: billingStatusFilter as 'pending' | 'done' | undefined,
-        state: stateFilter || undefined,
+        orderStatusIds: selectedStatusIds.length ? selectedStatusIds.map(id => parseInt(id)) : undefined,
+        billingStatuses: billingStatusFilter.length
+          ? (billingStatusFilter as Array<'pending' | 'done'>)
+          : undefined,
+        states: stateFilter.length ? stateFilter : undefined,
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
         maxRecords: 50000,
@@ -362,17 +395,17 @@ export const OrderAnalysisPage = () => {
       let fullOrders = exportResult.items
 
       // Apply client-side filters (product, production type, process type, transaction type)
-      if (productFilter) {
-        fullOrders = fullOrders.filter(o => o.productType === productFilter)
+      if (productFilter.length > 0) {
+        fullOrders = fullOrders.filter(o => productFilter.includes(o.productType))
       }
-      if (productionTypeFilter) {
-        fullOrders = fullOrders.filter(o => o.productionType === productionTypeFilter)
+      if (productionTypeFilter.length > 0) {
+        fullOrders = fullOrders.filter(o => productionTypeFilter.includes(o.productionType))
       }
-      if (processTypeFilter) {
-        fullOrders = fullOrders.filter(o => o.processType?.name === processTypeFilter)
+      if (processTypeFilter.length > 0) {
+        fullOrders = fullOrders.filter(o => processTypeFilter.includes(o.processType?.name || ''))
       }
-      if (transactionTypeFilter) {
-        fullOrders = fullOrders.filter(o => o.transactionType?.name === transactionTypeFilter)
+      if (transactionTypeFilter.length > 0) {
+        fullOrders = fullOrders.filter(o => transactionTypeFilter.includes(o.transactionType?.name || ''))
       }
 
       if (fullOrders.length === 0) {
@@ -388,6 +421,7 @@ export const OrderAnalysisPage = () => {
           'Order': order.fileNumber,
           'Product Type': order.productType || '-',
           'Production Type': order.productionType || 'regular',
+          'Process Type': order.processType?.name || '-',
           'Transaction Type': order.transactionType?.name || '-',
           'State': order.state,
           'Order Status': order.orderStatus?.name || '-',
@@ -412,6 +446,7 @@ export const OrderAnalysisPage = () => {
         { wch: 15 }, // Order
         { wch: 20 }, // Product Type
         { wch: 14 }, // Production Type
+        { wch: 18 }, // Process Type
         { wch: 18 }, // Transaction Type
         { wch: 10 }, // State
         { wch: 15 }, // Order Status
@@ -542,30 +577,26 @@ export const OrderAnalysisPage = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedStatusId || 'all'} onValueChange={(val) => setSelectedStatusId(val === 'all' ? '' : val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {orderStatuses?.filter(s => s.isActive !== false).map(status => (
-                    <SelectItem key={status.id} value={status.id.toString()}>
-                      {status.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <MultiSelect
+              options={(orderStatuses || [])
+                .filter(s => s.isActive !== false)
+                .map(status => ({ value: status.id.toString(), label: status.name }))}
+              selected={selectedStatusIds}
+              onChange={setSelectedStatusIds}
+              placeholder="All Status"
+              className="w-full"
+            />
 
-              <Select value={billingStatusFilter || 'all'} onValueChange={(val) => setBillingStatusFilter(val === 'all' ? '' : val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Billing Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Billing Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
-                </SelectContent>
-              </Select>
+            <MultiSelect
+              options={[
+                { value: 'pending', label: 'Pending' },
+                { value: 'done', label: 'Done' },
+              ]}
+              selected={billingStatusFilter}
+              onChange={setBillingStatusFilter}
+              placeholder="Billing Status"
+              className="w-full"
+            />
             </div>
 
             {/* Row 2: Column-specific filters */}
@@ -593,111 +624,87 @@ export const OrderAnalysisPage = () => {
               {/* State Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">State</label>
-                <Select value={stateFilter || 'all'} onValueChange={(val) => setStateFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All States" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All States</SelectItem>
-                    {availableStates?.map(state => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={availableStates || []}
+                  selected={stateFilter}
+                  onChange={setStateFilter}
+                  placeholder="All States"
+                  className="w-full"
+                />
               </div>
 
               {/* Product Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Product</label>
-                <Select value={productFilter || 'all'} onValueChange={(val) => setProductFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Products" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Products</SelectItem>
-                    {availableProducts?.map(product => (
-                      <SelectItem key={product} value={product}>
-                        {product}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={availableProducts || []}
+                  selected={productFilter}
+                  onChange={setProductFilter}
+                  placeholder="All Products"
+                  className="w-full"
+                />
               </div>
 
               {/* Production Type Filter (Regular/OT) */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Production Type</label>
-                <Select value={productionTypeFilter || 'all'} onValueChange={(val) => setProductionTypeFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="regular">Regular</SelectItem>
-                    <SelectItem value="OT">OT</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={[
+                    { value: 'regular', label: 'Regular' },
+                    { value: 'OT', label: 'OT' },
+                  ]}
+                  selected={productionTypeFilter}
+                  onChange={setProductionTypeFilter}
+                  placeholder="All Types"
+                  className="w-full"
+                />
               </div>
 
               {/* Property Type Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Property Type</label>
-                <Select value={propertyTypeFilter || 'all'} onValueChange={(val) => setPropertyTypeFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Property Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Property Types</SelectItem>
-                    {propertyTypes?.filter(p => p.isActive !== false).map(propType => (
-                      <SelectItem key={propType.id} value={propType.name}>
-                        {propType.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={(propertyTypes || [])
+                    .filter(p => p.isActive !== false)
+                    .map(propType => ({ value: propType.name, label: propType.name }))}
+                  selected={propertyTypeFilter}
+                  onChange={setPropertyTypeFilter}
+                  placeholder="All Property Types"
+                  className="w-full"
+                />
               </div>
 
               {/* Transaction Type Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Transaction Type</label>
-                <Select value={transactionTypeFilter || 'all'} onValueChange={(val) => setTransactionTypeFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {transactionTypes?.filter(t => t.isActive !== false).map(type => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={(transactionTypes || [])
+                    .filter(t => t.isActive !== false)
+                    .map(type => ({ value: type.name, label: type.name }))}
+                  selected={transactionTypeFilter}
+                  onChange={setTransactionTypeFilter}
+                  placeholder="All Types"
+                  className="w-full"
+                />
               </div>
 
               {/* Process Type Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 font-medium">Process</label>
-                <Select value={processTypeFilter || 'all'} onValueChange={(val) => setProcessTypeFilter(val === 'all' ? '' : val)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Process Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Process Types</SelectItem>
-                    {processTypes?.filter(p => p.isActive !== false).map(process => (
-                      <SelectItem key={process.id} value={process.name}>
-                        {process.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={(processTypes || [])
+                    .filter(p => p.isActive !== false)
+                    .map(process => ({ value: process.name, label: process.name }))}
+                  selected={processTypeFilter}
+                  onChange={setProcessTypeFilter}
+                  placeholder="All Process Types"
+                  className="w-full"
+                />
               </div>
             </div>
 
             {/* Clear Filters Button */}
-            {(searchQuery || selectedTeamId || selectedStatusId || billingStatusFilter || stateFilter || productFilter || productionTypeFilter || propertyTypeFilter || processTypeFilter || transactionTypeFilter || startDateFilter || endDateFilter) && (
+            {(searchQuery || selectedTeamId || selectedStatusIds.length > 0 || billingStatusFilter.length > 0 || stateFilter.length > 0 || productFilter.length > 0 || productionTypeFilter.length > 0 || propertyTypeFilter.length > 0 || processTypeFilter.length > 0 || transactionTypeFilter.length > 0 || startDateFilter || endDateFilter) && (
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
@@ -705,14 +712,14 @@ export const OrderAnalysisPage = () => {
                   onClick={() => {
                     setSearchQuery('')
                     setSelectedTeamId('')
-                    setSelectedStatusId('')
-                    setBillingStatusFilter('')
-                    setStateFilter('')
-                    setProductFilter('')
-                    setProductionTypeFilter('')
-                    setPropertyTypeFilter('')
-                    setProcessTypeFilter('')
-                    setTransactionTypeFilter('')
+                    setSelectedStatusIds([])
+                    setBillingStatusFilter([])
+                    setStateFilter([])
+                    setProductFilter([])
+                    setProductionTypeFilter([])
+                    setPropertyTypeFilter([])
+                    setProcessTypeFilter([])
+                    setTransactionTypeFilter([])
                     setStartDateFilter('')
                     setEndDateFilter('')
                   }}
