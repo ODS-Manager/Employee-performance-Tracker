@@ -684,7 +684,7 @@ export const TeamOrdersPage = () => {
                         <Input
                           id="startDate"
                           type="date"
-                          value={startDateOverride || ''}
+                          value={startDateOverride || defaultStartDate}
                           placeholder={defaultStartDate}
                           onChange={(e) => setStartDateOverride(e.target.value)}
                           className="h-9"
@@ -700,7 +700,7 @@ export const TeamOrdersPage = () => {
                           id="endDate"
                           type="date"
                           min={startDateOverride || defaultStartDate}
-                          value={endDateOverride || ''}
+                          value={endDateOverride || defaultEndDate}
                           placeholder={defaultEndDate}
                           onChange={(e) => setEndDateOverride(e.target.value)}
                           className="h-9"
