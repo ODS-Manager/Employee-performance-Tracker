@@ -19,6 +19,7 @@ interface MultiSelectProps {
   placeholder?: string
   maxDisplayed?: number
   className?: string
+  triggerClassName?: string
   disabled?: boolean
 }
 
@@ -29,6 +30,7 @@ export function MultiSelect({
   placeholder = "Select items...",
   maxDisplayed = 3,
   className,
+  triggerClassName,
   disabled = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
@@ -69,7 +71,7 @@ export function MultiSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between h-auto min-h-10 font-normal"
+            className={cn("w-full justify-between h-auto min-h-10 font-normal", triggerClassName)}
             disabled={disabled}
           >
             <span className="text-muted-foreground">

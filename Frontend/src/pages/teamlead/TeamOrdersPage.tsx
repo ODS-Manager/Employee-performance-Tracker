@@ -91,11 +91,14 @@ export const TeamOrdersPage = () => {
   const [endDateOverride, setEndDateOverride] = useState<string>('')
   
   // Compute effective dates from global filter or local override
-  const startDate = startDateOverride || `${filterYear}-${filterMonth.padStart(2, '0')}-01`
-  const endDate = endDateOverride || (() => {
+  const defaultStartDate = `${filterYear}-${filterMonth.padStart(2, '0')}-01`
+  const defaultEndDate = (() => {
     const lastDay = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate()
     return `${filterYear}-${filterMonth.padStart(2, '0')}-${lastDay}`
   })()
+
+  const startDate = startDateOverride || defaultStartDate
+  const endDate = endDateOverride || defaultEndDate
   
   // Show/hide filter panel
   const [showFilters, setShowFilters] = useState<boolean>(true)
@@ -681,7 +684,8 @@ export const TeamOrdersPage = () => {
                         <Input
                           id="startDate"
                           type="date"
-                          value={startDate}
+                          value={startDateOverride || ''}
+                          placeholder={defaultStartDate}
                           onChange={(e) => setStartDateOverride(e.target.value)}
                           className="h-9"
                         />
@@ -695,8 +699,9 @@ export const TeamOrdersPage = () => {
                         <Input
                           id="endDate"
                           type="date"
-                          min={startDateOverride || startDate}
-                          value={endDate}
+                          min={startDateOverride || defaultStartDate}
+                          value={endDateOverride || ''}
+                          placeholder={defaultEndDate}
                           onChange={(e) => setEndDateOverride(e.target.value)}
                           className="h-9"
                         />
@@ -715,6 +720,7 @@ export const TeamOrdersPage = () => {
                           onChange={setStatusFilter}
                           placeholder="All Status"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -730,6 +736,7 @@ export const TeamOrdersPage = () => {
                           onChange={setBillingFilter}
                           placeholder="All Billing Statuses"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -742,6 +749,7 @@ export const TeamOrdersPage = () => {
                           onChange={setStateFilter}
                           placeholder="All States"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -754,6 +762,7 @@ export const TeamOrdersPage = () => {
                           onChange={setProductTypeFilter}
                           placeholder="All Products"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -769,6 +778,7 @@ export const TeamOrdersPage = () => {
                           onChange={setProductionTypeFilter}
                           placeholder="All Types"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -783,6 +793,7 @@ export const TeamOrdersPage = () => {
                           onChange={setProcessTypeFilter}
                           placeholder="All Process Types"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -795,6 +806,7 @@ export const TeamOrdersPage = () => {
                           onChange={setDivisionFilter}
                           placeholder="All Divisions"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -809,6 +821,7 @@ export const TeamOrdersPage = () => {
                           onChange={setOrderStatusFilter}
                           placeholder="All Order Statuses"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                         />
                       </div>
 
@@ -821,6 +834,7 @@ export const TeamOrdersPage = () => {
                           onChange={setFaNameFilter}
                           placeholder="All FA Names"
                           className="w-full"
+                          triggerClassName="min-h-9 h-9 text-xs"
                           disabled={faNamesLoading}
                         />
                       </div>

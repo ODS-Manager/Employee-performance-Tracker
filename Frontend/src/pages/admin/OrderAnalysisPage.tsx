@@ -585,6 +585,7 @@ export const OrderAnalysisPage = () => {
               onChange={setSelectedStatusIds}
               placeholder="All Status"
               className="w-full"
+              triggerClassName="min-h-9 h-9 text-xs"
             />
 
             <MultiSelect
@@ -596,6 +597,7 @@ export const OrderAnalysisPage = () => {
               onChange={setBillingStatusFilter}
               placeholder="Billing Status"
               className="w-full"
+              triggerClassName="min-h-9 h-9 text-xs"
             />
             </div>
 
@@ -630,6 +632,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setStateFilter}
                   placeholder="All States"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
 
@@ -642,6 +645,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setProductFilter}
                   placeholder="All Products"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
 
@@ -657,6 +661,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setProductionTypeFilter}
                   placeholder="All Types"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
 
@@ -671,6 +676,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setPropertyTypeFilter}
                   placeholder="All Property Types"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
 
@@ -685,6 +691,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setTransactionTypeFilter}
                   placeholder="All Types"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
 
@@ -699,6 +706,7 @@ export const OrderAnalysisPage = () => {
                   onChange={setProcessTypeFilter}
                   placeholder="All Process Types"
                   className="w-full"
+                  triggerClassName="min-h-9 h-9 text-xs"
                 />
               </div>
             </div>
