@@ -17,8 +17,11 @@ import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
+import { Calendar } from '../../components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
+import { format } from 'date-fns'
 import {
   Select,
   SelectContent,
@@ -49,7 +52,7 @@ import {
   Edit,
   Trash2,
   Filter,
-  Calendar,
+  Calendar as CalendarIcon,
   RotateCcw,
   Download
 } from 'lucide-react'
@@ -61,6 +64,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog'
 import odsLogo from '../../assets/ods-logo.png'
+import { cn } from '../../lib/utils'
 
 export const TeamOrdersPage = () => {
   const { user, logout } = useAuthStore()
@@ -678,33 +682,69 @@ export const TeamOrdersPage = () => {
                       {/* Date Range */}
                       <div className="space-y-2">
                         <Label htmlFor="startDate" className="text-xs font-medium text-slate-600">
-                          <Calendar className="h-3 w-3 inline mr-1" />
+                          <CalendarIcon className="h-3 w-3 inline mr-1" />
                           From Date
                         </Label>
-                        <Input
-                          id="startDate"
-                          type="date"
-                          value={startDateOverride || defaultStartDate}
-                          placeholder={defaultStartDate}
-                          onChange={(e) => setStartDateOverride(e.target.value)}
-                          className="h-9"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              id="startDate"
+                              variant="outline"
+                              className={cn(
+                                "h-9 w-full justify-start text-left font-normal",
+                                !startDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {startDate ? format(new Date(startDate), 'PPP') : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={startDate ? new Date(startDate) : undefined}
+                              onSelect={(date) => {
+                                if (!date) return
+                                setStartDateOverride(format(date, 'yyyy-MM-dd'))
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="endDate" className="text-xs font-medium text-slate-600">
-                          <Calendar className="h-3 w-3 inline mr-1" />
+                          <CalendarIcon className="h-3 w-3 inline mr-1" />
                           To Date
                         </Label>
-                        <Input
-                          id="endDate"
-                          type="date"
-                          min={startDateOverride || defaultStartDate}
-                          value={endDateOverride || defaultEndDate}
-                          placeholder={defaultEndDate}
-                          onChange={(e) => setEndDateOverride(e.target.value)}
-                          className="h-9"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              id="endDate"
+                              variant="outline"
+                              className={cn(
+                                "h-9 w-full justify-start text-left font-normal",
+                                !endDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {endDate ? format(new Date(endDate), 'PPP') : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={endDate ? new Date(endDate) : undefined}
+                              onSelect={(date) => {
+                                if (!date) return
+                                setEndDateOverride(format(date, 'yyyy-MM-dd'))
+                              }}
+                              disabled={startDate ? { before: new Date(startDate) } : undefined}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
 
                       {/* Work Status Filter */}
