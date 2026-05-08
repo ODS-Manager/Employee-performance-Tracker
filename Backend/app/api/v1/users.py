@@ -61,6 +61,18 @@ def serialize_team_membership(user_team: UserTeam, team: Team) -> dict:
     }
 
 
+def get_active_team_user_ids(db: Session, team_ids: List[int]) -> List[int]:
+    """Return active team members for the given teams, regardless of user role."""
+    if not team_ids:
+        return []
+
+    member_rows = db.query(UserTeam.user_id).filter(
+        UserTeam.team_id.in_(team_ids),
+        UserTeam.is_active == True
+    ).distinct().all()
+    return [row.user_id for row in member_rows]
+
+
 @router.get("")
 async def list_users(
     skip: int = Query(0, ge=0),
@@ -119,20 +131,12 @@ async def list_users(
         if not accessible_teams:
             return {"items": [], "total": 0}
         
-        # Get users who are members of accessible teams
-        team_user_ids = db.query(UserTeam.user_id).filter(
-            UserTeam.team_id.in_(accessible_teams),
-            UserTeam.is_active == True
-        ).distinct().all()
-        user_ids = [u.user_id for u in team_user_ids]
+        # Get active team members for accessible teams, regardless of user role.
+        user_ids = get_active_team_user_ids(db, accessible_teams)
         
         if team_id and team_id in accessible_teams:
             # Filter to specific team if accessible
-            team_members = db.query(UserTeam.user_id).filter(
-                UserTeam.team_id == team_id,
-                UserTeam.is_active == True
-            ).all()
-            user_ids = [u.user_id for u in team_members]
+            user_ids = get_active_team_user_ids(db, [team_id])
         elif team_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -149,11 +153,7 @@ async def list_users(
     
     # Team filter for admin/superadmin
     if team_id and current_user.user_role in [ROLE_SUPERADMIN, ROLE_ADMIN]:
-        team_members = db.query(UserTeam.user_id).filter(
-            UserTeam.team_id == team_id,
-            UserTeam.is_active == True
-        ).all()
-        user_ids = [u.user_id for u in team_members]
+        user_ids = get_active_team_user_ids(db, [team_id])
         query = query.filter(User.id.in_(user_ids))
     
     # Get total count

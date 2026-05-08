@@ -1302,7 +1302,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                     {/* Duplicate order assignee */}
                     {!isEditMode && canAssignToOthers && isDuplicateEntry && (
                       <div className="space-y-1.5">
-                        <Label htmlFor="duplicateAssignee" className="text-xs font-semibold text-gray-700">Examiner *</Label>
+                        <Label htmlFor="duplicateAssignee" className="text-xs font-semibold text-gray-700">Assign To *</Label>
                         <Select
                           value={selectedDuplicateAssigneeId ? selectedDuplicateAssigneeId.toString() : ''}
                           onValueChange={(value) => setSelectedDuplicateAssigneeId(parseInt(value))}
