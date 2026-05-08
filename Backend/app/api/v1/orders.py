@@ -1348,6 +1348,20 @@ async def update_order(
     # Check soft delete
     if order.deleted_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot update deleted order")
+
+    user_role = current_user.user_role.lower()
+
+    # Enforce the same order access boundaries used by the read endpoints.
+    if user_role == ROLE_SUPERADMIN:
+        pass
+    elif user_role == ROLE_ADMIN:
+        if order.org_id != current_user.org_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
+    elif user_role in [ROLE_TEAM_LEAD, ROLE_EXAMINER]:
+        if not check_team_access(current_user, order.team_id, db):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden")
     
     # Hard lock: billing-done orders cannot be edited by anyone
     if order.billing_status == 'done':
@@ -1367,13 +1381,13 @@ async def update_order(
     
     update_data = order_data.model_dump(exclude_unset=True)
 
-    # Entry date can be edited only by admin/superadmin.
+    # Entry date can be edited only by admin/superadmin/team lead.
     if 'entry_date' in update_data:
-        if current_user.user_role.lower() not in [ROLE_SUPERADMIN, ROLE_ADMIN]:
+        if user_role not in [ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD]:
             if update_data['entry_date'] != order.entry_date:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only admin and superadmin can edit entry date"
+                    detail="Only admin, superadmin, and team lead can edit entry date"
                 )
             del update_data['entry_date']
     

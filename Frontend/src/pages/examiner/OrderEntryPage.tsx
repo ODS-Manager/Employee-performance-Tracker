@@ -36,7 +36,9 @@ export const OrderEntryPage = () => {
   }
 
   const handleOrderCreated = () => {
-    // OrderForm resets itself after successful create.
+    window.setTimeout(() => {
+      window.location.reload()
+    }, 750)
   }
 
   const getDashboardPath = () => {

@@ -79,6 +79,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   
   // Can this user assign work to others? (admin, superadmin, team_lead)
   const canAssignToOthers = isAdminOrSuperadmin || isTeamLead
+  const canEditEntryDate = canEditOrderDetails && (isAdminOrSuperadmin || isTeamLead)
   const [disableCreateAutoDefaults, setDisableCreateAutoDefaults] = useState(false)
 
   const resetCreateForm = () => {
@@ -226,46 +227,6 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
 
     return withYouLabel
   }, [teamMembersData?.items, user])
-
-  // Fetch active examiners for duplicate order assignment.
-  // Admin/superadmin can assign duplicates to any examiner in the organization.
-  // Team leads are restricted to examiners in the selected team.
-  const { data: duplicateAssigneesData, isLoading: loadingDuplicateAssignees } = useQuery({
-    queryKey: ['duplicateAssignees', selectedTeamId, effectiveOrgId, isAdminOrSuperadmin],
-    queryFn: () => {
-      if (isAdminOrSuperadmin) {
-        return usersApi.list({
-          role: 'examiner',
-          isActive: true,
-          orgId: effectiveOrgId || undefined,
-        })
-      }
-
-      return usersApi.list({ teamId: selectedTeamId!, role: 'examiner', isActive: true })
-    },
-    enabled: !!selectedTeamId && canAssignToOthers && !isEditMode && (!!effectiveOrgId || !isAdminOrSuperadmin),
-  })
-
-  const duplicateAssigneeOptions = useMemo(() => {
-    const examiners = (duplicateAssigneesData?.items || []).map((u) => ({
-      id: u.id,
-      label: u.userName,
-    }))
-
-    if (!user) {
-      return examiners
-    }
-
-    const withYouLabel = examiners.map((opt) => (
-      opt.id === user.id ? { ...opt, label: `${opt.label} (You)` } : opt
-    ))
-
-    if (!withYouLabel.some((opt) => opt.id === user.id)) {
-      return [{ id: user.id, label: `${user.userName} (You)` }, ...withYouLabel]
-    }
-
-    return withYouLabel
-  }, [duplicateAssigneesData?.items, user])
 
   // Fetch FA names pool for the selected team - for order masking
   const { data: faNamesData, isLoading: loadingFaNames } = useQuery({
@@ -719,9 +680,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           orgId: effectiveOrgId || user?.orgId || 0,
         }
 
-        // Entry date is editable only on edit page for admins/superadmins.
+        // Entry date is editable on edit page for admins/superadmins/team leads.
         // For create mode, keep sending entry date (auto-generated default).
-        if (!isEditMode || isAdminOrSuperadmin) {
+        if (!isEditMode || canEditEntryDate) {
           orderData.entryDate = entryDate
         }
         
@@ -824,6 +785,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       } else {
         // Create new order (or update existing if adding Step 1 or Step 2)
         await ordersApi.create(orderData as OrderCreate)
+        await queryClient.invalidateQueries({ queryKey: ['orders'] })
         
         // Show appropriate message
         if (fileNumberExists && canAddStep2) {
@@ -1146,7 +1108,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                       )}
                     </div>
 
-                    {isEditMode && isAdminOrSuperadmin && (
+                    {isEditMode && canEditEntryDate && (
                       <div className="mt-3 space-y-1.5">
                         <Label htmlFor="entryDate" className="text-xs font-semibold text-gray-700">Entry Date *</Label>
                         <Input
@@ -1154,8 +1116,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                           type="date"
                           value={entryDate}
                           onChange={(e) => setEntryDate(e.target.value)}
-                          disabled={!canEditOrderDetails}
-                          className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${!canEditOrderDetails ? 'bg-gray-50' : ''}`}
+                          disabled={!canEditEntryDate}
+                          className={`h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${!canEditEntryDate ? 'bg-gray-50' : ''}`}
                         />
                       </div>
                     )}
@@ -1344,22 +1306,20 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
                         <Select
                           value={selectedDuplicateAssigneeId ? selectedDuplicateAssigneeId.toString() : ''}
                           onValueChange={(value) => setSelectedDuplicateAssigneeId(parseInt(value))}
-                          disabled={loadingDuplicateAssignees || duplicateAssigneeOptions.length === 0}
+                          disabled={loadingTeamMembers || teamMemberOptions.length === 0}
                         >
                           <SelectTrigger className="h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                            <SelectValue placeholder={loadingDuplicateAssignees ? 'Loading users...' : 'Select examiner'} />
+                            <SelectValue placeholder={loadingTeamMembers ? 'Loading users...' : 'Select team member'} />
                           </SelectTrigger>
                           <SelectContent>
-                            {duplicateAssigneeOptions.map((assignee) => (
+                            {teamMemberOptions.map((assignee) => (
                               <SelectItem key={assignee.id} value={assignee.id.toString()}>{assignee.label}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {duplicateAssigneeOptions.length === 0 && !loadingDuplicateAssignees && (
+                        {teamMemberOptions.length === 0 && !loadingTeamMembers && (
                           <p className="text-[11px] text-red-600">
-                            {isAdminOrSuperadmin
-                              ? 'No active examiners available in this center.'
-                              : 'No users available for duplicate assignment in this team.'}
+                            No active team members available for duplicate assignment in this team.
                           </p>
                         )}
                       </div>
