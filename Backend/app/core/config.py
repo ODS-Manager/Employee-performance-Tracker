@@ -48,9 +48,9 @@ class Settings(BaseSettings):
     CSRF_COOKIE_NAME: str = "csrf_token"
     CSRF_HEADER_NAME: str = "X-CSRF-Token"
     
-    # CORS configuration removed for testing
-    # CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "https://ods-frontend-302004244593.asia-south1.run.app"]
-    # ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
+    # CORS configuration
+    CORS_ORIGINS: str = "http://localhost:3000,https://ods-frontend-302004244593.asia-south1.run.app"
+    ALLOWED_HOSTS: str = ""
     
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = 50

@@ -105,12 +105,12 @@ jobs:
           echo "Environment variables for build:"
           echo "DATABASE_URL=postgresql://ods_user:ods_password@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database"
           echo "SECRET_KEY=dev-secret-key-for-production"
-          echo "CORS_ORIGINS=http://localhost:3000,https://*"
+          echo "CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000"
           echo "PORT=8080"
           docker build \
             --build-arg DATABASE_URL=postgresql://ods_user:ods_password@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database \
             --build-arg SECRET_KEY=dev-secret-key-for-production \
-            --build-arg CORS_ORIGINS=http://localhost:3000,https://* \
+            --build-arg CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000 \
             -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             -f Backend/Dockerfile . || {
             echo "Docker build failed, checking files..."
@@ -172,7 +172,7 @@ jobs:
               --service-account github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com \
               --vpc-connector ${{ env.VPC_CONNECTOR }} \
               --vpc-egress private-ranges-only \
-              --set-env-vars DATABASE_URL=postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database,SECRET_KEY=dev-secret-key-for-production,CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app\\,http://localhost:3000,FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app,REDIS_URL=${{ env.REDIS_URL }} \
+              --set-env-vars DATABASE_URL=postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database,SECRET_KEY=dev-secret-key-for-production,CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app\\,http://localhost:3000,FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app,REDIS_URL=${{ env.REDIS_URL }},COOKIE_SAMESITE=none,COOKIE_SECURE=True \
               --add-cloudsql-instances project-0990a5d7-310c-4a56-837:asia-south1:ods-database \
               --quiet || {
               echo "Both deployment methods failed, checking service status..."

@@ -47,9 +47,11 @@ app.add_middleware(SecurityHeadersMiddleware)
 # app.add_middleware(CSRFMiddleware)
 
 # CORS middleware (applied last, runs first)
+# Parse comma-separated CORS origins from environment variable
+cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ods-frontend-302004244593.asia-south1.run.app", "http://localhost:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,  # Important: required for cookies
     allow_methods=["*"],
     allow_headers=["*"],

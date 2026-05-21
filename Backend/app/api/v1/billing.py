@@ -146,7 +146,6 @@ def preview_billing(
         f"org:{target_org_id}",
         f"start:{request.start_date}",
         f"end:{request.end_date}",
-        f"status:{request.status}" if request.status else None,
         f"team:{request.team_id}" if request.team_id else None
     )
     
