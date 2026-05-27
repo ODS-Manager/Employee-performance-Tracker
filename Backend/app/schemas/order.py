@@ -32,6 +32,9 @@ class OrderCreate(OrderBase):
     # Step 2 (optional on create)
     step2_user_id: Optional[int] = Field(None, alias="step2UserId")
     step2_fa_name_id: Optional[int] = Field(None, alias="step2FaNameId")
+    
+    # Explicitly create a duplicate row when duplicate entry is allowed
+    force_duplicate: bool = Field(False, alias="forceDuplicate")
 
 
 class OrderUpdate(BaseModel):

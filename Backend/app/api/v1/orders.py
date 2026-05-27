@@ -928,8 +928,9 @@ async def check_file_number(
             detail="Cannot access this team"
         )
     
-    # Determine if this user can create duplicates for this product. A mergeable
-    # partial order still wins over duplicate mode.
+    # Determine if this user can create duplicates for this product. The
+    # frontend can then ask whether to use the existing order or create a
+    # duplicate entry.
     duplicates_allowed = can_create_duplicate_for_product(current_user, product_type, db)
     matching_orders = get_matching_orders(db, file_number, product_type, team_id)
     available_step = find_available_step_candidate(matching_orders)
@@ -952,7 +953,7 @@ async def check_file_number(
             "step2UserName": existing.step2_user.user_name if existing.step2_user else None,
             "sameTeam": True,
             "teamId": existing.team_id,
-            "duplicatesAllowed": False,
+            "duplicatesAllowed": duplicates_allowed,
             "existingOrderDetails": {
                 "state": existing.state,
                 "county": existing.county,
@@ -968,18 +969,32 @@ async def check_file_number(
 
     existing = matching_orders[0] if matching_orders else None
 
-    # Duplicate entry mode applies only when the combination already exists and
-    # there is no compatible missing step to merge into.
     if duplicates_allowed and existing:
         return {
-            "exists": False,
+            "exists": True,
             "fileNumber": file_number,
             "productType": product_type,
-            "step1Completed": False,
-            "step2Completed": False,
-            "orderId": None,
+            "orderId": existing.id,
+            "step1Completed": existing.step1_user_id is not None,
+            "step2Completed": existing.step2_user_id is not None,
+            "step1UserId": existing.step1_user_id,
+            "step1UserName": existing.step1_user.user_name if existing.step1_user else None,
+            "step2UserId": existing.step2_user_id,
+            "step2UserName": existing.step2_user.user_name if existing.step2_user else None,
             "sameTeam": True,
+            "teamId": existing.team_id,
             "duplicatesAllowed": True,
+            "existingOrderDetails": {
+                "state": existing.state,
+                "county": existing.county,
+                "productType": existing.product_type,
+                "productionType": existing.production_type,
+                "transactionTypeId": existing.transaction_type_id,
+                "orderStatusId": existing.order_status_id,
+                "divisionId": existing.division_id,
+                "propertyTypeId": existing.property_type_id,
+                "entryDate": existing.entry_date.isoformat() if existing.entry_date else None
+            }
         }
 
     if not existing:
@@ -1097,9 +1112,10 @@ async def create_order(
             detail="Process type not found"
         )
     
-    # For selected product types duplicates are allowed per team. Even then, a
-    # compatible incomplete order should be completed before creating another row.
+    # For selected product types duplicates are allowed per team. Unless the user
+    # explicitly chose duplicate entry, complete a compatible partial order first.
     product_allows_duplicates = can_create_duplicate_for_product(current_user, order_data.product_type, db)
+    force_duplicate = bool(order_data.force_duplicate)
     adding_step1 = order_data.step1_user_id is not None
     adding_step2 = order_data.step2_user_id is not None
     matching_orders = get_matching_orders(
@@ -1115,7 +1131,16 @@ async def create_order(
         process_type.name,
     )
 
-    if merge_candidate:
+    if force_duplicate and matching_orders and not product_allows_duplicates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Duplicate entry is not allowed for file number '{order_data.file_number}' "
+                f"with product type '{order_data.product_type}' in this team"
+            ),
+        )
+
+    if merge_candidate and not force_duplicate:
         allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
 
         if adding_step1 and order_data.step1_user_id:

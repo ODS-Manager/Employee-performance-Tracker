@@ -419,6 +419,7 @@ export interface OrderCreate {
   step1FaNameId?: number
   step2UserId?: number
   step2FaNameId?: number
+  forceDuplicate?: boolean
 }
 
 export interface OrderUpdate {

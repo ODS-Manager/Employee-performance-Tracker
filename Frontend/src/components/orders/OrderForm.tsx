@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, referenceApi, usersApi, ordersApi, organizationsApi } from '../../services/api'
 import { getPstDateInputValue } from '../../utils/helpers'
 import type { 
+  FileNumberCheckResponse,
   OrderCreate, 
   OrderUpdate,
   Order
@@ -13,6 +15,14 @@ import { Card } from '../ui/card'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
 import { Loader2, Save, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -27,6 +37,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const isEditMode = !!order
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   
   // Get edit permissions from the order (set by backend)
   const editPermissions = order?.editPermissions
@@ -71,6 +82,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const [isCheckingFileNumber, setIsCheckingFileNumber] = useState(false)
   const [isDuplicateEntry, setIsDuplicateEntry] = useState(false)
   const [selectedDuplicateAssigneeId, setSelectedDuplicateAssigneeId] = useState<number | null>(null)
+  const [duplicateChoiceOpen, setDuplicateChoiceOpen] = useState(false)
+  const [pendingDuplicateCheck, setPendingDuplicateCheck] = useState<FileNumberCheckResponse | null>(null)
 
   // Check user role - determines form behavior
   const isAdminOrSuperadmin = user?.userRole === 'admin' || user?.userRole === 'superadmin'
@@ -94,7 +107,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     setSelectedProductionType('regular')
     setSelectedTransactionTypeId(null)
     setSelectedProcessTypeId(null)
-    setSelectedOrderStatusId(null)
+    const completedStatus = orderStatuses?.find(s => s.isActive && s.name.toLowerCase() === 'completed')
+    setSelectedOrderStatusId(completedStatus?.id || null)
     setSelectedDivisionId(null)
     setSelectedPropertyTypeId(null)
     setStep1UserId(null)
@@ -107,6 +121,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     setExistingOrderId(null)
     setIsDuplicateEntry(false)
     setSelectedDuplicateAssigneeId(null)
+    setDuplicateChoiceOpen(false)
+    setPendingDuplicateCheck(null)
   }
 
   // For regular users: fetch their team memberships
@@ -249,6 +265,97 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     ? [order.productType, ...teamProducts]
     : teamProducts
 
+  const clearDuplicateChoice = useCallback(() => {
+    setDuplicateChoiceOpen(false)
+    setPendingDuplicateCheck(null)
+  }, [])
+
+  const applyExistingOrderChoice = (result: FileNumberCheckResponse) => {
+    clearDuplicateChoice()
+    setIsDuplicateEntry(false)
+    setSelectedDuplicateAssigneeId(null)
+
+    if (result.sameTeam && result.step1Completed && !result.step2Completed) {
+      setFileNumberExists(true)
+      setCanAddStep2(true)
+      setCanAddStep1(false)
+      setExistingOrderId(result.orderId)
+
+      if (result.existingOrderDetails) {
+        const details = result.existingOrderDetails
+        setSelectedState(details.state || '')
+        setCounty(details.county || '')
+        setSelectedProductionType(details.productionType || 'regular')
+        setSelectedTransactionTypeId(details.transactionTypeId || null)
+        setSelectedOrderStatusId(details.orderStatusId || null)
+        setSelectedDivisionId(details.divisionId || null)
+        setSelectedPropertyTypeId(details.propertyTypeId || null)
+        if (details.entryDate) {
+          setEntryDate(details.entryDate)
+        }
+      }
+
+      const step2Process = processTypes?.find(p => p.name === 'Step2' && p.isActive)
+      if (step2Process) {
+        setSelectedProcessTypeId(step2Process.id)
+      }
+
+      toast.success('Existing file selected. Add Step 2 to update it.', { duration: 5000 })
+      return
+    }
+
+    if (result.sameTeam && !result.step1Completed && result.step2Completed) {
+      setFileNumberExists(true)
+      setCanAddStep2(false)
+      setCanAddStep1(true)
+      setExistingOrderId(result.orderId)
+
+      if (result.existingOrderDetails) {
+        const details = result.existingOrderDetails
+        setSelectedState(details.state || '')
+        setCounty(details.county || '')
+        setSelectedProductionType(details.productionType || 'regular')
+        setSelectedTransactionTypeId(details.transactionTypeId || null)
+        setSelectedOrderStatusId(details.orderStatusId || null)
+        setSelectedDivisionId(details.divisionId || null)
+        setSelectedPropertyTypeId(details.propertyTypeId || null)
+        if (details.entryDate) {
+          setEntryDate(details.entryDate)
+        }
+      }
+
+      const step1Process = processTypes?.find(p => p.name === 'Step1' && p.isActive)
+      if (step1Process) {
+        setSelectedProcessTypeId(step1Process.id)
+      }
+
+      toast.success('Existing file selected. Add Step 1 to update it.', { duration: 5000 })
+      return
+    }
+
+    setFileNumberExists(true)
+    setCanAddStep2(false)
+    setCanAddStep1(false)
+    setExistingOrderId(result.orderId)
+
+    if (result.orderId) {
+      navigate(`/examiner/edit-order/${result.orderId}`)
+    } else {
+      toast.error('File number with this product type already exists', { duration: 5000 })
+    }
+  }
+
+  const applyDuplicateEntryChoice = () => {
+    clearDuplicateChoice()
+    setFileNumberExists(false)
+    setCanAddStep2(false)
+    setCanAddStep1(false)
+    setExistingOrderId(null)
+    setIsDuplicateEntry(true)
+    setSelectedDuplicateAssigneeId(null)
+    toast.success('Duplicate entry selected.', { duration: 4000 })
+  }
+
   // Check file number + product type combination - check if it exists globally
   const checkFileNumberAndProduct = async (fileNum: string, productType: string) => {
     if (!fileNum.trim() || !productType.trim() || !selectedTeamId || isEditMode) {
@@ -258,6 +365,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setExistingOrderId(null)
       setIsDuplicateEntry(false)
       setSelectedDuplicateAssigneeId(null)
+      clearDuplicateChoice()
       return
     }
     
@@ -266,84 +374,18 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       const result = await ordersApi.checkFileNumber(fileNum.trim(), selectedTeamId, productType.trim())
       const duplicateEntryAllowed = !!result.duplicatesAllowed
 
-      setIsDuplicateEntry(duplicateEntryAllowed)
-      if (!duplicateEntryAllowed) {
-        setSelectedDuplicateAssigneeId(null)
-      }
-      
       if (result.exists) {
-        // File + product combination exists globally - check if Step 1 or Step 2 can be added
-        if (result.sameTeam && result.step1Completed && !result.step2Completed) {
-          // Same team, Step 1 done, Step 2 available - allow user to add Step 2
-          setFileNumberExists(true)
-          setCanAddStep2(true)
-          setCanAddStep1(false)
-          setExistingOrderId(result.orderId)
-          
-          // Auto-fill form with existing order details
-          if (result.existingOrderDetails) {
-            const details = result.existingOrderDetails
-            setSelectedState(details.state || '')
-            setCounty(details.county || '')
-            // Don't overwrite productType since user already selected it
-            setSelectedProductionType(details.productionType || 'regular')
-            setSelectedTransactionTypeId(details.transactionTypeId || null)
-            setSelectedOrderStatusId(details.orderStatusId || null)
-            setSelectedDivisionId(details.divisionId || null)
-            setSelectedPropertyTypeId(details.propertyTypeId || null)
-            if (details.entryDate) {
-              setEntryDate(details.entryDate)
-            }
-          }
-          
-          // Auto-select Step2 process type
-          if (processTypes) {
-            const step2Process = processTypes.find(p => p.name === 'Step2' && p.isActive)
-            if (step2Process) {
-              setSelectedProcessTypeId(step2Process.id)
-            }
-          }
-          
-          toast.success('File found! You can add Step 2 to this order.', { duration: 5000 })
-        } else if (result.sameTeam && !result.step1Completed && result.step2Completed) {
-          // Same team, Step 2 done, Step 1 available - allow user to add Step 1
+        if (duplicateEntryAllowed) {
           setFileNumberExists(true)
           setCanAddStep2(false)
-          setCanAddStep1(true)
+          setCanAddStep1(false)
           setExistingOrderId(result.orderId)
-          
-          // Auto-fill form with existing order details
-          if (result.existingOrderDetails) {
-            const details = result.existingOrderDetails
-            setSelectedState(details.state || '')
-            setCounty(details.county || '')
-            // Don't overwrite productType since user already selected it
-            setSelectedProductionType(details.productionType || 'regular')
-            setSelectedTransactionTypeId(details.transactionTypeId || null)
-            setSelectedOrderStatusId(details.orderStatusId || null)
-            setSelectedDivisionId(details.divisionId || null)
-            setSelectedPropertyTypeId(details.propertyTypeId || null)
-            if (details.entryDate) {
-              setEntryDate(details.entryDate)
-            }
-          }
-          
-          // Auto-select Step1 process type
-          if (processTypes) {
-            const step1Process = processTypes.find(p => p.name === 'Step1' && p.isActive)
-            if (step1Process) {
-              setSelectedProcessTypeId(step1Process.id)
-            }
-          }
-          
-          toast.success('File found! You can add Step 1 to this order.', { duration: 5000 })
+          setIsDuplicateEntry(false)
+          setSelectedDuplicateAssigneeId(null)
+          setPendingDuplicateCheck(result)
+          setDuplicateChoiceOpen(true)
         } else {
-          // File + product exists but can't add Step 1 or Step 2 - show error
-          setFileNumberExists(true)
-          setCanAddStep2(false)
-          setCanAddStep1(false)
-          setExistingOrderId(null)
-          toast.error('File number with this product type already exists', { duration: 5000 })
+          applyExistingOrderChoice(result)
         }
       } else {
         // File + product combination doesn't exist anywhere - new order allowed
@@ -355,6 +397,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           setSelectedDuplicateAssigneeId(null)
         }
         setExistingOrderId(null)
+        clearDuplicateChoice()
       }
     } catch (error) {
       console.error('Error checking file number:', error)
@@ -364,6 +407,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setExistingOrderId(null)
       setIsDuplicateEntry(false)
       setSelectedDuplicateAssigneeId(null)
+      clearDuplicateChoice()
     } finally {
       setIsCheckingFileNumber(false)
     }
@@ -384,6 +428,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     setExistingOrderId(null)
     setIsDuplicateEntry(false)
     setSelectedDuplicateAssigneeId(null)
+    clearDuplicateChoice()
     // Check if file number is already filled
     if (fileNumber.trim() && newProductType.trim() && selectedTeamId && !isEditMode) {
       await checkFileNumberAndProduct(fileNumber, newProductType)
@@ -408,8 +453,9 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       setExistingOrderId(null)
       setIsDuplicateEntry(false)
       setSelectedDuplicateAssigneeId(null)
+      clearDuplicateChoice()
     }
-  }, [selectedTeamId, isEditMode])
+  }, [selectedTeamId, isEditMode, clearDuplicateChoice])
 
   // Auto-select organization for admin users (they have a fixed orgId)
   useEffect(() => {
@@ -461,11 +507,13 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     }
   }, [availableTeams, selectedTeamId, isEditMode, disableCreateAutoDefaults])
 
-  // Auto-set order status to first active one (only in create mode)
+  // Auto-set order status to Completed when available (only in create mode)
   useEffect(() => {
     if (!isEditMode && !disableCreateAutoDefaults && orderStatuses?.length && !selectedOrderStatusId) {
-      const activeStatus = orderStatuses.find(s => s.isActive)
-      if (activeStatus) setSelectedOrderStatusId(activeStatus.id)
+      const activeStatuses = orderStatuses.filter(s => s.isActive)
+      const completedStatus = activeStatuses.find(s => s.name.toLowerCase() === 'completed')
+      const defaultStatus = completedStatus || activeStatuses[0]
+      if (defaultStatus) setSelectedOrderStatusId(defaultStatus.id)
     }
   }, [orderStatuses, selectedOrderStatusId, isEditMode, disableCreateAutoDefaults])
 
@@ -596,9 +644,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       const selectedProcessType = processTypes?.find(p => p.id === selectedProcessTypeId)
       let duplicateEntryForSubmit = isDuplicateEntry
 
-      if (!isEditMode && canAssignToOthers && selectedTeamId && selectedProductType.trim() && fileNumber.trim()) {
+      const usingExistingPartialOrder = fileNumberExists && (canAddStep1 || canAddStep2)
+
+      if (!isEditMode && canAssignToOthers && !usingExistingPartialOrder && selectedTeamId && selectedProductType.trim() && fileNumber.trim()) {
         const checkResult = await ordersApi.checkFileNumber(fileNumber.trim(), selectedTeamId, selectedProductType.trim())
-        duplicateEntryForSubmit = !!checkResult.duplicatesAllowed
+        duplicateEntryForSubmit = isDuplicateEntry || (!!checkResult.duplicatesAllowed && !checkResult.exists)
         setIsDuplicateEntry(duplicateEntryForSubmit)
         if (!duplicateEntryForSubmit) {
           setSelectedDuplicateAssigneeId(null)
@@ -686,6 +736,10 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           productionType: selectedProductionType,
           teamId: selectedTeamId!,
           orgId: effectiveOrgId || user?.orgId || 0,
+        }
+
+        if (!isEditMode && duplicateEntryForSubmit) {
+          orderData.forceDuplicate = true
         }
 
         // Entry date is editable on edit page for admins/superadmins/team leads.
@@ -932,6 +986,7 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
   const isFormValid = useMemo(() => {
     // Basic required fields
     if (!selectedTeamId) return false
+    if (duplicateChoiceOpen || pendingDuplicateCheck) return false
     if (!fileNumber.trim()) return false
     if (!entryDate) return false
     if (!selectedState) return false
@@ -993,7 +1048,8 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     selectedTransactionTypeId, selectedProcessTypeId, selectedOrderStatusId, selectedDivisionId,
     processTypes, user?.userRole, isEditMode, canEditStep1, canEditStep2,
     fileNumberExists, canAddStep2, canAddStep1, selectedOrgId, canAssignToOthers,
-    step1FaNameId, step2FaNameId, step1UserId, step2UserId, isDuplicateEntry, selectedDuplicateAssigneeId
+    step1FaNameId, step2FaNameId, step1UserId, step2UserId, isDuplicateEntry, selectedDuplicateAssigneeId,
+    duplicateChoiceOpen, pendingDuplicateCheck
   ])
 
   return (
@@ -1524,6 +1580,41 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
           </div>
         </form>
       )}
+
+      <Dialog
+        open={duplicateChoiceOpen}
+        onOpenChange={(open) => {
+          if (!open) clearDuplicateChoice()
+          else setDuplicateChoiceOpen(true)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>File already exists</DialogTitle>
+            <DialogDescription>
+              Choose whether to update the existing entry or create a duplicate entry for this file.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (pendingDuplicateCheck) applyExistingOrderChoice(pendingDuplicateCheck)
+              }}
+            >
+              Edit existing entry
+            </Button>
+            <Button
+              type="button"
+              onClick={applyDuplicateEntryChoice}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Duplicate entry
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
