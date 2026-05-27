@@ -286,9 +286,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
             setSelectedState(details.state || '')
             setCounty(details.county || '')
             // Don't overwrite productType since user already selected it
+            setSelectedProductionType(details.productionType || 'regular')
             setSelectedTransactionTypeId(details.transactionTypeId || null)
             setSelectedOrderStatusId(details.orderStatusId || null)
             setSelectedDivisionId(details.divisionId || null)
+            setSelectedPropertyTypeId(details.propertyTypeId || null)
             if (details.entryDate) {
               setEntryDate(details.entryDate)
             }
@@ -316,9 +318,11 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
             setSelectedState(details.state || '')
             setCounty(details.county || '')
             // Don't overwrite productType since user already selected it
+            setSelectedProductionType(details.productionType || 'regular')
             setSelectedTransactionTypeId(details.transactionTypeId || null)
             setSelectedOrderStatusId(details.orderStatusId || null)
             setSelectedDivisionId(details.divisionId || null)
+            setSelectedPropertyTypeId(details.propertyTypeId || null)
             if (details.entryDate) {
               setEntryDate(details.entryDate)
             }
@@ -536,13 +540,17 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
       // Validate FA names first
       if (isEditMode && !canAssignToOthers) {
         // Employee editing - validate FA names for steps they can edit
-        if (canEditStep1 && (currentProcessType.name === 'Step1' || currentProcessType.name === 'Single Seat')) {
+        if (canEditStep1) {
           if (!step1FaNameId) {
             newErrors.push('Step 1 FA name is required')
           }
         }
-        if (canEditStep2 && currentProcessType.name === 'Step2') {
-          if (!step2FaNameId) {
+        if (canEditStep2) {
+          if (currentProcessType.name === 'Single Seat') {
+            if (!step1FaNameId) {
+              newErrors.push('Step 1 FA name is required')
+            }
+          } else if (!step2FaNameId) {
             newErrors.push('Step 2 FA name is required')
           }
         }
@@ -958,12 +966,15 @@ export const OrderForm = ({ order, onSuccess, onCancel: _onCancel }: OrderFormPr
     // Step validation based on process type and user role
     if (isEditMode && !canAssignToOthers) {
       // Examiner editing - validate based on edit permissions
-      if (canEditStep1 && (currentProcessType?.name === 'Step1' || currentProcessType?.name === 'Single Seat')) {
+      if (canEditStep1) {
         if (!step1FaNameId) return false
       }
-      // For Step2 orders only (not Single Seat — Single Seat uses step1FaNameId for both)
-      if (canEditStep2 && currentProcessType?.name === 'Step2') {
-        if (!step2FaNameId) return false
+      if (canEditStep2) {
+        if (currentProcessType?.name === 'Single Seat') {
+          if (!step1FaNameId) return false
+        } else if (!step2FaNameId) {
+          return false
+        }
       }
     } else {
       // Create mode or admin - validate based on process type

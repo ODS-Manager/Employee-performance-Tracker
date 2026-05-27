@@ -710,9 +710,11 @@ export interface ExistingOrderDetails {
   state: string
   county: string
   productType: string
+  productionType?: 'regular' | 'OT'
   transactionTypeId: number
   orderStatusId: number
   divisionId: number
+  propertyTypeId?: number | null
   entryDate: string | null
 }
 

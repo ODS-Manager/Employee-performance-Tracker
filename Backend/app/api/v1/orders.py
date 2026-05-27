@@ -311,6 +311,148 @@ def validate_user_for_step_assignment(
         )
 
 
+def get_matching_orders(
+    db: Session,
+    file_number: str,
+    product_type: str,
+    team_id: int,
+    exclude_order_id: Optional[int] = None,
+) -> List[Order]:
+    """Return active orders that share the file/product/team identity."""
+    query = db.query(Order).options(
+        joinedload(Order.step1_user),
+        joinedload(Order.step2_user),
+        joinedload(Order.process_type)
+    ).filter(
+        Order.file_number == file_number,
+        Order.product_type == product_type,
+        Order.team_id == team_id,
+        Order.deleted_at == None
+    )
+
+    if exclude_order_id is not None:
+        query = query.filter(Order.id != exclude_order_id)
+
+    return query.order_by(Order.modified_at.desc(), Order.id.desc()).all()
+
+
+def can_merge_requested_steps(
+    order: Order,
+    adding_step1: bool,
+    adding_step2: bool,
+    requested_process_type_name: Optional[str],
+) -> bool:
+    """
+    Check whether the requested step can fill the missing half of an existing order.
+
+    Duplicate-enabled products still use this path first; duplicate rows are only
+    created when no compatible partial order exists.
+    """
+    if order.billing_status == "done":
+        return False
+
+    # A Single Seat submission represents both steps by one examiner and should
+    # not be merged into an existing partial two-person workflow.
+    if requested_process_type_name == "Single Seat":
+        return False
+
+    # Only one missing step can be merged at a time.
+    if adding_step1 == adding_step2:
+        return False
+
+    if adding_step1:
+        return order.step1_user_id is None and order.step2_user_id is not None
+
+    return order.step2_user_id is None and order.step1_user_id is not None
+
+
+def find_merge_candidate(
+    orders: List[Order],
+    adding_step1: bool,
+    adding_step2: bool,
+    requested_process_type_name: Optional[str],
+) -> Optional[Order]:
+    """Find the best existing partial order that can accept the requested step."""
+    for order in orders:
+        if can_merge_requested_steps(order, adding_step1, adding_step2, requested_process_type_name):
+            return order
+    return None
+
+
+def find_available_step_candidate(orders: List[Order]) -> Optional[dict]:
+    """
+    Find any partial order with one available complementary step for the frontend
+    file-number pre-check endpoint.
+    """
+    for order in orders:
+        if can_merge_requested_steps(order, False, True, "Step2"):
+            return {"order": order, "canAddStep1": False, "canAddStep2": True}
+        if can_merge_requested_steps(order, True, False, "Step1"):
+            return {"order": order, "canAddStep1": True, "canAddStep2": False}
+    return None
+
+
+def apply_step_merge(
+    db: Session,
+    existing: Order,
+    current_user_id: int,
+    step1_user_id: Optional[int] = None,
+    step1_fa_name_id: Optional[int] = None,
+    step2_user_id: Optional[int] = None,
+    step2_fa_name_id: Optional[int] = None,
+) -> None:
+    """Merge provided step data into an existing partial order with audit logs."""
+    if existing.billing_status == "done":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Order billing is completed — editing is locked"
+        )
+
+    if step1_user_id is not None:
+        if existing.step1_user_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Step 1 is already completed for this file"
+            )
+        log_order_change(
+            db, existing.id, current_user_id, "step1_user_id",
+            str(existing.step1_user_id) if existing.step1_user_id else None,
+            str(step1_user_id), "update"
+        )
+        existing.step1_user_id = step1_user_id
+
+        if step1_fa_name_id is not None:
+            log_order_change(
+                db, existing.id, current_user_id, "step1_fa_name_id",
+                str(existing.step1_fa_name_id) if existing.step1_fa_name_id else None,
+                str(step1_fa_name_id), "update"
+            )
+            existing.step1_fa_name_id = step1_fa_name_id
+
+    if step2_user_id is not None:
+        if existing.step2_user_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Step 2 is already completed for this file"
+            )
+        log_order_change(
+            db, existing.id, current_user_id, "step2_user_id",
+            str(existing.step2_user_id) if existing.step2_user_id else None,
+            str(step2_user_id), "update"
+        )
+        existing.step2_user_id = step2_user_id
+
+        if step2_fa_name_id is not None:
+            log_order_change(
+                db, existing.id, current_user_id, "step2_fa_name_id",
+                str(existing.step2_fa_name_id) if existing.step2_fa_name_id else None,
+                str(step2_fa_name_id), "update"
+            )
+            existing.step2_fa_name_id = step2_fa_name_id
+
+    existing.modified_by = current_user_id
+
+
 # ============ Routes ============
 
 @router.get("")
@@ -786,23 +928,48 @@ async def check_file_number(
             detail="Cannot access this team"
         )
     
-    # Determine if this user can create duplicates for this product.
+    # Determine if this user can create duplicates for this product. A mergeable
+    # partial order still wins over duplicate mode.
     duplicates_allowed = can_create_duplicate_for_product(current_user, product_type, db)
+    matching_orders = get_matching_orders(db, file_number, product_type, team_id)
+    available_step = find_available_step_candidate(matching_orders)
 
-    # Check if file_number + product_type + team_id combination exists.
-    existing = db.query(Order).options(
-        joinedload(Order.step1_user),
-        joinedload(Order.step2_user),
-        joinedload(Order.process_type)
-    ).filter(
-        Order.file_number == file_number,
-        Order.product_type == product_type,
-        Order.team_id == team_id,
-        Order.deleted_at == None
-    ).first()
+    if available_step:
+        existing = available_step["order"]
+        step1_completed = existing.step1_user_id is not None
+        step2_completed = existing.step2_user_id is not None
 
-    # Duplicate entry mode applies only when the combination already exists.
-    # If user can create duplicates, frontend should treat this as a duplicate-entry flow.
+        return {
+            "exists": True,
+            "fileNumber": file_number,
+            "productType": product_type,
+            "orderId": existing.id,
+            "step1Completed": step1_completed,
+            "step2Completed": step2_completed,
+            "step1UserId": existing.step1_user_id,
+            "step1UserName": existing.step1_user.user_name if existing.step1_user else None,
+            "step2UserId": existing.step2_user_id,
+            "step2UserName": existing.step2_user.user_name if existing.step2_user else None,
+            "sameTeam": True,
+            "teamId": existing.team_id,
+            "duplicatesAllowed": False,
+            "existingOrderDetails": {
+                "state": existing.state,
+                "county": existing.county,
+                "productType": existing.product_type,
+                "productionType": existing.production_type,
+                "transactionTypeId": existing.transaction_type_id,
+                "orderStatusId": existing.order_status_id,
+                "divisionId": existing.division_id,
+                "propertyTypeId": existing.property_type_id,
+                "entryDate": existing.entry_date.isoformat() if existing.entry_date else None
+            }
+        }
+
+    existing = matching_orders[0] if matching_orders else None
+
+    # Duplicate entry mode applies only when the combination already exists and
+    # there is no compatible missing step to merge into.
     if duplicates_allowed and existing:
         return {
             "exists": False,
@@ -828,7 +995,8 @@ async def check_file_number(
             "duplicatesAllowed": False,
         }
     
-    # File + product_type + team combination exists - check if Step 1 or Step 2 can be added
+    # File + product_type + team combination exists, but no missing step can be
+    # added by this request path.
     step1_completed = existing.step1_user_id is not None
     step2_completed = existing.step2_user_id is not None
     
@@ -851,9 +1019,11 @@ async def check_file_number(
             "state": existing.state,
             "county": existing.county,
             "productType": existing.product_type,
+            "productionType": existing.production_type,
             "transactionTypeId": existing.transaction_type_id,
             "orderStatusId": existing.order_status_id,
             "divisionId": existing.division_id,
+            "propertyTypeId": existing.property_type_id,
             "entryDate": existing.entry_date.isoformat() if existing.entry_date else None
         }
     }
@@ -869,9 +1039,9 @@ async def create_order(
     Create new order or update existing order with the other step.
     
     Logic:
-    - If file_number doesn't exist: create new order
-    - If file_number exists and user is adding a different step: update existing order
-    - If file_number exists with same step: reject (duplicate)
+    - If file_number/product/team has a compatible missing step: update that order
+    - If the combination exists without a mergeable missing step: create a duplicate only when allowed
+    - Otherwise create a new order
     """
     logger.info(f"POST /orders - file_number={order_data.file_number}, user={current_user.id}")
     
@@ -927,60 +1097,27 @@ async def create_order(
             detail="Process type not found"
         )
     
-    # For selected product types duplicates are allowed per team only for
-    # elevated roles.
+    # For selected product types duplicates are allowed per team. Even then, a
+    # compatible incomplete order should be completed before creating another row.
     product_allows_duplicates = can_create_duplicate_for_product(current_user, order_data.product_type, db)
+    adding_step1 = order_data.step1_user_id is not None
+    adding_step2 = order_data.step2_user_id is not None
+    matching_orders = get_matching_orders(
+        db,
+        order_data.file_number,
+        order_data.product_type,
+        order_data.team_id,
+    )
+    merge_candidate = find_merge_candidate(
+        matching_orders,
+        adding_step1,
+        adding_step2,
+        process_type.name,
+    )
 
-    existing = None
-    if not product_allows_duplicates:
-        # For all other product types: file_number + product_type + team_id must be unique.
-        existing = db.query(Order).filter(
-            Order.file_number == order_data.file_number,
-            Order.product_type == order_data.product_type,
-            Order.team_id == order_data.team_id,
-            Order.deleted_at == None
-        ).first()
-    
-    if existing:
-        # File number + product_type + team_id combination exists in THIS team
-        # Determine if we should merge or reject
-        is_admin_or_higher = current_user.user_role in [ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD]
+    if merge_candidate:
         allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
-        
-        # Determine what step the user is trying to add
-        adding_step1 = order_data.step1_user_id is not None
-        adding_step2 = order_data.step2_user_id is not None
-        
-        # For Single Seat, user adds both steps - reject if order exists (unless admin)
-        if process_type.name == 'Single Seat':
-            if not is_admin_or_higher:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File number '{order_data.file_number}' with product type '{order_data.product_type}' already exists. Cannot create a Single Seat order."
-                )
-            # Admin can override - just reject
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File number '{order_data.file_number}' with product type '{order_data.product_type}' already exists"
-            )
-        
-        # Check if user is trying to add step1 but it's already done by someone else
-        if adding_step1 and existing.step1_user_id is not None:
-            if existing.step1_user_id != current_user.id and not is_admin_or_higher:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Step 1 for file '{order_data.file_number}' is already completed by {existing.step1_user.user_name if existing.step1_user else 'another user'}"
-                )
-        
-        # Check if user is trying to add step2 but it's already done by someone else
-        if adding_step2 and existing.step2_user_id is not None:
-            if existing.step2_user_id != current_user.id and not is_admin_or_higher:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Step 2 for file '{order_data.file_number}' is already completed by {existing.step2_user.user_name if existing.step2_user else 'another user'}"
-                )
-        
-        # Validate the user being assigned
+
         if adding_step1 and order_data.step1_user_id:
             validate_user_for_step_assignment(
                 db,
@@ -997,35 +1134,18 @@ async def create_order(
                 "Step 2",
                 allow_non_team_member=allow_non_team_member,
             )
-        
-        # Merge the step data into existing order
-        if adding_step1:
-            if existing.step1_user_id is None or existing.step1_user_id == current_user.id or is_admin_or_higher:
-                log_order_change(db, existing.id, current_user.id, "step1_user_id", 
-                               str(existing.step1_user_id) if existing.step1_user_id else None, 
-                               str(order_data.step1_user_id), "update")
-                existing.step1_user_id = order_data.step1_user_id
-                
-                # Set the FA name from request data
-                if order_data.step1_fa_name_id:
-                    existing.step1_fa_name_id = order_data.step1_fa_name_id
-                
-        
-        if adding_step2:
-            if existing.step2_user_id is None or existing.step2_user_id == current_user.id or is_admin_or_higher:
-                log_order_change(db, existing.id, current_user.id, "step2_user_id",
-                               str(existing.step2_user_id) if existing.step2_user_id else None,
-                               str(order_data.step2_user_id), "update")
-                existing.step2_user_id = order_data.step2_user_id
-                
-                # Set the FA name from request data
-                if order_data.step2_fa_name_id:
-                    existing.step2_fa_name_id = order_data.step2_fa_name_id
-                
-        
-        existing.modified_by = current_user.id
+
+        apply_step_merge(
+            db,
+            merge_candidate,
+            current_user.id,
+            step1_user_id=order_data.step1_user_id if adding_step1 else None,
+            step1_fa_name_id=order_data.step1_fa_name_id if adding_step1 else None,
+            step2_user_id=order_data.step2_user_id if adding_step2 else None,
+            step2_fa_name_id=order_data.step2_fa_name_id if adding_step2 else None,
+        )
         db.commit()
-        
+
         # Invalidate dashboard caches for this organization
         cache.invalidate_dashboard_cache(org_id=order_data.org_id)
         cache.invalidate_order_cache()
@@ -1042,11 +1162,35 @@ async def create_order(
             joinedload(Order.step2_user),
             joinedload(Order.step1_fa_name),
             joinedload(Order.step2_fa_name)
-        ).filter(Order.id == existing.id).first()
-        
+        ).filter(Order.id == merge_candidate.id).first()
+
         return serialize_order(order)
-    
-    # File number doesn't exist - create new order
+
+    if matching_orders and not product_allows_duplicates:
+        existing = matching_orders[0]
+        if process_type.name == "Single Seat":
+            detail = (
+                f"File number '{order_data.file_number}' with product type "
+                f"'{order_data.product_type}' already exists. Cannot create a Single Seat order."
+            )
+        elif adding_step1 and existing.step1_user_id is not None:
+            detail = (
+                f"Step 1 for file '{order_data.file_number}' is already completed by "
+                f"{existing.step1_user.user_name if existing.step1_user else 'another user'}"
+            )
+        elif adding_step2 and existing.step2_user_id is not None:
+            detail = (
+                f"Step 2 for file '{order_data.file_number}' is already completed by "
+                f"{existing.step2_user.user_name if existing.step2_user else 'another user'}"
+            )
+        else:
+            detail = (
+                f"File number '{order_data.file_number}' with product type "
+                f"'{order_data.product_type}' already exists in this team"
+            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+    # No mergeable existing order - create a new order.
     allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
 
     # Validate step1 user assignment (if provided)
@@ -1265,20 +1409,13 @@ def get_edit_permissions(order: Order, user: User) -> dict:
                 "reason": "Single Seat order completed by another examiner"
             }
     
-    # Step1/Step2 process types - permission is scoped to the order's process type
-    # A Step1-type order: examiner can edit Step1 only (they did it or it's unclaimed)
-    # A Step2-type order: examiner can edit Step2 only (they did it or it's unclaimed)
-    # Cross-step editing is not allowed — process type determines which step an examiner works on
-    if process_type_name == "Step1":
-        can_edit_step1 = is_step1_user or (not step1_done)
-        can_edit_step2 = False
-    elif process_type_name == "Step2":
-        can_edit_step1 = False
-        can_edit_step2 = is_step2_user or (not step2_done)
-    else:
-        # Unknown process type — fall back to conservative access
-        can_edit_step1 = is_step1_user
-        can_edit_step2 = is_step2_user
+    # Step1/Step2 process types - steps are independent.
+    # A different examiner may claim the missing complementary step from edit
+    # mode, but the original step owner is not forced into the other step.
+    can_claim_step1 = (not step1_done) and step2_done and (not is_step2_user)
+    can_claim_step2 = (not step2_done) and step1_done and (not is_step1_user)
+    can_edit_step1 = is_step1_user or can_claim_step1
+    can_edit_step2 = is_step2_user or can_claim_step2
 
     can_edit = can_edit_step1 or can_edit_step2
 
@@ -1304,9 +1441,11 @@ def get_edit_permissions(order: Order, user: User) -> dict:
         reasons.append("You can update order status")
 
     if not can_edit:
-        if process_type_name == "Step1":
+        if step1_done and step2_done:
+            reason = "Both steps were completed by other examiners"
+        elif step1_done:
             reason = "Step 1 was completed by another examiner"
-        elif process_type_name == "Step2":
+        elif step2_done:
             reason = "Step 2 was completed by another examiner"
         else:
             reason = "No edit access"
@@ -1457,29 +1596,6 @@ async def update_order(
     team_id_for_validation = update_data.get('team_id', order.team_id)
     allow_non_team_member = current_user.user_role.lower() in [ROLE_SUPERADMIN, ROLE_ADMIN]
 
-    # Enforce uniqueness for non-duplicate-allowed product types only.
-    prospective_file_number = update_data.get('file_number', order.file_number)
-    prospective_product_type = update_data.get('product_type', order.product_type)
-    prospective_team_id = update_data.get('team_id', order.team_id)
-
-    if not can_create_duplicate_for_product(current_user, prospective_product_type, db):
-        duplicate_order = db.query(Order).filter(
-            Order.id != order.id,
-            Order.file_number == prospective_file_number,
-            Order.product_type == prospective_product_type,
-            Order.team_id == prospective_team_id,
-            Order.deleted_at == None,
-        ).first()
-
-        if duplicate_order:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"File number '{prospective_file_number}' with product type "
-                    f"'{prospective_product_type}' already exists in this team"
-                ),
-            )
-    
     # Validate step1 user assignment (if being updated)
     if 'step1_user_id' in update_data and update_data['step1_user_id'] is not None:
         validate_user_for_step_assignment(
@@ -1489,7 +1605,7 @@ async def update_order(
             "Step 1",
             allow_non_team_member=allow_non_team_member,
         )
-    
+
     # Validate step2 user assignment (if being updated)
     if 'step2_user_id' in update_data and update_data['step2_user_id'] is not None:
         validate_user_for_step_assignment(
@@ -1498,6 +1614,105 @@ async def update_order(
             team_id_for_validation,
             "Step 2",
             allow_non_team_member=allow_non_team_member,
+        )
+
+    # Enforce duplicate behavior against other rows with the same file/product/team.
+    # If a compatible partial order exists, merge into it before allowing duplicate mode.
+    prospective_file_number = update_data.get('file_number', order.file_number)
+    prospective_product_type = update_data.get('product_type', order.product_type)
+    prospective_team_id = update_data.get('team_id', order.team_id)
+
+    requested_process_type_name = order.process_type.name if order.process_type else None
+    if 'process_type_id' in update_data:
+        from app.models.reference import ProcessType
+        requested_process_type = db.query(ProcessType).filter(
+            ProcessType.id == update_data['process_type_id']
+        ).first()
+        if not requested_process_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Process type not found"
+            )
+        requested_process_type_name = requested_process_type.name
+
+    prospective_step1_user_id = update_data.get('step1_user_id', order.step1_user_id)
+    prospective_step2_user_id = update_data.get('step2_user_id', order.step2_user_id)
+    adding_step1_for_merge = (
+        prospective_step1_user_id is not None and
+        prospective_step2_user_id is None
+    )
+    adding_step2_for_merge = (
+        prospective_step2_user_id is not None and
+        prospective_step1_user_id is None
+    )
+
+    matching_orders = get_matching_orders(
+        db,
+        prospective_file_number,
+        prospective_product_type,
+        prospective_team_id,
+        exclude_order_id=order.id,
+    )
+    merge_candidate = find_merge_candidate(
+        matching_orders,
+        adding_step1_for_merge,
+        adding_step2_for_merge,
+        requested_process_type_name,
+    )
+
+    if merge_candidate:
+        apply_step_merge(
+            db,
+            merge_candidate,
+            current_user.id,
+            step1_user_id=prospective_step1_user_id if adding_step1_for_merge else None,
+            step1_fa_name_id=update_data.get('step1_fa_name_id', order.step1_fa_name_id) if adding_step1_for_merge else None,
+            step2_user_id=prospective_step2_user_id if adding_step2_for_merge else None,
+            step2_fa_name_id=update_data.get('step2_fa_name_id', order.step2_fa_name_id) if adding_step2_for_merge else None,
+        )
+
+        order.deleted_at = datetime.utcnow()
+        order.deleted_by = current_user.id
+        order.modified_by = current_user.id
+        log_order_change(
+            db, order.id, current_user.id, "merged_into_order_id",
+            None, str(merge_candidate.id), "merge"
+        )
+        log_order_change(
+            db, order.id, current_user.id, "deleted_at",
+            None, str(order.deleted_at), "delete"
+        )
+
+        db.commit()
+
+        cache.invalidate_dashboard_cache(org_id=merge_candidate.org_id)
+        cache.invalidate_order_cache()
+        cache.invalidate_productivity_cache()
+        cache.invalidate_billing_cache()
+
+        merged_order = db.query(Order).options(
+            joinedload(Order.transaction_type),
+            joinedload(Order.process_type),
+            joinedload(Order.order_status),
+            joinedload(Order.division),
+            joinedload(Order.property_type),
+            joinedload(Order.step1_user),
+            joinedload(Order.step2_user),
+            joinedload(Order.step1_fa_name),
+            joinedload(Order.step2_fa_name)
+        ).filter(Order.id == merge_candidate.id).first()
+
+        order_dict = serialize_order(merged_order)
+        order_dict["editPermissions"] = get_edit_permissions(merged_order, current_user)
+        return order_dict
+
+    if matching_orders and not can_create_duplicate_for_product(current_user, prospective_product_type, db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"File number '{prospective_file_number}' with product type "
+                f"'{prospective_product_type}' already exists in this team"
+            ),
         )
     
     # Log changes and update
