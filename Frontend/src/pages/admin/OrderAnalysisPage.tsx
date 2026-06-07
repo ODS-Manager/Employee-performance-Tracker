@@ -301,13 +301,14 @@ export const OrderAnalysisPage = () => {
     return true
   })
 
-  // Calculate stats from ALL filtered orders (not just current page)
+  // Use backend summary when available (accurate for all records), otherwise fallback to client-side filtering
+  const apiSummary = allOrdersData?.summary
   const filteredStats = {
-    totalOrders: allOrdersData?.total || allFilteredOrders.length,
-    ordersCompleted: allFilteredOrders.filter(o => o.orderStatusName === 'Completed').length,
-    ordersOnHold: allFilteredOrders.filter(o => o.orderStatusName === 'On-hold').length,
-    ordersBpRti: allFilteredOrders.filter(o => o.orderStatusName === 'BP & RTI').length,
-    ordersPendingBilling: allFilteredOrders.filter(o => o.billingStatus === 'pending').length,
+    totalOrders: apiSummary?.total || allOrdersData?.total || allFilteredOrders.length,
+    ordersCompleted: apiSummary?.completed ?? allFilteredOrders.filter(o => o.orderStatusName === 'Completed').length,
+    ordersOnHold: apiSummary?.onHold ?? allFilteredOrders.filter(o => o.orderStatusName === 'On-hold').length,
+    ordersBpRti: apiSummary?.bpRti ?? allFilteredOrders.filter(o => o.orderStatusName === 'BP & RTI').length,
+    ordersPendingBilling: apiSummary?.pendingBilling ?? allFilteredOrders.filter(o => o.billingStatus === 'pending').length,
   }
 
   const getStatusBadge = (status: string | null) => {

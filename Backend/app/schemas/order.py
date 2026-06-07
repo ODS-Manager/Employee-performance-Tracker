@@ -155,9 +155,21 @@ class OrderSimpleResponse(BaseModel):
         populate_by_name = True
 
 
+class OrderSummary(BaseModel):
+    total: int
+    completed: int
+    on_hold: int = Field(..., alias="onHold")
+    bp_rti: int = Field(..., alias="bpRti")
+    pending_billing: int = Field(..., alias="pendingBilling")
+
+    class Config:
+        populate_by_name = True
+
+
 class OrderListResponse(BaseModel):
     items: List[OrderSimpleResponse]
     total: int
+    summary: Optional[OrderSummary] = None
 
 
 class OrderFilterParams(BaseModel):

@@ -628,14 +628,27 @@ async def list_orders(
     
     # Get total count
     total = query.count()
-    
+
+    # Compute summary counts
+    completed_count = query.filter(Order.order_status.has(OrderStatusType.name == 'Completed')).count()
+    on_hold_count = query.filter(Order.order_status.has(OrderStatusType.name == 'On-hold')).count()
+    bp_rti_count = query.filter(Order.order_status.has(OrderStatusType.name == 'BP & RTI')).count()
+    pending_billing_count = query.filter(Order.billing_status == 'pending').count()
+
     # Paginate - Sort by modified_at DESC (newest activity first), then by id DESC
     offset = (page - 1) * page_size
     orders = query.order_by(Order.modified_at.desc(), Order.id.desc()).offset(offset).limit(page_size).all()
-    
+
     result = {
         "items": [serialize_simple_order(o) for o in orders],
-        "total": total
+        "total": total,
+        "summary": {
+            "total": total,
+            "completed": completed_count,
+            "on_hold": on_hold_count,
+            "bp_rti": bp_rti_count,
+            "pending_billing": pending_billing_count
+        }
     }
     
     # Cache the result

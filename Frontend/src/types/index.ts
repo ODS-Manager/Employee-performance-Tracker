@@ -442,9 +442,18 @@ export interface OrderUpdate {
   billingStatus?: 'pending' | 'done'
 }
 
+export interface OrderSummary {
+  total: number
+  completed: number
+  onHold: number
+  bpRti: number
+  pendingBilling: number
+}
+
 export interface OrderListResponse {
   items: OrderSimple[]
   total: number
+  summary?: OrderSummary
 }
 
 export interface OrderFilterParams {
