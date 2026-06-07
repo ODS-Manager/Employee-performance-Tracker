@@ -303,7 +303,7 @@ export const OrderAnalysisPage = () => {
 
   // Calculate stats from ALL filtered orders (not just current page)
   const filteredStats = {
-    totalOrders: allFilteredOrders.length,
+    totalOrders: allOrdersData?.total || allFilteredOrders.length,
     ordersCompleted: allFilteredOrders.filter(o => o.orderStatusName === 'Completed').length,
     ordersOnHold: allFilteredOrders.filter(o => o.orderStatusName === 'On-hold').length,
     ordersBpRti: allFilteredOrders.filter(o => o.orderStatusName === 'BP & RTI').length,
