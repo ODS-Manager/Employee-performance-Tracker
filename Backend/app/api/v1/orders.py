@@ -645,9 +645,9 @@ async def list_orders(
         "summary": {
             "total": total,
             "completed": completed_count,
-            "on_hold": on_hold_count,
-            "bp_rti": bp_rti_count,
-            "pending_billing": pending_billing_count
+            "onHold": on_hold_count,
+            "bpRti": bp_rti_count,
+            "pendingBilling": pending_billing_count
         }
     }
     
