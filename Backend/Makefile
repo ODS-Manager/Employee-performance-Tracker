@@ -100,7 +100,7 @@ db-reset:
 	@echo "$(YELLOW)Press Ctrl+C to cancel, or wait 3 seconds...$(NC)"
 	@sleep 3
 	docker-compose down -v
-	docker-compose up -d postgres redis
+	docker-compose up -d postgres
 	@sleep 5
 	python init_db.py
 	@echo "$(GREEN)✓ Database reset$(NC)"

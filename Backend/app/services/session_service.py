@@ -1,31 +1,28 @@
 """
-Redis-based Session and Token Management Service
+PostgreSQL-based Session and Token Management Service
 Provides token blacklisting, active session tracking, rate limiting, and refresh token rotation
 """
 import json
-import redis
-import uuid
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 import logging
 from app.core.config import settings
+from app.database import SessionLocal
+from app.models.blacklisted_token import BlacklistedToken
+from app.models.user_session import UserSession
+from app.models.used_refresh_token import UsedRefreshToken
+from app.models.rate_limit import RateLimit
+from app.models.login_attempt import LoginAttempt
 
 logger = logging.getLogger(__name__)
 
 
 class SessionService:
-    """Redis-based session and token management service"""
-    
-    # Cache key prefixes for session management
-    PREFIX_BLACKLIST = "token:blacklist"
-    PREFIX_SESSION = "session"
-    PREFIX_REFRESH_USED = "refresh:used"
-    PREFIX_RATE_LIMIT = "rate:limit"
-    PREFIX_LOGIN_ATTEMPTS = "login:attempts"
+    """PostgreSQL-based session and token management service"""
     
     # TTL constants (in seconds)
-    TTL_ACCESS_TOKEN = 60 * 60  # 1 hour - matches ACCESS_TOKEN_EXPIRE_MINUTES
-    TTL_REFRESH_TOKEN = 60 * 60 * 24 * 30  # 30 days - matches REFRESH_TOKEN_EXPIRE_DAYS
+    TTL_ACCESS_TOKEN = 60 * 60  # 1 hour
+    TTL_REFRESH_TOKEN = 60 * 60 * 24 * 30  # 30 days
     TTL_RATE_LIMIT = 60  # 1 minute
     TTL_LOGIN_ATTEMPTS = 60 * 15  # 15 minutes
     
@@ -34,7 +31,6 @@ class SessionService:
     MAX_LOGIN_ATTEMPTS = 5
     
     _instance: Optional['SessionService'] = None
-    _redis_client: Optional[redis.Redis] = None
     
     def __new__(cls):
         if cls._instance is None:
@@ -42,91 +38,47 @@ class SessionService:
         return cls._instance
     
     def __init__(self):
-        if self._redis_client is None:
-            self._connect()
-    
-    def _connect(self):
-        """Establish Redis connection"""
-        try:
-            self._redis_client = redis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True
-            )
-            # Test connection
-            self._redis_client.ping()
-            logger.info("Redis session service connection established successfully")
-        except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}. Session management disabled.")
-            self._redis_client = None
-        except Exception as e:
-            logger.error(f"Redis error: {e}. Session management disabled.")
-            self._redis_client = None
+        pass
     
     @property
     def is_connected(self) -> bool:
-        """Check if Redis is connected"""
-        if self._redis_client is None:
-            return False
-        try:
-            self._redis_client.ping()
-            return True
-        except:
-            return False
-    
-    def _build_key(self, prefix: str, *args) -> str:
-        """Build a cache key from prefix and arguments"""
-        parts = [prefix] + [str(arg) for arg in args if arg is not None]
-        return ":".join(parts)
+        """Check if session service is available (always True with PostgreSQL)"""
+        return True
     
     # ============ Token Blacklist Management ============
     
     def blacklist_token(self, jti: str, ttl: Optional[int] = None) -> bool:
-        """
-        Add a token to the blacklist (for logout or token invalidation)
-        
-        Args:
-            jti: Token unique identifier (JWT ID)
-            ttl: Time to live in seconds (defaults to access token expiry)
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.is_connected:
-            logger.warning("Redis not connected. Cannot blacklist token.")
-            return False
-        
+        """Add a token to the blacklist"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_BLACKLIST, jti)
             ttl = ttl or self.TTL_ACCESS_TOKEN
-            self._redis_client.setex(key, ttl, "revoked")
+            expires_at = datetime.utcnow() + timedelta(seconds=ttl)
+            token = BlacklistedToken(jti=jti, expires_at=expires_at)
+            db.add(token)
+            db.commit()
             logger.info(f"Token {jti} blacklisted successfully")
             return True
         except Exception as e:
+            db.rollback()
             logger.error(f"Error blacklisting token {jti}: {e}")
             return False
+        finally:
+            db.close()
     
     def is_token_blacklisted(self, jti: str) -> bool:
-        """
-        Check if a token is blacklisted
-        
-        Args:
-            jti: Token unique identifier
-        
-        Returns:
-            True if token is blacklisted, False otherwise
-        """
-        if not self.is_connected:
-            return False
-        
+        """Check if a token is blacklisted"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_BLACKLIST, jti)
-            return self._redis_client.exists(key) > 0
+            token = db.query(BlacklistedToken).filter(
+                BlacklistedToken.jti == jti,
+                BlacklistedToken.expires_at > datetime.utcnow()
+            ).first()
+            return token is not None
         except Exception as e:
             logger.error(f"Error checking token blacklist for {jti}: {e}")
             return False
+        finally:
+            db.close()
     
     # ============ Active Session Management ============
     
@@ -139,251 +91,193 @@ class SessionService:
         user_agent: Optional[str] = None,
         fingerprint: Optional[str] = None
     ) -> str:
-        """
-        Create a new active session with fingerprinting and session limits
-        
-        Args:
-            user_id: User ID
-            jti: Token unique identifier
-            device_info: Device information
-            ip_address: Client IP address
-            user_agent: User agent string
-            fingerprint: Session fingerprint for hijacking detection
-        
-        Returns:
-            Session ID
-        """
-        if not self.is_connected:
-            logger.warning("Redis not connected. Cannot create session.")
-            return jti  # Return JTI as fallback
-        
+        """Create a new active session with fingerprinting and session limits"""
+        db = SessionLocal()
         try:
             # Enforce session limits before creating new session
             self._enforce_session_limits(user_id)
             
-            session_id = jti  # Use JTI as session ID for consistency
-            key = self._build_key(self.PREFIX_SESSION, user_id, session_id)
+            session_id = jti
+            expires_at = datetime.utcnow() + timedelta(seconds=self.TTL_ACCESS_TOKEN)
             
-            session_data = {
-                "session_id": session_id,
-                "user_id": user_id,
-                "jti": jti,
-                "device_info": device_info or "Unknown",
-                "ip_address": ip_address or "Unknown",
-                "user_agent": user_agent or "Unknown",
-                "fingerprint": fingerprint,
-                "created_at": datetime.utcnow().isoformat(),
-                "last_activity": datetime.utcnow().isoformat()
-            }
-            
-            serialized = json.dumps(session_data, default=str)
-            self._redis_client.setex(key, self.TTL_ACCESS_TOKEN, serialized)
+            session = UserSession(
+                user_id=user_id,
+                session_id=session_id,
+                device_info=device_info or "Unknown",
+                ip_address=ip_address or "Unknown",
+                user_agent=user_agent or "Unknown",
+                fingerprint=fingerprint,
+                created_at=datetime.utcnow(),
+                last_activity=datetime.utcnow(),
+                expires_at=expires_at
+            )
+            db.add(session)
+            db.commit()
             logger.info(f"Session {session_id} created for user {user_id}")
             return session_id
         except Exception as e:
+            db.rollback()
             logger.error(f"Error creating session for user {user_id}: {e}")
             return jti
+        finally:
+            db.close()
     
     def get_session(self, user_id: int, session_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get session data
-        
-        Args:
-            user_id: User ID
-            session_id: Session ID
-        
-        Returns:
-            Session data or None
-        """
-        if not self.is_connected:
-            return None
-        
+        """Get session data"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_SESSION, user_id, session_id)
-            data = self._redis_client.get(key)
-            if data:
-                return json.loads(data)
+            session = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.session_id == session_id,
+                UserSession.expires_at > datetime.utcnow()
+            ).first()
+            
+            if session:
+                return {
+                    "session_id": session.session_id,
+                    "user_id": session.user_id,
+                    "jti": session.session_id,
+                    "device_info": session.device_info,
+                    "ip_address": session.ip_address,
+                    "user_agent": session.user_agent,
+                    "fingerprint": session.fingerprint,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                    "expires_in_seconds": max(0, int((session.expires_at - datetime.utcnow()).total_seconds()))
+                }
             return None
         except Exception as e:
             logger.error(f"Error getting session {session_id} for user {user_id}: {e}")
             return None
+        finally:
+            db.close()
     
     def update_session_activity(self, user_id: int, session_id: str) -> bool:
-        """
-        Update session last activity timestamp and extend TTL
-        
-        Args:
-            user_id: User ID
-            session_id: Session ID
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.is_connected:
-            return False
-        
+        """Update session last activity timestamp and extend TTL"""
+        db = SessionLocal()
         try:
-            session = self.get_session(user_id, session_id)
+            session = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.session_id == session_id,
+                UserSession.expires_at > datetime.utcnow()
+            ).first()
+            
             if session:
-                session["last_activity"] = datetime.utcnow().isoformat()
-                key = self._build_key(self.PREFIX_SESSION, user_id, session_id)
-                serialized = json.dumps(session, default=str)
-                self._redis_client.setex(key, self.TTL_ACCESS_TOKEN, serialized)
+                session.last_activity = datetime.utcnow()
+                session.expires_at = datetime.utcnow() + timedelta(seconds=self.TTL_ACCESS_TOKEN)
+                db.commit()
                 return True
             return False
         except Exception as e:
+            db.rollback()
             logger.error(f"Error updating session activity {session_id}: {e}")
             return False
+        finally:
+            db.close()
     
     def get_user_sessions(self, user_id: int) -> List[Dict[str, Any]]:
-        """
-        Get all active sessions for a user
-        
-        Args:
-            user_id: User ID
-        
-        Returns:
-            List of session data dictionaries
-        """
-        if not self.is_connected:
-            return []
-        
+        """Get all active sessions for a user"""
+        db = SessionLocal()
         try:
-            pattern = self._build_key(self.PREFIX_SESSION, user_id, "*")
-            keys = self._redis_client.keys(pattern)
-            sessions = []
+            sessions = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.expires_at > datetime.utcnow()
+            ).order_by(UserSession.created_at.desc()).all()
             
-            for key in keys:
-                data = self._redis_client.get(key)
-                if data:
-                    session = json.loads(data)
-                    # Add TTL information
-                    ttl = self._redis_client.ttl(key)
-                    session["expires_in_seconds"] = ttl
-                    sessions.append(session)
-            
-            # Sort by creation time (newest first)
-            sessions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            return sessions
+            result = []
+            for session in sessions:
+                result.append({
+                    "session_id": session.session_id,
+                    "user_id": session.user_id,
+                    "jti": session.session_id,
+                    "device_info": session.device_info,
+                    "ip_address": session.ip_address,
+                    "user_agent": session.user_agent,
+                    "fingerprint": session.fingerprint,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                    "expires_in_seconds": max(0, int((session.expires_at - datetime.utcnow()).total_seconds()))
+                })
+            return result
         except Exception as e:
             logger.error(f"Error getting sessions for user {user_id}: {e}")
             return []
+        finally:
+            db.close()
     
     def revoke_session(self, user_id: int, session_id: str) -> bool:
-        """
-        Revoke a specific session (logout from specific device)
-        
-        Args:
-            user_id: User ID
-            session_id: Session ID
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.is_connected:
-            return False
-        
+        """Revoke a specific session (logout from specific device)"""
+        db = SessionLocal()
         try:
-            # Get session to extract JTI
-            session = self.get_session(user_id, session_id)
-            if session:
-                jti = session.get("jti")
-                if jti:
-                    # Blacklist the token
-                    self.blacklist_token(jti)
+            session = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.session_id == session_id
+            ).first()
             
-            # Delete the session
-            key = self._build_key(self.PREFIX_SESSION, user_id, session_id)
-            self._redis_client.delete(key)
-            logger.info(f"Session {session_id} revoked for user {user_id}")
-            return True
+            if session:
+                jti = session.session_id
+                self.blacklist_token(jti)
+                db.delete(session)
+                db.commit()
+                logger.info(f"Session {session_id} revoked for user {user_id}")
+                return True
+            return False
         except Exception as e:
+            db.rollback()
             logger.error(f"Error revoking session {session_id} for user {user_id}: {e}")
             return False
+        finally:
+            db.close()
     
     def revoke_all_user_sessions(self, user_id: int) -> int:
-        """
-        Revoke all sessions for a user (logout from all devices)
-        
-        Args:
-            user_id: User ID
-        
-        Returns:
-            Number of sessions revoked
-        """
-        if not self.is_connected:
-            return 0
-        
+        """Revoke all sessions for a user (logout from all devices)"""
+        db = SessionLocal()
         try:
-            sessions = self.get_user_sessions(user_id)
-            count = 0
+            sessions = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.expires_at > datetime.utcnow()
+            ).all()
             
-            # Blacklist all tokens
+            count = 0
             for session in sessions:
-                jti = session.get("jti")
-                if jti:
-                    self.blacklist_token(jti)
+                self.blacklist_token(session.session_id)
+                db.delete(session)
                 count += 1
             
-            # Delete all session keys
-            pattern = self._build_key(self.PREFIX_SESSION, user_id, "*")
-            keys = self._redis_client.keys(pattern)
-            if keys:
-                self._redis_client.delete(*keys)
-            
+            db.commit()
             logger.info(f"All {count} sessions revoked for user {user_id}")
             return count
         except Exception as e:
+            db.rollback()
             logger.error(f"Error revoking all sessions for user {user_id}: {e}")
             return 0
+        finally:
+            db.close()
     
     def _enforce_session_limits(self, user_id: int) -> None:
-        """
-        Enforce maximum concurrent sessions per user
-        Removes oldest sessions if limit is exceeded
-        
-        Args:
-            user_id: User ID
-        """
-        if not self.is_connected:
-            return
-        
+        """Enforce maximum concurrent sessions per user"""
+        db = SessionLocal()
         try:
-            from app.core.config import settings
             max_sessions = getattr(settings, 'MAX_CONCURRENT_SESSIONS_PER_USER', 5)
             
-            sessions = self.get_user_sessions(user_id)
+            sessions = db.query(UserSession).filter(
+                UserSession.user_id == user_id,
+                UserSession.expires_at > datetime.utcnow()
+            ).order_by(UserSession.created_at.asc()).all()
             
             if len(sessions) >= max_sessions:
-                # Sort by created_at (oldest first)
-                sessions.sort(key=lambda x: x.get("created_at", ""))
-                
-                # Remove oldest sessions to make room for new one
                 num_to_remove = len(sessions) - max_sessions + 1
                 for i in range(num_to_remove):
                     session_to_remove = sessions[i]
-                    session_id = session_to_remove.get("session_id")
-                    if session_id:
-                        self.revoke_session(user_id, session_id)
-                        logger.info(f"Session {session_id} removed due to session limit for user {user_id}")
+                    self.revoke_session(user_id, session_to_remove.session_id)
+                    logger.info(f"Session {session_to_remove.session_id} removed due to session limit for user {user_id}")
         except Exception as e:
             logger.error(f"Error enforcing session limits for user {user_id}: {e}")
+        finally:
+            db.close()
     
     def validate_session_fingerprint(self, user_id: int, session_id: str, current_fingerprint: str) -> bool:
-        """
-        Validate session fingerprint to detect potential hijacking
-        
-        Args:
-            user_id: User ID
-            session_id: Session ID  
-            current_fingerprint: Current request fingerprint
-        
-        Returns:
-            True if fingerprint matches, False otherwise
-        """
-        if not self.is_connected:
-            return True  # Allow if Redis unavailable
-        
+        """Validate session fingerprint to detect potential hijacking"""
         try:
             session = self.get_session(user_id, session_id)
             if not session:
@@ -391,10 +285,8 @@ class SessionService:
             
             stored_fingerprint = session.get("fingerprint")
             if not stored_fingerprint:
-                # Old session without fingerprint, allow it
                 return True
             
-            # Compare fingerprints
             if stored_fingerprint != current_fingerprint:
                 logger.warning(f"Fingerprint mismatch for session {session_id}, user {user_id}")
                 return False
@@ -402,236 +294,238 @@ class SessionService:
             return True
         except Exception as e:
             logger.error(f"Error validating fingerprint for session {session_id}: {e}")
-            return True  # Allow on error to prevent false positives
+            return True
     
     def get_session_by_jti(self, user_id: int, jti: str) -> Optional[Dict[str, Any]]:
-        """
-        Get session by JTI
-        
-        Args:
-            user_id: User ID
-            jti: Token unique identifier
-        
-        Returns:
-            Session data or None
-        """
-        if not self.is_connected:
-            return None
-        
-        try:
-            sessions = self.get_user_sessions(user_id)
-            for session in sessions:
-                if session.get("jti") == jti:
-                    return session
-            return None
-        except Exception as e:
-            logger.error(f"Error getting session by JTI {jti}: {e}")
-            return None
+        """Get session by JTI"""
+        return self.get_session(user_id, jti)
     
     # ============ Refresh Token Rotation ============
     
     def mark_refresh_token_used(self, jti: str) -> bool:
-        """
-        Mark a refresh token as used (for one-time use enforcement)
-        
-        Args:
-            jti: Refresh token unique identifier
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.is_connected:
-            return False
-        
+        """Mark a refresh token as used (for one-time use enforcement)"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_REFRESH_USED, jti)
-            self._redis_client.setex(key, self.TTL_REFRESH_TOKEN, "used")
+            expires_at = datetime.utcnow() + timedelta(seconds=self.TTL_REFRESH_TOKEN)
+            token = UsedRefreshToken(jti=jti, expires_at=expires_at)
+            db.add(token)
+            db.commit()
             logger.info(f"Refresh token {jti} marked as used")
             return True
         except Exception as e:
+            db.rollback()
             logger.error(f"Error marking refresh token {jti} as used: {e}")
             return False
+        finally:
+            db.close()
     
     def is_refresh_token_used(self, jti: str) -> bool:
-        """
-        Check if a refresh token has already been used
-        
-        Args:
-            jti: Refresh token unique identifier
-        
-        Returns:
-            True if token was already used, False otherwise
-        """
-        if not self.is_connected:
-            return False
-        
+        """Check if a refresh token has already been used"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_REFRESH_USED, jti)
-            return self._redis_client.exists(key) > 0
+            token = db.query(UsedRefreshToken).filter(
+                UsedRefreshToken.jti == jti,
+                UsedRefreshToken.expires_at > datetime.utcnow()
+            ).first()
+            return token is not None
         except Exception as e:
             logger.error(f"Error checking refresh token usage {jti}: {e}")
             return False
+        finally:
+            db.close()
     
     # ============ Rate Limiting ============
     
     def check_rate_limit(self, identifier: str, max_requests: Optional[int] = None, window: Optional[int] = None) -> bool:
-        """
-        Check if rate limit is exceeded
-        
-        Args:
-            identifier: Unique identifier (IP address, user ID, etc.)
-            max_requests: Maximum requests allowed (defaults to MAX_REQUESTS_PER_MINUTE)
-            window: Time window in seconds (defaults to TTL_RATE_LIMIT)
-        
-        Returns:
-            True if under limit, False if exceeded
-        """
-        if not self.is_connected:
-            return True  # Allow if Redis is down
-        
+        """Check if rate limit is exceeded"""
+        db = SessionLocal()
         try:
             max_requests = max_requests or self.MAX_REQUESTS_PER_MINUTE
             window = window or self.TTL_RATE_LIMIT
+            now = datetime.utcnow()
             
-            key = self._build_key(self.PREFIX_RATE_LIMIT, identifier)
-            current = self._redis_client.get(key)
+            # Clean old expired rate limits for this identifier
+            db.query(RateLimit).filter(
+                RateLimit.identifier == identifier,
+                RateLimit.window_end < now
+            ).delete(synchronize_session=False)
             
-            if current is None:
-                # First request in window
-                self._redis_client.setex(key, window, 1)
+            rate_limit = db.query(RateLimit).filter(
+                RateLimit.identifier == identifier,
+                RateLimit.window_end > now
+            ).first()
+            
+            if rate_limit is None:
+                rate_limit = RateLimit(
+                    identifier=identifier,
+                    request_count=1,
+                    window_start=now,
+                    window_end=now + timedelta(seconds=window)
+                )
+                db.add(rate_limit)
+                db.commit()
                 return True
             
-            count = int(current)
-            if count >= max_requests:
+            if rate_limit.request_count >= max_requests:
                 logger.warning(f"Rate limit exceeded for {identifier}")
                 return False
             
-            # Increment counter
-            self._redis_client.incr(key)
+            rate_limit.request_count += 1
+            db.commit()
             return True
         except Exception as e:
+            db.rollback()
             logger.error(f"Error checking rate limit for {identifier}: {e}")
-            return True  # Allow on error
+            return True
+        finally:
+            db.close()
     
     def increment_rate_limit(self, identifier: str, window: Optional[int] = None) -> int:
-        """
-        Increment rate limit counter
-        
-        Args:
-            identifier: Unique identifier
-            window: Time window in seconds
-        
-        Returns:
-            Current count
-        """
-        if not self.is_connected:
-            return 0
-        
+        """Increment rate limit counter"""
+        db = SessionLocal()
         try:
             window = window or self.TTL_RATE_LIMIT
-            key = self._build_key(self.PREFIX_RATE_LIMIT, identifier)
+            now = datetime.utcnow()
             
-            if not self._redis_client.exists(key):
-                self._redis_client.setex(key, window, 1)
+            db.query(RateLimit).filter(
+                RateLimit.identifier == identifier,
+                RateLimit.window_end < now
+            ).delete(synchronize_session=False)
+            
+            rate_limit = db.query(RateLimit).filter(
+                RateLimit.identifier == identifier,
+                RateLimit.window_end > now
+            ).first()
+            
+            if rate_limit is None:
+                rate_limit = RateLimit(
+                    identifier=identifier,
+                    request_count=1,
+                    window_start=now,
+                    window_end=now + timedelta(seconds=window)
+                )
+                db.add(rate_limit)
+                db.commit()
                 return 1
             
-            return self._redis_client.incr(key)
+            rate_limit.request_count += 1
+            db.commit()
+            return rate_limit.request_count
         except Exception as e:
+            db.rollback()
             logger.error(f"Error incrementing rate limit for {identifier}: {e}")
             return 0
+        finally:
+            db.close()
     
     # ============ Login Attempt Tracking ============
     
     def record_login_attempt(self, identifier: str, success: bool) -> int:
-        """
-        Record a login attempt
-        
-        Args:
-            identifier: Unique identifier (username, IP, etc.)
-            success: Whether login was successful
-        
-        Returns:
-            Number of failed attempts in current window
-        """
-        if not self.is_connected:
-            return 0
-        
+        """Record a login attempt"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_LOGIN_ATTEMPTS, identifier)
+            attempt = db.query(LoginAttempt).filter(
+                LoginAttempt.identifier == identifier
+            ).first()
             
             if success:
-                # Clear failed attempts on successful login
-                self._redis_client.delete(key)
+                if attempt:
+                    db.delete(attempt)
+                    db.commit()
                 return 0
             
-            # Increment failed attempts
-            if not self._redis_client.exists(key):
-                self._redis_client.setex(key, self.TTL_LOGIN_ATTEMPTS, 1)
-                return 1
+            now = datetime.utcnow()
+            if attempt is None:
+                attempt = LoginAttempt(
+                    identifier=identifier,
+                    failed_count=1,
+                    last_attempt_at=now
+                )
+                db.add(attempt)
+            else:
+                attempt.failed_count += 1
+                attempt.last_attempt_at = now
+                if attempt.failed_count >= self.MAX_LOGIN_ATTEMPTS:
+                    attempt.block_until = now + timedelta(minutes=settings.LOGIN_BLOCK_DURATION_MINUTES)
             
-            count = self._redis_client.incr(key)
-            return count
+            db.commit()
+            return attempt.failed_count
         except Exception as e:
+            db.rollback()
             logger.error(f"Error recording login attempt for {identifier}: {e}")
             return 0
+        finally:
+            db.close()
     
     def get_login_attempts(self, identifier: str) -> int:
-        """
-        Get number of failed login attempts
-        
-        Args:
-            identifier: Unique identifier
-        
-        Returns:
-            Number of failed attempts
-        """
-        if not self.is_connected:
-            return 0
-        
+        """Get number of failed login attempts"""
+        db = SessionLocal()
         try:
-            key = self._build_key(self.PREFIX_LOGIN_ATTEMPTS, identifier)
-            count = self._redis_client.get(key)
-            return int(count) if count else 0
+            attempt = db.query(LoginAttempt).filter(
+                LoginAttempt.identifier == identifier
+            ).first()
+            return attempt.failed_count if attempt else 0
         except Exception as e:
             logger.error(f"Error getting login attempts for {identifier}: {e}")
             return 0
+        finally:
+            db.close()
     
     def is_login_blocked(self, identifier: str) -> bool:
-        """
-        Check if login is blocked due to too many failed attempts
-        
-        Args:
-            identifier: Unique identifier
-        
-        Returns:
-            True if blocked, False otherwise
-        """
-        attempts = self.get_login_attempts(identifier)
-        return attempts >= self.MAX_LOGIN_ATTEMPTS
+        """Check if login is blocked due to too many failed attempts"""
+        db = SessionLocal()
+        try:
+            attempt = db.query(LoginAttempt).filter(
+                LoginAttempt.identifier == identifier
+            ).first()
+            
+            if not attempt:
+                return False
+            
+            now = datetime.utcnow()
+            if attempt.block_until and attempt.block_until > now:
+                return True
+            
+            # If no explicit block but count exceeds max, check if within window
+            if attempt.failed_count >= self.MAX_LOGIN_ATTEMPTS:
+                # Block if last attempt was within the tracking window
+                if attempt.last_attempt_at and attempt.last_attempt_at > now - timedelta(seconds=self.TTL_LOGIN_ATTEMPTS):
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error checking login block for {identifier}: {e}")
+            return False
+        finally:
+            db.close()
     
     def get_login_block_ttl(self, identifier: str) -> int:
-        """
-        Get remaining seconds until login block expires
-        
-        Args:
-            identifier: Unique identifier
-        
-        Returns:
-            Seconds remaining, or 0 if not blocked
-        """
-        if not self.is_connected:
-            return 0
-        
+        """Get remaining seconds until login block expires"""
+        db = SessionLocal()
         try:
-            if not self.is_login_blocked(identifier):
+            attempt = db.query(LoginAttempt).filter(
+                LoginAttempt.identifier == identifier
+            ).first()
+            
+            if not attempt:
                 return 0
             
-            key = self._build_key(self.PREFIX_LOGIN_ATTEMPTS, identifier)
-            ttl = self._redis_client.ttl(key)
-            return max(0, ttl)
+            now = datetime.utcnow()
+            if attempt.block_until and attempt.block_until > now:
+                return max(0, int((attempt.block_until - now).total_seconds()))
+            
+            # If blocked by count but no explicit block_until, return time until attempt window expires
+            if attempt.failed_count >= self.MAX_LOGIN_ATTEMPTS and attempt.last_attempt_at:
+                window_end = attempt.last_attempt_at + timedelta(seconds=self.TTL_LOGIN_ATTEMPTS)
+                if window_end > now:
+                    return max(0, int((window_end - now).total_seconds()))
+            
+            return 0
         except Exception as e:
             logger.error(f"Error getting login block TTL for {identifier}: {e}")
             return 0
+        finally:
+            db.close()
 
 
 # Global session service instance

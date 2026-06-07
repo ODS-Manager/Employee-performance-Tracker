@@ -271,7 +271,7 @@ async def login(request: LoginRequest, req: Request, response: Response, db: Ses
     # Set CSRF cookie
     CSRFProtection.set_csrf_cookie(response, csrf_token)
     
-    # Create session in Redis with fingerprint
+    # Create session with fingerprint
     device_info = user_agent.split()[0] if user_agent != "Unknown" else "Unknown"
     try:
         session_service.create_session(
@@ -459,7 +459,7 @@ async def logout(
     
     Features:
     - Blacklists current access token
-    - Removes active session from Redis
+    - Removes active session
     - Prevents token reuse
     - Clears httpOnly cookies
     """
@@ -574,7 +574,7 @@ async def change_password(
     
     db.commit()
     
-    # Revoke all user sessions in Redis
+    # Revoke all user sessions
     revoked_count = session_service.revoke_all_user_sessions(current_user.id)
     
     # Log successful password change

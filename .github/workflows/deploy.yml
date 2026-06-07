@@ -13,7 +13,6 @@ env:
   SERVICE_NAME: employee-performance-api
   IMAGE_NAME: backend
   VPC_CONNECTOR: ods-serverless-connector
-  REDIS_URL: redis://10.120.252.51:6379/0
 
 permissions:
   contents: read
@@ -172,7 +171,7 @@ jobs:
               --service-account github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com \
               --vpc-connector ${{ env.VPC_CONNECTOR }} \
               --vpc-egress private-ranges-only \
-              --set-env-vars DATABASE_URL=postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database,SECRET_KEY=dev-secret-key-for-production,CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app\\,http://localhost:3000,FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app,REDIS_URL=${{ env.REDIS_URL }},COOKIE_SAMESITE=none,COOKIE_SECURE=True \
+              --set-env-vars DATABASE_URL=postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database,SECRET_KEY=dev-secret-key-for-production,CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app\\,http://localhost:3000,FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app,COOKIE_SAMESITE=none,COOKIE_SECURE=True \
               --add-cloudsql-instances project-0990a5d7-310c-4a56-837:asia-south1:ods-database \
               --quiet || {
               echo "Both deployment methods failed, checking service status..."

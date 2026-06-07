@@ -54,6 +54,13 @@ from app.models.billing import BillingReport, BillingDetail
 # Allowed duplicate products
 from app.models.allowed_duplicate_product import AllowedDuplicateProduct
 
+# Session management
+from app.models.blacklisted_token import BlacklistedToken
+from app.models.user_session import UserSession
+from app.models.used_refresh_token import UsedRefreshToken
+from app.models.rate_limit import RateLimit
+from app.models.login_attempt import LoginAttempt
+
 __all__ = [
     # Reference tables
     "TransactionType",
@@ -94,5 +101,11 @@ __all__ = [
     "BillingReport",
     "BillingDetail",
     # Allowed duplicate products
-    "AllowedDuplicateProduct"
+    "AllowedDuplicateProduct",
+    # Session management
+    "BlacklistedToken",
+    "UserSession",
+    "UsedRefreshToken",
+    "RateLimit",
+    "LoginAttempt",
 ]

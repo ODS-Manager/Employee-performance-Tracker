@@ -54,7 +54,7 @@ jobs:
           --memory=1Gi \
           --cpu=1 \
           --timeout=300 \
-          --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }}" \
+          --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}''" \
           --max-instances=10
 
     - name: Get Backend URL

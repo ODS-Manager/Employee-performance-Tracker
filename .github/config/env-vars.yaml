@@ -2,6 +2,5 @@ DATABASE_URL: "postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a
 SECRET_KEY: "dev-secret-key-for-production"
 CORS_ORIGINS: "https://ods-frontend-302004244593.asia-south1.run.app,http://localhost:3000"
 FRONTEND_URL: "https://ods-frontend-302004244593.asia-south1.run.app"
-REDIS_URL: "redis://10.120.252.51:6379/0"
 COOKIE_SECURE: "True"
 COOKIE_SAMESITE: "none"

@@ -16,13 +16,7 @@ python-dotenv==1.0.1
 pydantic[email]==2.10.5
 pydantic-settings==2.7.1
 
-# Redis & Caching
-redis==5.2.1
-hiredis==3.0.0
-
 # Background Tasks
-celery==5.4.0
-flower==2.0.1
 apscheduler==3.10.4
 
 # Validation & Serialization

@@ -264,7 +264,7 @@ class CacheKeyBuilder:
     @staticmethod
     def build_invalidation_pattern(prefix: str, **filters) -> str:
         """
-        Build a Redis pattern for cache invalidation.
+        Build a cache invalidation pattern for cache invalidation.
         Used with KEYS pattern matching for bulk deletion.
         
         Args:
@@ -272,7 +272,7 @@ class CacheKeyBuilder:
             **filters: Filter keys as kwargs (will be converted to pattern)
             
         Returns:
-            Redis pattern string (with * wildcards)
+            Cache pattern string (with * wildcards)
             
         Example:
             pattern = CacheKeyBuilder.build_invalidation_pattern(

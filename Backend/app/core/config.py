@@ -20,9 +20,6 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-    
     # JWT
     SECRET_KEY: str = "dev-secret-key-for-production"
     ALGORITHM: str = "HS256"
@@ -56,10 +53,6 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50
     UPLOAD_DIR: str = "./uploads"
     ALLOWED_EXTENSIONS: Union[List[str], str] = [".xlsx", ".xls"]
-    
-    # Celery
-    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100

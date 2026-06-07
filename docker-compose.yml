@@ -22,23 +22,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: ods_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - ods_network
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Backend API (optional - can run locally)
   # backend:
   #   build:
@@ -47,7 +30,6 @@ services:
   #   container_name: ods_backend
   #   environment:
   #     - DATABASE_URL=postgresql://ods_user:ods_password@postgres:5432/ods_db
-  #     - REDIS_URL=redis://redis:6379/0
   #   ports:
   #     - "8000:8000"
   #   volumes:
@@ -55,8 +37,6 @@ services:
   #     - backend_uploads:/app/uploads
   #   depends_on:
   #     postgres:
-  #       condition: service_healthy
-  #     redis:
   #       condition: service_healthy
   #   networks:
   #     - ods_network
@@ -81,8 +61,6 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
   pgadmin_data:
     driver: local
