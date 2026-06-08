@@ -148,32 +148,13 @@ jobs:
             --min-instances 0 \
             --max-instances 10 \
             --service-account github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com \
+            --clear-vpc-connector \
             --env-vars-file .github/config/env-vars.yaml \
             --add-cloudsql-instances project-0990a5d7-310c-4a56-837:asia-south1:ods-database \
-            --quiet && {
-            echo "Deployment successful with env-vars-file"
-            exit 0
-          } || {
-            echo "env-vars-file approach failed, trying individual --set-env-vars..."
-            gcloud run deploy ${{ env.SERVICE_NAME }} \
-              --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-              --region ${{ env.REGION }} \
-              --platform managed \
-              --allow-unauthenticated \
-              --port 8080 \
-              --memory 512Mi \
-              --cpu 1 \
-              --min-instances 0 \
-              --max-instances 10 \
-              --service-account github-actions@project-0990a5d7-310c-4a56-837.iam.gserviceaccount.com \
-              --set-env-vars DATABASE_URL=postgresql://ods_user:ods123@/ods_db?host=/cloudsql/project-0990a5d7-310c-4a56-837:asia-south1:ods-database,SECRET_KEY=dev-secret-key-for-production,CORS_ORIGINS=https://ods-frontend-302004244593.asia-south1.run.app\\,http://localhost:3000,FRONTEND_URL=https://ods-frontend-302004244593.asia-south1.run.app,COOKIE_SAMESITE=none,COOKIE_SECURE=True \
-              --add-cloudsql-instances project-0990a5d7-310c-4a56-837:asia-south1:ods-database \
-              --quiet || {
-              echo "Both deployment methods failed, checking service status..."
-              gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="table(status.latestReadyRevisionName,status.url)" || echo "Service doesn't exist yet"
-              exit 1
-            }
-            echo "Deployment successful with individual env vars"
+            --quiet || {
+            echo "Deployment failed, checking service status..."
+            gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="table(status.latestReadyRevisionName,status.url)" || echo "Service doesn't exist yet"
+            exit 1
           }
           echo "Deployment successful"
           echo "==================="
