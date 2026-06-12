@@ -30,7 +30,7 @@ class AttendanceRecord(Base):
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="attendance_records")
-    team = relationship("Team", back_populates="attendance_records")
+    team = relationship("Team", back_populates="attendance_records", primaryjoin="foreign(AttendanceRecord.team_id) == Team.id")
     marked_by_user = relationship("User", foreign_keys=[marked_by])
     modified_by_user = relationship("User", foreign_keys=[modified_by])
     organization = relationship("Organization", back_populates="attendance_records")
@@ -69,7 +69,7 @@ class AttendanceAuditLog(Base):
     # Relationships
     attendance_record = relationship("AttendanceRecord", back_populates="audit_logs")
     user = relationship("User", foreign_keys=[user_id])
-    team = relationship("Team")
+    team = relationship("Team", primaryjoin="foreign(AttendanceAuditLog.team_id) == Team.id")
     changed_by_user = relationship("User", foreign_keys=[changed_by])
     
     # Indexes
