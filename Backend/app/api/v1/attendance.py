@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 from app.database import get_db
 from app.models.user import User
+from app.models.team import Team
 from app.models.attendance import AttendanceRecord
 from app.services.attendance_service import AttendanceService
 from app.schemas.attendance import (
@@ -284,11 +285,28 @@ def mark_team_lead_attendance(
                 detail="You can only mark attendance for team leads in your organization"
             )
     
-    # Mark attendance for team lead (using org_id as team_id for team leads)
-    # Skip team validation for team leads since they may not be direct team members
+    # Mark attendance for team lead. The frontend sends team_id=0 as a sentinel
+    # for team leads who don't belong to a single specific team. We look up the
+    # team lead's primary team when available and fall back to 0.
+    team_id = data.team_id if data.team_id is not None else target_user.org_id
+    if data.team_id == 0:
+        led_team = db.query(Team).filter(Team.team_lead_id == target_user.id).first()
+        if led_team:
+            team_id = led_team.id
+
+    # Backward compatibility: if an existing record exists for this date under a
+    # different team_id (e.g. old code stored org_id as team_id), reuse that
+    # team_id so we update rather than create a duplicate record.
+    existing_record = db.query(AttendanceRecord).filter(
+        AttendanceRecord.user_id == data.user_id,
+        AttendanceRecord.date == data.date
+    ).order_by(AttendanceRecord.id.desc()).first()
+    if existing_record:
+        team_id = existing_record.team_id
+
     return service.mark_attendance_single(
         user_id=data.user_id,
-        team_id=data.team_id if data.team_id else target_user.org_id,
+        team_id=team_id,
         check_date=data.date,
         status=data.status,
         marked_by=current_user.id,

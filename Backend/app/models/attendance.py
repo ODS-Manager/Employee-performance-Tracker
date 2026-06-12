@@ -18,7 +18,7 @@ class AttendanceRecord(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    team_id = Column(Integer, nullable=False)  # No FK: team leads may not belong to a single team
     date = Column(Date, nullable=False)
     status = Column(String(20), nullable=False)  # 'present', 'absent', 'leave'
     marked_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -57,7 +57,7 @@ class AttendanceAuditLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     attendance_record_id = Column(Integer, ForeignKey("attendance_records.id", ondelete="CASCADE"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    team_id = Column(Integer, nullable=False)  # No FK: team leads may not belong to a single team
     date = Column(Date, nullable=False)
     old_status = Column(String(20), nullable=True)
     new_status = Column(String(20), nullable=False)
