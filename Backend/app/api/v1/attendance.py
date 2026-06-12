@@ -287,12 +287,21 @@ def mark_team_lead_attendance(
     
     # Mark attendance for team lead. The frontend sends team_id=0 as a sentinel
     # for team leads who don't belong to a single specific team. We look up the
-    # team lead's primary team when available and fall back to 0.
+    # team lead's primary team when available and fall back to the first team in
+    # the org (team_id must be a valid FK to teams.id).
     team_id = data.team_id if data.team_id is not None else target_user.org_id
     if data.team_id == 0:
         led_team = db.query(Team).filter(Team.team_lead_id == target_user.id).first()
         if led_team:
             team_id = led_team.id
+        else:
+            # Fall back to first team in the org to satisfy FK constraint
+            any_team = db.query(Team).filter(
+                Team.org_id == target_user.org_id,
+                Team.is_active == True,
+            ).first()
+            if any_team:
+                team_id = any_team.id
 
     # Backward compatibility: if an existing record exists for this date under a
     # different team_id (e.g. old code stored org_id as team_id), reuse that

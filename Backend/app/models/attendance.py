@@ -18,7 +18,7 @@ class AttendanceRecord(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    team_id = Column(Integer, nullable=False)  # No FK: team leads may not belong to a single team
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
     status = Column(String(20), nullable=False)  # 'present', 'absent', 'leave'
     marked_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -30,7 +30,7 @@ class AttendanceRecord(Base):
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="attendance_records")
-    team = relationship("Team", back_populates="attendance_records", primaryjoin="foreign(AttendanceRecord.team_id) == Team.id")
+    team = relationship("Team", back_populates="attendance_records")
     marked_by_user = relationship("User", foreign_keys=[marked_by])
     modified_by_user = relationship("User", foreign_keys=[modified_by])
     organization = relationship("Organization", back_populates="attendance_records")
@@ -57,7 +57,7 @@ class AttendanceAuditLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     attendance_record_id = Column(Integer, ForeignKey("attendance_records.id", ondelete="CASCADE"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    team_id = Column(Integer, nullable=False)  # No FK: team leads may not belong to a single team
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
     old_status = Column(String(20), nullable=True)
     new_status = Column(String(20), nullable=False)
@@ -69,7 +69,7 @@ class AttendanceAuditLog(Base):
     # Relationships
     attendance_record = relationship("AttendanceRecord", back_populates="audit_logs")
     user = relationship("User", foreign_keys=[user_id])
-    team = relationship("Team", primaryjoin="foreign(AttendanceAuditLog.team_id) == Team.id")
+    team = relationship("Team")
     changed_by_user = relationship("User", foreign_keys=[changed_by])
     
     # Indexes

@@ -53,11 +53,7 @@ class Team(Base):
     user_aliases = relationship("TeamUserAlias", back_populates="team", cascade="all, delete-orphan")
     
     # Attendance records for this team
-    attendance_records = relationship(
-        "AttendanceRecord",
-        back_populates="team",
-        primaryjoin="foreign(AttendanceRecord.team_id) == Team.id",
-    )
+    attendance_records = relationship("AttendanceRecord", back_populates="team")
     
     # Indexes
     __table_args__ = (
