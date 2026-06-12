@@ -184,12 +184,12 @@ export const AdminTeamLeadTargets = () => {
           </div>
         </CardHeader>
 
-        {!canEdit && (
+        {weekInfo?.isPastWeek && (
           <CardContent>
             <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <AlertCircle className="h-5 w-5 text-yellow-600" />
               <p className="text-sm text-yellow-800">
-                This is a past week. Targets cannot be modified for past weeks.
+                This is a past week.
               </p>
             </div>
           </CardContent>

@@ -127,7 +127,7 @@ async def get_team_weekly_targets(
     current_week_start, _ = get_week_boundaries(today)
     is_current_week = week_start == current_week_start
     is_past_week = week_start < current_week_start
-    can_edit = not is_past_week  # Can edit current and future weeks
+    can_edit = True  # Allow editing targets for any week
     
     # Get all active team members (employees only)
     team_members = db.query(User, UserTeam).join(
@@ -201,7 +201,7 @@ async def set_team_weekly_targets(
     """
     Set or update weekly targets for multiple team members within this team.
     Only team leads can set targets for their team members.
-    Cannot set targets for past weeks.
+    Targets can be set for any week (past, current, or future).
     
     Note: Targets are per examiner PER TEAM. Setting a target here
     sets the target for examiners within this team's context only.
@@ -236,15 +236,6 @@ async def set_team_weekly_targets(
         week_start, _ = get_week_boundaries(week_start)
     
     week_end = week_start + timedelta(days=6)
-    
-    # Check if this is a past week
-    today = date.today()
-    current_week_start, _ = get_week_boundaries(today)
-    if week_start < current_week_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot set targets for past weeks"
-        )
     
     # Get valid team member user IDs
     valid_member_ids = set(
@@ -466,15 +457,6 @@ async def copy_targets_from_previous_week(
     
     week_end = week_start_date + timedelta(days=6)
     
-    # Check if this is a past week
-    today = date.today()
-    current_week_start, _ = get_week_boundaries(today)
-    if week_start_date < current_week_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot set targets for past weeks"
-        )
-    
     # Get team member IDs
     team_member_ids = [
         row[0] for row in db.query(UserTeam.user_id).filter(
@@ -563,7 +545,7 @@ async def get_team_lead_targets(
     current_week_start, _ = get_week_boundaries(today)
     is_current_week = week_start == current_week_start
     is_past_week = week_start < current_week_start
-    can_edit = not is_past_week
+    can_edit = True  # Allow editing targets for any week
     
     # Build query for team leads
     query = db.query(User).filter(
@@ -647,15 +629,6 @@ async def set_team_lead_targets(
         week_start, week_end = get_week_boundaries(week_start)
     else:
         week_end = week_start + timedelta(days=6)
-    
-    # Check if this is a past week
-    today = date.today()
-    current_week_start, _ = get_week_boundaries(today)
-    if week_start < current_week_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot set targets for past weeks"
-        )
     
     created_count = 0
     updated_count = 0
