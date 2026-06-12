@@ -552,6 +552,7 @@ class ProductivityService:
             User.id,
             User.user_name,
             User.examiner_id,
+            User.employee_id,
         ).join(
             UserTeam, User.id == UserTeam.user_id
         ).filter(
@@ -564,7 +565,7 @@ class ProductivityService:
         if team and team.team_lead_id:
             lead_ids = [int(member.id) for member in team_members]
             if team.team_lead_id not in lead_ids:
-                lead_user = self.db.query(User.id, User.user_name, User.examiner_id).filter(
+                lead_user = self.db.query(User.id, User.user_name, User.examiner_id, User.employee_id).filter(
                     User.id == team.team_lead_id,
                     User.is_active == True
                 ).first()
@@ -720,7 +721,7 @@ class ProductivityService:
                 examiner_data = {
                     "userId": uid,
                     "userName": membership.user_name,
-                    "examinerId": membership.examiner_id,
+                    "employeeId": membership.employee_id,
                     "completions": {
                         "step1Only": step1_only_count,
                         "step2Only": step2_only_count,
