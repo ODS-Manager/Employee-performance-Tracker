@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { AdminNav } from '../../components/layout/AdminNav'
 import { AdminHeader } from '../../components/layout/AdminHeader'
+import { createStableDate, formatStoredDate, formatStoredDateTime, getPacificDateString, getPacificTodayDate } from '../../utils/helpers'
 import {
   FileText,
   Plus,
@@ -73,10 +74,10 @@ export const BillingPage = () => {
 
   // Form state for creating new billing reports - now using dates
   const [formStartDate, setFormStartDate] = useState<string>(
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    getPacificDateString(createStableDate(getPacificTodayDate().getUTCFullYear(), getPacificTodayDate().getUTCMonth(), 1))
   )
   const [formEndDate, setFormEndDate] = useState<string>(
-    new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+    getPacificDateString(createStableDate(getPacificTodayDate().getUTCFullYear(), getPacificTodayDate().getUTCMonth() + 1, 0))
   )
 
   useEffect(() => {
@@ -273,8 +274,9 @@ export const BillingPage = () => {
   }
 
   const resetForm = () => {
-    setFormStartDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
-    setFormEndDate(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0])
+    const today = getPacificTodayDate()
+    setFormStartDate(getPacificDateString(createStableDate(today.getUTCFullYear(), today.getUTCMonth(), 1)))
+    setFormEndDate(getPacificDateString(createStableDate(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)))
   }
 
   const getStatusBadge = (status: string) => {
@@ -523,7 +525,7 @@ export const BillingPage = () => {
                           <div>
                             <span className="text-blue-700">Period:</span>{' '}
                             <span className="font-medium">
-                              {new Date(preview.startDate).toLocaleDateString()} - {new Date(preview.endDate).toLocaleDateString()}
+                              {formatStoredDate(preview.startDate)} - {formatStoredDate(preview.endDate)}
                             </span>
                           </div>
                           <div>
@@ -711,7 +713,7 @@ export const BillingPage = () => {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-slate-500" />
-                            {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
+                            {formatStoredDate(report.startDate)} - {formatStoredDate(report.endDate)}
                           </div>
                         </TableCell>
                         <TableCell className="text-center font-semibold">
@@ -721,7 +723,7 @@ export const BillingPage = () => {
                         <TableCell className="text-sm">
                           {report.createdByName}
                           <div className="text-xs text-muted-foreground">
-                            {new Date(report.createdAt).toLocaleDateString()}
+                            {formatStoredDate(report.createdAt)}
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">
@@ -730,7 +732,7 @@ export const BillingPage = () => {
                               {report.finalizedByName}
                               <div className="text-xs text-muted-foreground">
                                 {report.finalizedAt
-                                  ? new Date(report.finalizedAt).toLocaleDateString()
+                                  ? formatStoredDateTime(report.finalizedAt, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                                   : ''}
                               </div>
                             </>
@@ -810,7 +812,7 @@ export const BillingPage = () => {
             <div className="bg-slate-50 p-4 rounded-md">
               <p className="text-sm">
                 <span className="font-medium">Period:</span>{' '}
-                {new Date(reportToFinalize.startDate).toLocaleDateString()} - {new Date(reportToFinalize.endDate).toLocaleDateString()}
+                {formatStoredDate(reportToFinalize.startDate)} - {formatStoredDate(reportToFinalize.endDate)}
               </p>
               <p className="text-sm mt-1">
                 <span className="font-medium">Total Files:</span> {reportToFinalize.totalFiles}
@@ -862,7 +864,7 @@ export const BillingPage = () => {
             <div className="bg-slate-50 p-4 rounded-md">
               <p className="text-sm">
                 <span className="font-medium">Period:</span>{' '}
-                {new Date(reportToDelete.startDate).toLocaleDateString()} - {new Date(reportToDelete.endDate).toLocaleDateString()}
+                {formatStoredDate(reportToDelete.startDate)} - {formatStoredDate(reportToDelete.endDate)}
               </p>
               <p className="text-sm mt-1">
                 <span className="font-medium">Total Files:</span> {reportToDelete.totalFiles}

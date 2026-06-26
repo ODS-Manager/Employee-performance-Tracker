@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { productivityApi, ordersApi, usersApi, teamsApi } from '../../services/api'
-import { getInitials } from '../../utils/helpers'
+import { formatStoredDate, getInitials } from '../../utils/helpers'
 import type { ExaminerProductivity, OrderSimple, Team } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -142,7 +141,7 @@ export const ExaminerPerformancePage = () => {
   // Order statistics (kept for potential future use but chart was removed)
   const _ordersByDate = orders.reduce((acc, order) => {
     if (!order.createdAt) return acc
-    const date = format(new Date(order.createdAt), 'MMM dd')
+    const date = formatStoredDate(order.createdAt, 'en-US', { month: 'short', day: 'numeric' })
     if (!acc[date]) {
       acc[date] = { date, completed: 0, pending: 0, inProgress: 0 }
     }
@@ -481,7 +480,7 @@ export const ExaminerPerformancePage = () => {
                               {order.orderStatusName || 'Unknown'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{order.createdAt ? format(new Date(order.createdAt), 'MMM dd, yyyy') : 'N/A'}</TableCell>
+                          <TableCell>{order.createdAt ? formatStoredDate(order.createdAt, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</TableCell>
                         </TableRow>
                       ))
                     )}

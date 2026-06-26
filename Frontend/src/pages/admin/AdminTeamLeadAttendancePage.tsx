@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { format } from 'date-fns'
 import { AdminHeader } from '../../components/layout/AdminHeader'
 import { AdminNav } from '../../components/layout/AdminNav'
-import { getInitials } from '../../utils/helpers'
+import { formatStoredDate, getInitials, getPacificTodayDate } from '../../utils/helpers'
 import toast from 'react-hot-toast'
 import { 
   Calendar as CalendarIcon, 
@@ -47,7 +47,7 @@ export const AdminTeamLeadAttendancePage = () => {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(getPacificTodayDate())
   const [attendanceRecords, setAttendanceRecords] = useState<Record<number, AttendanceRecord>>({})
   const [saving, setSaving] = useState(false)
 
@@ -203,7 +203,7 @@ export const AdminTeamLeadAttendancePage = () => {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
+                    {selectedDate ? formatStoredDate(selectedDate.toISOString().slice(0, 10), 'en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">
@@ -225,7 +225,7 @@ export const AdminTeamLeadAttendancePage = () => {
             <div>
               <CardTitle>Team Leads</CardTitle>
               <CardDescription>
-                {format(selectedDate, 'EEEE, MMMM d, yyyy')} - {teamLeads.length} team leads
+                {formatStoredDate(selectedDate.toISOString().slice(0, 10), 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} - {teamLeads.length} team leads
               </CardDescription>
             </div>
             <Button 

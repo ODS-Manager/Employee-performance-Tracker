@@ -39,6 +39,7 @@ from app.models.team import Team
 from app.models.user_team import UserTeam
 from app.models.examiner_weekly_target import ExaminerWeeklyTarget
 from app.services.attendance_service import AttendanceService
+from app.utils.timezone_utils import pacific_today
 
 
 class ProductivityService:
@@ -398,7 +399,7 @@ class ProductivityService:
             return {"error": "Productivity is only calculated for examiners"}
         
         # Adjust end_date to not exceed today's date
-        today = date.today()
+        today = pacific_today()
         actual_end_date = min(end_date, today)
         
         # Get ALL active teams the examiner is assigned to
@@ -544,7 +545,7 @@ class ProductivityService:
             return {"error": "Team not found"}
         
         # Adjust end_date to not exceed today's date
-        today = date.today()
+        today = pacific_today()
         actual_end_date = min(end_date, today)
         
         # Get active team members - examiners AND team leads
@@ -958,7 +959,7 @@ class ProductivityService:
             return {"error": "This endpoint is only for team leads"}
         
         # Adjust end_date to not exceed today's date
-        today = date.today()
+        today = pacific_today()
         actual_end_date = min(end_date, today)
         
         # Get all teams the team lead belongs to (they work on orders in these teams)

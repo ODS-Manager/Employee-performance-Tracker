@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { organizationsApi } from '../../services/api'
 import type { Organization, OrganizationUpdate } from '../../types'
+import { formatStoredDate } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -268,7 +269,7 @@ export const OrganizationsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {new Date(org.createdAt).toLocaleDateString()}
+                        {formatStoredDate(org.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

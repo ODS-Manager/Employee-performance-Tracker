@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { qualityAuditApi, usersApi, teamsApi } from '../../services/api'
-import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
+import { formatStoredDate, getPacificDateString, hasAnyUserRole, isUserRole } from '../../utils/helpers'
 import type { QualityAudit, QualityAuditCreate, User, Team, ProcessTypeOFE } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -54,7 +54,7 @@ export const QualityAuditPage = () => {
     filesWithError: 0,
     totalErrors: 0,
     filesWithCceError: 0,
-    auditDate: new Date().toISOString().split('T')[0],
+    auditDate: getPacificDateString(),
     auditPeriodStart: null,
     auditPeriodEnd: null,
   })
@@ -321,7 +321,7 @@ export const QualityAuditPage = () => {
       filesWithError: 0,
       totalErrors: 0,
       filesWithCceError: 0,
-      auditDate: new Date().toISOString().split('T')[0],
+      auditDate: getPacificDateString(),
       auditPeriodStart: null,
       auditPeriodEnd: null,
     })
@@ -344,8 +344,7 @@ export const QualityAuditPage = () => {
 
   const formatDisplayDate = (dateValue?: string | null) => {
     if (!dateValue) return '-'
-    const parsed = new Date(dateValue)
-    return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString()
+    return formatStoredDate(dateValue)
   }
 
   return (

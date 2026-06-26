@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { teamsApi, ordersApi, referenceApi } from '../../services/api'
-import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatStoredDate, formatStoredDateTime, getInitials, handleLogoutFlow, parseStoredDateToUtcDate } from '../../utils/helpers'
 import type { OrderSimple, ProcessType, Division, OrderStatus } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -363,14 +363,12 @@ export const TeamOrdersPage = () => {
       const exportData = fullOrders.map((order) => {
         // Format timestamps
         const formatDateTime = (dateStr: string | null) => {
-          if (!dateStr) return '-'
-          const date = new Date(dateStr)
-          return date.toLocaleString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
+          return formatStoredDateTime(dateStr, 'en-US', {
+            month: 'short',
+            day: 'numeric',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
           })
         }
 
@@ -450,9 +448,7 @@ export const TeamOrdersPage = () => {
 
   // Format date range for display
   const formatDateRange = () => {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    return `${formatStoredDate(startDate, 'en-US', { month: 'short', day: 'numeric' })} - ${formatStoredDate(endDate, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   }
 
   // Count active filters
@@ -705,15 +701,15 @@ export const TeamOrdersPage = () => {
                                 "h-9 w-full min-w-[220px] justify-start text-left font-normal",
                                 !startDate && "text-muted-foreground"
                               )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {startDate ? format(new Date(startDate), 'PPP') : <span>Pick a date</span>}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                              {startDate ? formatStoredDate(startDate, 'en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : <span>Pick a date</span>}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={startDate ? new Date(startDate) : undefined}
+                              selected={startDate ? parseStoredDateToUtcDate(startDate) ?? undefined : undefined}
                               onSelect={(date) => {
                                 if (!date) return
                                 setStartDateOverride(format(date, 'yyyy-MM-dd'))
@@ -749,20 +745,20 @@ export const TeamOrdersPage = () => {
                                 "h-9 w-full min-w-[220px] justify-start text-left font-normal",
                                 !endDate && "text-muted-foreground"
                               )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {endDate ? format(new Date(endDate), 'PPP') : <span>Pick a date</span>}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                              {endDate ? formatStoredDate(endDate, 'en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : <span>Pick a date</span>}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={endDate ? new Date(endDate) : undefined}
+                              selected={endDate ? parseStoredDateToUtcDate(endDate) ?? undefined : undefined}
                               onSelect={(date) => {
                                 if (!date) return
                                 setEndDateOverride(format(date, 'yyyy-MM-dd'))
                               }}
-                              disabled={startDate ? { before: new Date(startDate) } : undefined}
+                              disabled={parseStoredDateToUtcDate(startDate) ? { before: parseStoredDateToUtcDate(startDate)! } : undefined}
                               initialFocus
                             />
                           </PopoverContent>

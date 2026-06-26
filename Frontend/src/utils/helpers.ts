@@ -4,6 +4,8 @@
 
 import type { UserRole } from '../types'
 
+export const PACIFIC_TIME_ZONE = 'America/Los_Angeles'
+
 /**
  * Extracts initials from a name string
  * @param name - The full name or username
@@ -118,6 +120,24 @@ export const getRoleBadgeColor = (role: string): string => {
 }
 
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})/
+const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/
+
+const buildUtcDate = (
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  millisecond = 0
+) => new Date(Date.UTC(year, month - 1, day, hour, minute, second, millisecond))
+
+export const createStableDate = (
+  year: number,
+  monthIndexZeroBased: number,
+  day: number,
+  hour = 12
+): Date => buildUtcDate(year, monthIndexZeroBased + 1, day, hour)
 
 const parseStoredDateParts = (dateString: string): [number, number, number] | null => {
   const match = dateString.match(DATE_ONLY_PATTERN)
@@ -131,6 +151,24 @@ const parseStoredDateParts = (dateString: string): [number, number, number] | nu
   return [year, month, day]
 }
 
+const parseStoredDateTimeParts = (
+  dateString: string
+): [number, number, number, number, number, number, number] | null => {
+  const match = dateString.match(DATE_TIME_PATTERN)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const hour = Number(match[4] ?? 0)
+  const minute = Number(match[5] ?? 0)
+  const second = Number(match[6] ?? 0)
+  const millisecond = Number((match[7] ?? '0').padEnd(3, '0'))
+
+  if (!year || !month || !day) return null
+  return [year, month, day, hour, minute, second, millisecond]
+}
+
 export const formatStoredDate = (
   dateString: string | null | undefined,
   locale: string = 'en-US',
@@ -141,7 +179,7 @@ export const formatStoredDate = (
   const parsedParts = parseStoredDateParts(dateString)
   if (parsedParts) {
     const [year, month, day] = parsedParts
-    const stableDate = new Date(Date.UTC(year, month - 1, day))
+    const stableDate = buildUtcDate(year, month, day, 12)
     return new Intl.DateTimeFormat(locale, {
       ...options,
       timeZone: 'UTC',
@@ -155,6 +193,91 @@ export const formatStoredDate = (
     ...options,
     timeZone: 'UTC',
   }).format(fallbackDate)
+}
+
+export const formatStoredDateTime = (
+  dateString: string | null | undefined,
+  locale: string = 'en-US',
+  options?: Intl.DateTimeFormatOptions
+): string => {
+  if (!dateString) return '-'
+
+  const parsedDateTime = parseStoredDateTimeParts(dateString)
+  if (parsedDateTime) {
+    const [year, month, day, hour, minute, second, millisecond] = parsedDateTime
+    const stableDate = buildUtcDate(year, month, day, hour, minute, second, millisecond)
+    return new Intl.DateTimeFormat(locale, {
+      ...options,
+      timeZone: 'UTC',
+    }).format(stableDate)
+  }
+
+  const fallbackDate = new Date(dateString)
+  if (Number.isNaN(fallbackDate.getTime())) return '-'
+
+  return new Intl.DateTimeFormat(locale, {
+    ...options,
+    timeZone: 'UTC',
+  }).format(fallbackDate)
+}
+
+export const parseStoredDateToUtcDate = (dateString: string): Date | null => {
+  const parsedParts = parseStoredDateParts(dateString)
+  if (!parsedParts) return null
+
+  const [year, month, day] = parsedParts
+  return buildUtcDate(year, month, day, 12)
+}
+
+export const getPacificDateString = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+
+  if (!year || !month || !day) return ''
+  return `${year}-${month}-${day}`
+}
+
+export const getPacificTodayDate = (date: Date = new Date()): Date => {
+  const dateString = getPacificDateString(date)
+  const parsed = parseStoredDateToUtcDate(dateString)
+  return parsed ?? buildUtcDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), 12)
+}
+
+export const getPacificMonthKey = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  if (!year || !month) return ''
+  return `${year}-${month}`
+}
+
+export const formatPacificMonthLabel = (year: number, monthIndexZeroBased: number): string => {
+  const stableDate = buildUtcDate(year, monthIndexZeroBased + 1, 1, 12)
+  return new Intl.DateTimeFormat('default', {
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(stableDate)
+}
+
+export const getPacificWeekStartDate = (weekOffset = 0): string => {
+  const today = getPacificTodayDate()
+  const dayOfWeek = today.getUTCDay()
+  const currentWeekSunday = new Date(today)
+  currentWeekSunday.setUTCDate(today.getUTCDate() - dayOfWeek + weekOffset * 7)
+  return currentWeekSunday.toISOString().slice(0, 10)
 }
 
 export const getPstDateInputValue = (date: Date = new Date()): string => {

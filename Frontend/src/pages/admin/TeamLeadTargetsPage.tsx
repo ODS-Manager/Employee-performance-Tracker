@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { weeklyTargetsApi } from '../../services/api'
-import { isUserRole } from '../../utils/helpers'
-import type { CurrentWeekInfo } from '../../types'
+import { formatStoredDate, getPacificWeekStartDate, isUserRole } from '../../utils/helpers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
@@ -21,7 +20,6 @@ import { AdminNav } from '../../components/layout/AdminNav'
 import { AdminHeader } from '../../components/layout/AdminHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 import { 
-  Target, 
   Users, 
   Save, 
   ChevronLeft, 
@@ -63,19 +61,7 @@ export const TeamLeadTargetsPage = () => {
   }, [user, navigate])
 
   // Calculate week dates based on offset
-  const getWeekDates = (offset: number) => {
-    const today = new Date()
-    const dayOfWeek = today.getDay()
-    const daysToSunday = dayOfWeek === 0 ? 0 : dayOfWeek
-    const currentWeekSunday = new Date(today)
-    currentWeekSunday.setDate(today.getDate() - daysToSunday)
-    currentWeekSunday.setHours(0, 0, 0, 0)
-    
-    const targetWeekSunday = new Date(currentWeekSunday)
-    targetWeekSunday.setDate(currentWeekSunday.getDate() + offset * 7)
-    
-    return targetWeekSunday.toISOString().split('T')[0]
-  }
+  const getWeekDates = (offset: number) => getPacificWeekStartDate(offset)
 
   const weekStartDate = getWeekDates(weekOffset)
 
@@ -194,11 +180,11 @@ export const TeamLeadTargetsPage = () => {
                   </Button>
                   <div className="text-center min-w-[150px]">
                     <p className="font-medium">
-                      {weekInfo?.weekStartDate ? new Date(weekInfo.weekStartDate).toLocaleDateString() : weekStartDate}
+                      {weekInfo?.weekStartDate ? formatStoredDate(weekInfo.weekStartDate) : weekStartDate}
                     </p>
                     <p className="text-xs text-muted-foreground">to</p>
                     <p className="font-medium">
-                      {weekInfo?.weekEndDate ? new Date(weekInfo.weekEndDate).toLocaleDateString() : ''}
+                      {weekInfo?.weekEndDate ? formatStoredDate(weekInfo.weekEndDate) : ''}
                     </p>
                   </div>
                   <Button

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { usersApi, teamsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
-import { formatStoredDate } from '../../utils/helpers'
+import { formatStoredDate, formatStoredDateTime } from '../../utils/helpers'
 import type { UserWithTeams, Team, ExaminerProductivity, OrderSimple, QualityAudit } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -207,7 +207,13 @@ export const TeamMemberDetailPage = () => {
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleString()
+    return formatStoredDateTime(dateString, 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
   }
 
   const formatShortDate = (dateString: string | null | undefined) => {
@@ -438,7 +444,7 @@ export const TeamMemberDetailPage = () => {
             </SelectContent>
           </Select>
           <span className="text-sm text-slate-500">
-            {format(new Date(startDate), 'MMM dd, yyyy')} - {format(new Date(endDate), 'MMM dd, yyyy')}
+            {formatStoredDate(startDate, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {formatStoredDate(endDate, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
         </div>
 

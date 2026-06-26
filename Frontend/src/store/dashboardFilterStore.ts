@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getPacificTodayDate } from '../utils/helpers'
 
 const START_YEAR = 2026
 const START_MONTH = 1 // January
@@ -20,9 +21,9 @@ export const getMonthOptions = (selectedYear: string) => {
     { value: '12', label: 'December' },
   ]
   
-  const currentDate = new Date()
-  const currentYear = currentDate.getFullYear()
-  const currentMonth = currentDate.getMonth() + 1
+  const currentDate = getPacificTodayDate()
+  const currentYear = currentDate.getUTCFullYear()
+  const currentMonth = currentDate.getUTCMonth() + 1
   const year = parseInt(selectedYear)
   
   // If selected year is current year, only show months up to current month
@@ -77,9 +78,9 @@ interface DashboardFilterStore {
   setPreviousMonth: () => void
 }
 
-const currentDate = new Date()
-const currentYear = currentDate.getFullYear()
-const currentMonth = currentDate.getMonth() + 1
+const currentDate = getPacificTodayDate()
+const currentYear = currentDate.getUTCFullYear()
+const currentMonth = currentDate.getUTCMonth() + 1
 
 // Default to current month/year (but not before START_YEAR/START_MONTH)
 const defaultYear = Math.max(currentYear, START_YEAR)
@@ -97,9 +98,9 @@ export const useDashboardFilterStore = create<DashboardFilterStore>((set) => ({
   
   setFilterYear: (year: string) => set((state) => {
     const yearNum = parseInt(year)
-    const now = new Date()
-    const currYear = now.getFullYear()
-    const currMonth = now.getMonth() + 1
+    const now = getPacificTodayDate()
+    const currYear = now.getUTCFullYear()
+    const currMonth = now.getUTCMonth() + 1
     
     // If changing to current year, ensure month doesn't exceed current month
     let newMonth = state.filterMonth
@@ -119,9 +120,9 @@ export const useDashboardFilterStore = create<DashboardFilterStore>((set) => ({
   setFilterOrgId: (orgId: string | null) => set({ filterOrgId: orgId }),
   
   setCurrentMonth: () => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1
+    const now = getPacificTodayDate()
+    const year = now.getUTCFullYear()
+    const month = now.getUTCMonth() + 1
     set({
       filterMonth: String(month),
       filterYear: String(year),
@@ -130,9 +131,9 @@ export const useDashboardFilterStore = create<DashboardFilterStore>((set) => ({
   },
   
   setPreviousMonth: () => {
-    const now = new Date()
-    const currYear = now.getFullYear()
-    const currMonth = now.getMonth() + 1
+    const now = getPacificTodayDate()
+    const currYear = now.getUTCFullYear()
+    const currMonth = now.getUTCMonth() + 1
     
     let prevMonth = currMonth - 1
     let prevYear = currYear

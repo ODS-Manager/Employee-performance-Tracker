@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore, getMonthOptions, getYearOptions } from '../../store/dashboardFilterStore'
 import { metricsApi, authApi, organizationsApi } from '../../services/api'
 import type { PasswordResetRequestItem } from '../../types'
+import { formatStoredDateTime } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -337,7 +338,13 @@ export const AdminDashboard = () => {
                           {request.reason || 'No reason provided'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Requested: {request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Unknown'}
+                          Requested: {request.createdAt ? formatStoredDateTime(request.createdAt, 'en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          }) : 'Unknown'}
                         </p>
                       </div>
                     </div>

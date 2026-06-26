@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { ordersApi, usersApi, referenceApi, qualityAuditApi, productivityApi, teamsApi } from '../../services/api'
-import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { createStableDate, formatStoredDate, formatStoredDateTime, getInitials, handleLogoutFlow, getPacificTodayDate } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -83,44 +83,43 @@ export const ExaminerDashboard = () => {
 
   // Helper function to format date as YYYY-MM-DD in local timezone
   const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   }
 
   // Calculate Mon–Fri boundaries for a given week offset (0 = current, -1 = previous)
   const getWeekBoundaries = (weekOffset: 0 | -1) => {
-    const today = new Date()
-    const dayOfWeek = today.getDay() // 0=Sun, 1=Mon … 6=Sat
+    const today = getPacificTodayDate()
+    const dayOfWeek = today.getUTCDay() // 0=Sun, 1=Mon … 6=Sat
     // Find this week's Monday (day 1); if today is Sunday treat it as the previous Mon
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
     const monday = new Date(today)
-    monday.setDate(today.getDate() + daysToMonday + weekOffset * 7)
-    monday.setHours(0, 0, 0, 0)
+    monday.setUTCDate(today.getUTCDate() + daysToMonday + weekOffset * 7)
     const friday = new Date(monday)
-    friday.setDate(monday.getDate() + 4)
+    friday.setUTCDate(monday.getUTCDate() + 4)
     return { start: formatDateLocal(monday), end: formatDateLocal(friday) }
   }
 
   // Calculate Mon–Fri-aware month boundaries for a given month offset (0 = current, -1 = previous)
   // Start = first Monday on or after the 1st; End = last Friday on or before the last day
   const getMonthBoundaries = (monthOffset: 0 | -1) => {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = today.getMonth() + monthOffset // 0-indexed
+    const today = getPacificTodayDate()
+    const year = today.getUTCFullYear()
+    const month = today.getUTCMonth() + monthOffset // 0-indexed
 
     // First weekday on or after the 1st
-    const firstDay = new Date(year, month, 1)
-    const firstDow = firstDay.getDay() // 0=Sun … 6=Sat
-    if (firstDow === 0) firstDay.setDate(2)        // Sun → Mon
-    else if (firstDow === 6) firstDay.setDate(3)   // Sat → Mon
+    const firstDay = createStableDate(year, month, 1)
+    const firstDow = firstDay.getUTCDay() // 0=Sun … 6=Sat
+    if (firstDow === 0) firstDay.setUTCDate(2)        // Sun → Mon
+    else if (firstDow === 6) firstDay.setUTCDate(3)   // Sat → Mon
 
     // Last weekday on or before the last day
-    const lastDay = new Date(year, month + 1, 0)
-    const lastDow = lastDay.getDay()
-    if (lastDow === 0) lastDay.setDate(lastDay.getDate() - 2)  // Sun → Fri
-    else if (lastDow === 6) lastDay.setDate(lastDay.getDate() - 1) // Sat → Fri
+    const lastDay = createStableDate(year, month + 1, 0)
+    const lastDow = lastDay.getUTCDay()
+    if (lastDow === 0) lastDay.setUTCDate(lastDay.getUTCDate() - 2)  // Sun → Fri
+    else if (lastDow === 6) lastDay.setUTCDate(lastDay.getUTCDate() - 1) // Sat → Fri
 
     return { start: formatDateLocal(firstDay), end: formatDateLocal(lastDay) }
   }
@@ -422,17 +421,12 @@ export const ExaminerDashboard = () => {
   ]
 
   const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return '-'
-    
-    // Format as local time (IST)
-    return date.toLocaleString('en-IN', { 
-      month: 'short', 
+    return formatStoredDateTime(dateString, 'en-US', {
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     })
   }
 

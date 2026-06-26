@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, weeklyTargetsApi } from '../../services/api'
-import { hasAnyUserRole, isUserRole } from '../../utils/helpers'
+import { formatStoredDate, getPacificWeekStartDate, hasAnyUserRole, isUserRole } from '../../utils/helpers'
 import type { Team, TeamWeeklyTargetsResponse, TeamMemberTargetEntry, CurrentWeekInfo } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -28,7 +28,6 @@ import {
 import { AdminNav } from '../../components/layout/AdminNav'
 import { AdminHeader } from '../../components/layout/AdminHeader'
 import { TeamLeadNav } from '../../components/layout/TeamLeadNav'
-import { GlobalFilters } from '../../components/filters/GlobalFilters'
 import { 
   Target, 
   Users, 
@@ -103,10 +102,8 @@ export const ExaminerTargetsPage = () => {
   // Calculate week start date based on offset
   const getWeekStartDate = (): string | undefined => {
     if (!currentWeekInfo) return undefined
-    
-    const baseDate = new Date(currentWeekInfo.weekStartDate)
-    baseDate.setDate(baseDate.getDate() + (weekOffset * 7))
-    return baseDate.toISOString().split('T')[0]
+
+    return getPacificWeekStartDate(weekOffset)
   }
 
   const weekStartDate = getWeekStartDate()
@@ -232,10 +229,10 @@ export const ExaminerTargetsPage = () => {
   }
 
   const formatWeekRange = (startDate: string, endDate: string): string => {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
     const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-    return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}, ${start.getFullYear()}`
+    const start = formatStoredDate(startDate, 'en-US', options)
+    const end = formatStoredDate(endDate, 'en-US', options)
+    return `${start} - ${end}, ${startDate.slice(0, 4)}`
   }
 
   const isCurrentWeek = weekOffset === 0

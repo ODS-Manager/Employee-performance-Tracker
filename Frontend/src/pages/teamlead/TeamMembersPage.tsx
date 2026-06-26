@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { teamsApi } from '../../services/api'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { TeamMember, TeamWithMembers } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -514,7 +514,7 @@ const TeamMembersContent = ({ teamId }: { teamId: number }) => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {new Date(member.joinedAt).toLocaleDateString()}
+                            {formatStoredDate(member.joinedAt)}
                           </TableCell>
                           <TableCell>
                             <Badge 

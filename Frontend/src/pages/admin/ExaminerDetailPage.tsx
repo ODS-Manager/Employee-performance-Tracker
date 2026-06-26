@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { usersApi, teamsApi, organizationsApi } from '../../services/api'
 import type { UserWithTeams, Team, TeamMembership, Organization } from '../../types'
+import { formatStoredDate, formatStoredDateTime } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -330,7 +331,13 @@ export const ExaminerDetailPage = () => {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleString()
+    return formatStoredDateTime(dateString, 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
   }
 
   if (loading) {
@@ -613,10 +620,10 @@ export const ExaminerDetailPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {new Date(team.joinedAt).toLocaleDateString()}
+                        {formatStoredDate(team.joinedAt)}
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {team.leftAt ? new Date(team.leftAt).toLocaleDateString() : '-'}
+                        {team.leftAt ? formatStoredDate(team.leftAt) : '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         {team.isActive ? (

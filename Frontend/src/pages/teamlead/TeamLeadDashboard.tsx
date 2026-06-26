@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { teamsApi, metricsApi, productivityApi, ordersApi, qualityAuditApi } from '../../services/api'
-import { formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { formatPacificMonthLabel, formatStoredDate, getInitials, handleLogoutFlow } from '../../utils/helpers'
 import type { DashboardStats, TeamProductivity } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -207,7 +207,7 @@ export const TeamLeadDashboard = () => {
   }
 
   // Get month name
-  const monthName = new Date(parseInt(filterYear), parseInt(filterMonth) - 1).toLocaleString('default', { month: 'long' })
+  const monthName = formatPacificMonthLabel(parseInt(filterYear), parseInt(filterMonth) - 1)
 
   const statsCards = [
     { 

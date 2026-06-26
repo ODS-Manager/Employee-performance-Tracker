@@ -27,6 +27,7 @@ from app.models.team import Team
 from app.models.user_team import UserTeam
 from app.models.examiner_weekly_target import ExaminerWeeklyTarget
 from app.schemas.examiner_weekly_target import WeeklyTargetBulkCreate
+from app.utils.timezone_utils import pacific_today
 
 router = APIRouter()
 
@@ -70,7 +71,7 @@ async def get_current_week_info(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get information about the current week (Sunday-Saturday)"""
-    today = date.today()
+    today = pacific_today()
     week_start, week_end = get_week_boundaries(today)
     
     return {
@@ -113,7 +114,7 @@ async def get_team_weekly_targets(
         )
     
     # Determine the week
-    today = date.today()
+    today = pacific_today()
     if week_start_date:
         if week_start_date.weekday() != 6:  # 6 = Sunday
             week_start, week_end = get_week_boundaries(week_start_date)
@@ -358,7 +359,7 @@ async def get_my_current_target(
     - teamTargets: Breakdown of targets by team
     """
     # Determine the week
-    today = date.today()
+    today = pacific_today()
     if week_start_date:
         if week_start_date.weekday() != 6:
             week_start, week_end = get_week_boundaries(week_start_date)
@@ -531,7 +532,7 @@ async def get_team_lead_targets(
         )
     
     # Determine the week
-    today = date.today()
+    today = pacific_today()
     if week_start_date:
         if week_start_date.weekday() != 6:  # 6 = Sunday
             week_start, week_end = get_week_boundaries(week_start_date)

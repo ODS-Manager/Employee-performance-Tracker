@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { teamsApi, usersApi, organizationsApi } from '../../services/api'
 import type { TeamWithMembers, TeamMember, User, Organization } from '../../types'
+import { formatStoredDate } from '../../utils/helpers'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -431,10 +432,10 @@ export const TeamMembersPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {new Date(member.joinedAt).toLocaleDateString()}
+                        {formatStoredDate(member.joinedAt)}
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {member.leftAt ? new Date(member.leftAt).toLocaleDateString() : '-'}
+                        {member.leftAt ? formatStoredDate(member.leftAt) : '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         {member.isActive ? (

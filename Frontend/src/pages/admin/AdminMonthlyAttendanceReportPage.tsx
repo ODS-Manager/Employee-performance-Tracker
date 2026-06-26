@@ -8,8 +8,8 @@ import { AdminHeader } from '../../components/layout/AdminHeader'
 import { AdminNav } from '../../components/layout/AdminNav'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
-import { getInitials } from '../../utils/helpers'
-import { format, startOfMonth, endOfMonth, subMonths, getDaysInMonth } from 'date-fns'
+import { createStableDate, formatPacificMonthLabel, getInitials, getPacificMonthKey, getPacificTodayDate } from '../../utils/helpers'
+import { format, subMonths } from 'date-fns'
 import toast from 'react-hot-toast'
 
 interface DayInfo {
@@ -41,16 +41,15 @@ interface TeamLeadsMonthlyReport {
 export const AdminMonthlyAttendanceReportPage = () => {
   const { user } = useAuthStore()
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    return getPacificMonthKey(getPacificTodayDate())
   })
   const [report, setReport] = useState<TeamLeadsMonthlyReport | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
 
   const monthOptions = [
-    { value: format(subMonths(new Date(), 2), 'yyyy-MM'), label: format(subMonths(new Date(), 2), 'MMMM yyyy') },
-    { value: format(subMonths(new Date(), 1), 'yyyy-MM'), label: format(subMonths(new Date(), 1), 'MMMM yyyy') },
-    { value: format(new Date(), 'yyyy-MM'), label: format(new Date(), 'MMMM yyyy') },
+    { value: format(subMonths(getPacificTodayDate(), 2), 'yyyy-MM'), label: `${formatPacificMonthLabel(subMonths(getPacificTodayDate(), 2).getUTCFullYear(), subMonths(getPacificTodayDate(), 2).getUTCMonth())} ${subMonths(getPacificTodayDate(), 2).getUTCFullYear()}` },
+    { value: format(subMonths(getPacificTodayDate(), 1), 'yyyy-MM'), label: `${formatPacificMonthLabel(subMonths(getPacificTodayDate(), 1).getUTCFullYear(), subMonths(getPacificTodayDate(), 1).getUTCMonth())} ${subMonths(getPacificTodayDate(), 1).getUTCFullYear()}` },
+    { value: format(getPacificTodayDate(), 'yyyy-MM'), label: `${formatPacificMonthLabel(getPacificTodayDate().getUTCFullYear(), getPacificTodayDate().getUTCMonth())} ${getPacificTodayDate().getUTCFullYear()}` },
   ]
 
   useEffect(() => {
@@ -65,7 +64,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
     try {
       const [year, month] = selectedMonth.split('-')
       const startDate = `${selectedMonth}-01`
-      const endDate = format(endOfMonth(new Date(parseInt(year), parseInt(month) - 1)), 'yyyy-MM-dd')
+      const endDate = `${selectedMonth}-${String(createStableDate(parseInt(year), parseInt(month), 0).getUTCDate()).padStart(2, '0')}`
 
       const response = await api.get('/attendance/team-leads/monthly', {
         params: { start_date: startDate, end_date: endDate }
@@ -238,7 +237,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-semibold text-slate-900">
-                    Team Leads - {format(new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]) - 1), 'MMMM yyyy')}
+                    Team Leads - {formatPacificMonthLabel(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]) - 1)} {selectedMonth.split('-')[0]}
                   </CardTitle>
                   <span className="text-sm text-slate-500">{report.examiners.length} Team Leads</span>
                 </div>

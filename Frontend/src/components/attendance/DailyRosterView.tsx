@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as
 import { attendanceApi } from '../../services/api'
 import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
 import { format, startOfMonth, endOfMonth, addDays, subDays, isSameMonth } from 'date-fns'
+import { formatStoredDate, getPacificTodayDate } from '../../utils/helpers'
 import toast from 'react-hot-toast'
 
 interface DailyRosterViewProps {
@@ -28,13 +29,13 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   teamName,
   onDateChange,
 }) => {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(getPacificTodayDate())
   const [roster, setRoster] = useState<DailyRosterResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [attendanceStates, setAttendanceStates] = useState<Record<number, EmployeeAttendanceState>>({})
 
-  const currentMonth = new Date()
+  const currentMonth = getPacificTodayDate()
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
 
@@ -79,7 +80,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
 
   const handleNextDay = () => {
     const nextDay = addDays(selectedDate, 1)
-    if (isSameMonth(nextDay, currentMonth) && nextDay <= new Date()) {
+    if (isSameMonth(nextDay, currentMonth) && nextDay <= getPacificTodayDate()) {
       setSelectedDate(nextDay)
       onDateChange?.(nextDay)
     }
@@ -164,7 +165,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   }
 
   const canNavigatePrev = isSameMonth(subDays(selectedDate, 1), currentMonth)
-  const canNavigateNext = isSameMonth(addDays(selectedDate, 1), currentMonth) && addDays(selectedDate, 1) <= new Date()
+  const canNavigateNext = isSameMonth(addDays(selectedDate, 1), currentMonth) && addDays(selectedDate, 1) <= getPacificTodayDate()
 
   const getStatusBadge = (status: AttendanceStatus | 'not_marked') => {
     switch (status) {
@@ -233,7 +234,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
               </Button>
               <div className="min-w-[180px] text-center">
                 <div className="font-medium text-sm text-slate-900">
-                  {format(selectedDate, 'EEEE, MMMM dd, yyyy')}
+                  {formatStoredDate(selectedDate.toISOString().slice(0, 10), 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                 </div>
               </div>
               <Button

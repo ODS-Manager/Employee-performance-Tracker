@@ -21,7 +21,7 @@ import { HeaderRefreshButton } from '../../components/common/HeaderRefreshButton
 import { attendanceApi, teamsApi } from '../../services/api'
 import { TeamSimple, TeamAttendanceReport } from '../../types'
 import { useAuthStore } from '../../store/authStore'
-import { getInitials, handleLogoutFlow } from '../../utils/helpers'
+import { getInitials, getPacificTodayDate, handleLogoutFlow } from '../../utils/helpers'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -35,7 +35,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
   const [loadingReport, setLoadingReport] = useState(false)
 
   // Date range state — defaults to current week (Mon–Fri)
-  const today = new Date()
+  const today = getPacificTodayDate()
   const defaultFrom = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const defaultTo = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const [fromDate, setFromDate] = useState<string>(defaultFrom)
@@ -84,19 +84,19 @@ export const TeamAttendanceReportsPage: React.FC = () => {
 
   // Quick date range presets
   const applyCurrentWeek = () => {
-    setFromDate(format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
-    setToDate(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+    setFromDate(format(startOfWeek(getPacificTodayDate(), { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+    setToDate(format(endOfWeek(getPacificTodayDate(), { weekStartsOn: 1 }), 'yyyy-MM-dd'))
   }
 
   const applyPreviousWeek = () => {
-    const prevWeekDay = subWeeks(today, 1)
+    const prevWeekDay = subWeeks(getPacificTodayDate(), 1)
     setFromDate(format(startOfWeek(prevWeekDay, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
     setToDate(format(endOfWeek(prevWeekDay, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
   }
 
   const applyCurrentMonth = () => {
-    setFromDate(format(startOfMonth(today), 'yyyy-MM-dd'))
-    setToDate(format(endOfMonth(today), 'yyyy-MM-dd'))
+    setFromDate(format(startOfMonth(getPacificTodayDate()), 'yyyy-MM-dd'))
+    setToDate(format(endOfMonth(getPacificTodayDate()), 'yyyy-MM-dd'))
   }
 
   const handleExportCSV = () => {

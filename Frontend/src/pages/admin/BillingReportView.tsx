@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { billingApi } from '../../services/api'
+import { formatStoredDate, formatStoredDateTime } from '../../utils/helpers'
 import type { BillingReport } from '../../types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -182,7 +183,7 @@ export const BillingReportView = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <AdminHeader
-        title={`${new Date(report.startDate).toLocaleDateString()} - ${new Date(report.endDate).toLocaleDateString()} - Billing Report`}
+        title={`${formatStoredDate(report.startDate)} - ${formatStoredDate(report.endDate)} - Billing Report`}
         subtitle="Complete billing report for all teams"
       />
       <AdminNav />
@@ -210,7 +211,7 @@ export const BillingReportView = () => {
               <div>
                 <span className="text-muted-foreground">Period:</span>{' '}
                 <span className="font-semibold">
-                  {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
+                  {formatStoredDate(report.startDate)} - {formatStoredDate(report.endDate)}
                 </span>
               </div>
               <div>
@@ -234,7 +235,13 @@ export const BillingReportView = () => {
                   <div>
                     <span className="text-muted-foreground">Finalized At:</span>{' '}
                     <span className="font-semibold">
-                      {report.finalizedAt ? new Date(report.finalizedAt).toLocaleString() : '-'}
+                      {report.finalizedAt ? formatStoredDateTime(report.finalizedAt, 'en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      }) : '-'}
                     </span>
                   </div>
                 </>

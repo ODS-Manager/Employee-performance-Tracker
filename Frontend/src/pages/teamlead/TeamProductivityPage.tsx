@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format, addDays, subDays } from 'date-fns'
+import { addDays, subDays } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import { useDashboardFilterStore } from '../../store/dashboardFilterStore'
 import { useTeamLeadFilterStore } from '../../store/teamLeadFilterStore'
 import { teamsApi, productivityApi, weeklyTargetsApi } from '../../services/api'
+import { formatStoredDate, getPacificWeekStartDate, parseStoredDateToUtcDate } from '../../utils/helpers'
 import type { TeamProductivity, ExaminerProductivity } from '../../types'
 import { getInitials, handleLogoutFlow } from '../../utils/helpers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -70,37 +71,27 @@ export const TeamProductivityPage = () => {
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<ExaminerProductivity | null>(null)
   const [targetValue, setTargetValue] = useState<string>('')
-  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
-    const today = new Date()
-    const dayOfWeek = today.getDay() // 0=Sunday
-    const sunday = new Date(today)
-    sunday.setDate(today.getDate() - dayOfWeek)
-    return format(sunday, 'yyyy-MM-dd')
-  })
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => getPacificWeekStartDate(0))
 
   // Calculate current week's Sunday for weekly target
-  const getCurrentWeekStart = () => {
-    const today = new Date()
-    const dayOfWeek = today.getDay() // 0=Sunday
-    const sunday = new Date(today)
-    sunday.setDate(today.getDate() - dayOfWeek)
-    return format(sunday, 'yyyy-MM-dd')
-  }
+  const getCurrentWeekStart = () => getPacificWeekStartDate(0)
 
   // Format week range for display
   const formatWeekRange = (weekStart: string) => {
-    const start = new Date(weekStart)
+    const start = parseStoredDateToUtcDate(weekStart)
+    if (!start) return '-'
     const end = addDays(start, 6)
-    return `${format(start, 'MMM dd')} - ${format(end, 'MMM dd, yyyy')}`
+    return `${formatStoredDate(weekStart, 'en-US', { month: 'short', day: 'numeric' })} - ${formatStoredDate(end.toISOString().slice(0, 10), 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   }
 
   // Navigate weeks in dialog
   const navigateDialogWeek = (direction: 'prev' | 'next') => {
-    const current = new Date(selectedWeekStart)
-    const newDate = direction === 'prev' 
-      ? subDays(current, 7) 
+    const current = parseStoredDateToUtcDate(selectedWeekStart)
+    if (!current) return
+    const newDate = direction === 'prev'
+      ? subDays(current, 7)
       : addDays(current, 7)
-    setSelectedWeekStart(format(newDate, 'yyyy-MM-dd'))
+    setSelectedWeekStart(newDate.toISOString().slice(0, 10))
   }
 
   // Redirect if not team lead
