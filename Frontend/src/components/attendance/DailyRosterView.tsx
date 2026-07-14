@@ -7,7 +7,7 @@ import { Badge } from '../ui/badge'
 import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as CalendarIcon, CheckCircle2, XCircle, Coffee } from 'lucide-react'
 import { attendanceApi } from '../../services/api'
 import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
-import { format, startOfMonth, endOfMonth, addDays, subDays, isSameMonth } from 'date-fns'
+import { format, addDays, subDays } from 'date-fns'
 import { formatStoredDate, getPacificTodayDate } from '../../utils/helpers'
 import toast from 'react-hot-toast'
 
@@ -34,10 +34,6 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [attendanceStates, setAttendanceStates] = useState<Record<number, EmployeeAttendanceState>>({})
-
-  const currentMonth = getPacificTodayDate()
-  const monthStart = startOfMonth(currentMonth)
-  const monthEnd = endOfMonth(currentMonth)
 
   // Load roster data
   useEffect(() => {
@@ -72,15 +68,13 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
 
   const handlePrevDay = () => {
     const prevDay = subDays(selectedDate, 1)
-    if (isSameMonth(prevDay, currentMonth)) {
-      setSelectedDate(prevDay)
-      onDateChange?.(prevDay)
-    }
+    setSelectedDate(prevDay)
+    onDateChange?.(prevDay)
   }
 
   const handleNextDay = () => {
     const nextDay = addDays(selectedDate, 1)
-    if (isSameMonth(nextDay, currentMonth) && nextDay <= getPacificTodayDate()) {
+    if (nextDay <= getPacificTodayDate()) {
       setSelectedDate(nextDay)
       onDateChange?.(nextDay)
     }
@@ -164,8 +158,8 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
     }
   }
 
-  const canNavigatePrev = isSameMonth(subDays(selectedDate, 1), currentMonth)
-  const canNavigateNext = isSameMonth(addDays(selectedDate, 1), currentMonth) && addDays(selectedDate, 1) <= getPacificTodayDate()
+  const canNavigatePrev = true
+  const canNavigateNext = addDays(selectedDate, 1) <= getPacificTodayDate()
 
   const getStatusBadge = (status: AttendanceStatus | 'not_marked') => {
     switch (status) {

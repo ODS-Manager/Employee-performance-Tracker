@@ -212,6 +212,7 @@ export const AdminTeamLeadAttendance = () => {
                     mode="single"
                     selected={selectedDate}
                     onSelect={(date) => date && setSelectedDate(date)}
+                    disabled={(date) => date > getPacificTodayDate()}
                     initialFocus
                   />
                 </PopoverContent>

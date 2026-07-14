@@ -34,13 +34,13 @@ class AttendanceService:
     def __init__(self, db: Session):
         self.db = db
     
-    def _validate_current_month(self, check_date: date) -> None:
-        """Validate that date is in current month"""
+    def _validate_not_future(self, check_date: date) -> None:
+        """Validate that attendance can only be marked for today or an earlier date."""
         today = date.today()
-        if check_date.year != today.year or check_date.month != today.month:
+        if check_date > today:
             raise HTTPException(
                 status_code=400,
-                detail="Can only mark/edit attendance for current month"
+                detail="Cannot mark/edit attendance for a future date"
             )
     
     def _validate_team_membership(self, user_id: int, team_id: int) -> None:
@@ -94,8 +94,8 @@ class AttendanceService:
         skip_team_validation: bool = False
     ) -> AttendanceRecordResponse:
         """Mark attendance for single examiner on single date"""
-        # Validate current month
-        self._validate_current_month(check_date)
+        # Attendance may be marked/edited for any previous date, but not future dates.
+        self._validate_not_future(check_date)
         
         # Get user and organization first (needed for validation and org_id)
         user = self.db.query(User).filter(User.id == user_id).first()
@@ -183,8 +183,8 @@ class AttendanceService:
         marked_by: int
     ) -> List[AttendanceRecordResponse]:
         """Bulk mark attendance for multiple examiners"""
-        # Validate current month
-        self._validate_current_month(check_date)
+        # Attendance may be marked/edited for any previous date, but not future dates.
+        self._validate_not_future(check_date)
         
         results = []
         for user_id in examiner_ids:
