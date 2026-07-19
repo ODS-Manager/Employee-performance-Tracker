@@ -13,12 +13,11 @@ Attendance-Driven Target:
 - Working week is Mon–Fri (5 days). Weekends are never counted.
 - Daily target = weekly_target / 5
 - Expected target = number of days the examiner was marked PRESENT (Mon–Fri) × daily_target
-- Absent, leave, and unmarked days do NOT accumulate target
-- This means if an examiner is absent on Tuesday, that day's target is simply dropped
+- Half-day contributes half the daily target; leave and unmarked days do not accumulate target
 
 Example:
 - Weekly target = 10  →  daily target = 2
-- Mon: present (2), Tue: absent (0), Wed: present (2)  →  expected target = 4
+- Mon: present (2), Tue: half-day (1), Wed: present (2)  →  expected target = 5
 - Orders completed = 3  →  Productivity = 3/4 × 100 = 75%
 
 Multi-team:
@@ -71,13 +70,13 @@ class ProductivityService:
         user_id: int,
         start_date: date,
         end_date: date
-    ) -> int:
+    ) -> float:
         """
         Count Mon–Fri days within [start_date, end_date] on which the examiner
         has an attendance record with status = 'present'.
 
         Weekends (Saturday=5, Sunday=6 in Python's weekday()) are always excluded.
-        Absent, leave, and unmarked days are NOT counted.
+        Half-days count as 0.5; leave and unmarked days are NOT counted.
 
         Returns:
             Integer count of present weekdays.
@@ -86,16 +85,16 @@ class ProductivityService:
 
         records = self.db.query(AttendanceRecord).filter(
             AttendanceRecord.user_id == user_id,
-            AttendanceRecord.status == 'present',
+            AttendanceRecord.status.in_(['present', 'half_day']),
             AttendanceRecord.date >= start_date,
             AttendanceRecord.date <= end_date
         ).all()
 
-        count = 0
+        count = 0.0
         for record in records:
             # weekday(): Mon=0 … Fri=4, Sat=5, Sun=6
             if record.date.weekday() <= 4:  # type: ignore[union-attr]
-                count += 1
+                count += 1 if record.status == 'present' else 0.5
 
         return count
 
@@ -147,7 +146,7 @@ class ProductivityService:
         Where present_weekdays = days within the overlap of [week_start, week_end] and
         [start_date, end_date] on which the examiner was marked 'present' on a Mon–Fri.
 
-        Absent, leave, unmarked, and weekend days contribute 0 to the expected target.
+        Leave, unmarked, and weekend days contribute 0 to the expected target.
         For weeks without explicit targets, the last known target is carried forward per team.
 
         Target is per examiner PER TEAM — we sum targets from all teams.
@@ -473,7 +472,7 @@ class ProductivityService:
         )
         
         days_present = attendance_summary.days_present
-        days_absent = attendance_summary.days_absent
+        days_half_day = attendance_summary.days_half_day
         days_leave = attendance_summary.days_leave
         attendance_percentage = attendance_summary.attendance_percent
         
@@ -503,7 +502,7 @@ class ProductivityService:
             },
             "attendance": {
                 "daysPresent": days_present,
-                "daysAbsent": days_absent,
+                "daysHalfDay": days_half_day,
                 "daysLeave": days_leave,
                 "attendancePercent": round(attendance_percentage, 2)
             },
@@ -1111,7 +1110,7 @@ class ProductivityService:
             },
             "attendance": {
                 "daysPresent": attendance_summary.days_present,
-                "daysAbsent": attendance_summary.days_absent,
+                "daysHalfDay": attendance_summary.days_half_day,
                 "daysLeave": attendance_summary.days_leave,
                 "attendancePercent": attendance_summary.attendance_percent
             },

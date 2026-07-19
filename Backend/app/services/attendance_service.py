@@ -230,7 +230,7 @@ class AttendanceService:
         
         # Build examiner roster
         examiners = []
-        summary = {"present": 0, "absent": 0, "leave": 0, "not_marked": 0}
+        summary = {"present": 0, "half_day": 0, "leave": 0, "not_marked": 0}
         
         # Batch query for all marked_by users to avoid N+1
         marked_by_ids = set()
@@ -257,9 +257,12 @@ class AttendanceService:
                 marked_by_user = marked_by_users.get(attendance.marked_by)
                 marked_by_name = marked_by_user.user_name if marked_by_user else None
                 marked_at = attendance.marked_at
-                summary[status] = summary.get(status, 0) + 1
+                if status in summary:
+                    summary[status] += 1
+                else:
+                    summary["not_marked"] += 1
             else:
-                # Not marked - defaults to absent
+                # Not marked
                 status = None
                 attendance_id = None
                 notes = None
@@ -312,7 +315,7 @@ class AttendanceService:
                 endDate=end_date,
                 workingDays=working_days_calc,
                 daysPresent=0,
-                daysAbsent=working_days_calc,
+                daysHalfDay=0,
                 daysLeave=0,
                 attendancePercent=0.0,
                 records=[]
@@ -352,10 +355,13 @@ class AttendanceService:
             logger.info(f"  Record: id={r.id}, date={r.date}, status={r.status}, team_id={r.team_id}")
         
         # Count by status — weekends are excluded from all counts
-        days_present = sum(1 for r in records if r.status == 'present' and r.date.weekday() <= 4)
+        days_present = sum(
+            1 if r.status == 'present' else 0.5
+            for r in records
+            if r.status in ('present', 'half_day') and r.date.weekday() <= 4
+        )
+        days_half_day = sum(1 for r in records if r.status == 'half_day' and r.date.weekday() <= 4)
         days_leave = sum(1 for r in records if r.status == 'leave' and r.date.weekday() <= 4)
-        # Default to absent for unmarked weekdays (only past/today, not future)
-        days_absent = working_days - days_present - days_leave
         
         # Calculate percentage (present days / total days)
         attendance_percent = (days_present / working_days * 100) if working_days > 0 else 0.0
@@ -392,7 +398,7 @@ class AttendanceService:
             endDate=end_date,
             workingDays=working_days,
             daysPresent=days_present,
-            daysAbsent=days_absent,
+            daysHalfDay=days_half_day,
             daysLeave=days_leave,
             attendancePercent=round(attendance_percent, 2),
             records=serialized_records
@@ -424,7 +430,7 @@ class AttendanceService:
         # Get attendance summary for each examiner
         examiners = []
         team_present = 0
-        team_absent = 0
+        team_half_day = 0
         team_leave = 0
         
         for membership in memberships:
@@ -438,7 +444,7 @@ class AttendanceService:
             examiners.append(summary)
             
             team_present += summary.days_present
-            team_absent += summary.days_absent
+            team_half_day += summary.days_half_day
             team_leave += summary.days_leave
         
         return TeamAttendanceReport(
@@ -450,7 +456,7 @@ class AttendanceService:
             examiners=examiners,
             teamSummary={
                 "total_present": team_present,
-                "total_absent": team_absent,
+                "total_half_day": team_half_day,
                 "total_leave": team_leave,
                 "examiner_count": len(examiners)
             }
@@ -505,8 +511,8 @@ class AttendanceService:
             
             # Build daily records for this examiner
             daily_records = []
-            days_present = 0
-            days_absent = 0
+            days_present = 0.0
+            days_half_day = 0
             days_leave = 0
             days_not_marked = 0
             
@@ -520,8 +526,9 @@ class AttendanceService:
                     notes = attendance.notes
                     if status == 'present':
                         days_present += 1
-                    elif status == 'absent':
-                        days_absent += 1
+                    elif status == 'half_day':
+                        days_present += 0.5
+                        days_half_day += 1
                     elif status == 'leave':
                         days_leave += 1
                 else:
@@ -546,7 +553,7 @@ class AttendanceService:
                 userRole=user.user_role,
                 totalDays=total_days,
                 daysPresent=days_present,
-                daysAbsent=days_absent,
+                daysHalfDay=days_half_day,
                 daysLeave=days_leave,
                 daysNotMarked=days_not_marked,
                 dailyRecords=daily_records

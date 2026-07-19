@@ -28,10 +28,10 @@ import {
   Award,
   Loader2,
   CalendarIcon,
+  Clock,
   Filter,
   FileText,
   CheckCircle2,
-  XCircle,
   User
 } from 'lucide-react'
 import odsLogo from '../../assets/ods-logo.png'
@@ -320,9 +320,9 @@ export const ExaminerPerformancePage = () => {
                   <p className="text-xs text-muted-foreground mt-1">
                     {productivity?.attendance?.attendancePercent?.toFixed(0) || 0}% attendance
                   </p>
-                  {productivity?.attendance && productivity.attendance.daysAbsent > 0 && (
-                    <Badge variant="outline" className="mt-2 bg-red-50 text-red-700 border-red-200">
-                      {productivity.attendance.daysAbsent} absent
+                  {productivity?.attendance && productivity.attendance.daysHalfDay > 0 && (
+                    <Badge variant="outline" className="mt-2 bg-orange-50 text-orange-700 border-orange-200">
+                      {productivity.attendance.daysHalfDay} half day
                     </Badge>
                   )}
                 </CardContent>
@@ -377,7 +377,7 @@ export const ExaminerPerformancePage = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Attendance Details</CardTitle>
-                  <CardDescription>Days present vs absent</CardDescription>
+                  <CardDescription>Attendance units and half days</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -392,15 +392,15 @@ export const ExaminerPerformancePage = () => {
                       <div className="text-2xl font-bold text-green-600">{productivity?.attendance?.daysPresent || 0}</div>
                     </div>
                     
-                    <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <XCircle className="h-8 w-8 text-red-600" />
+                        <Clock className="h-8 w-8 text-orange-600" />
                         <div>
-                          <p className="text-sm font-medium text-slate-700">Days Absent</p>
-                          <p className="text-xs text-muted-foreground">No order activity</p>
+                          <p className="text-sm font-medium text-slate-700">Half Days</p>
+                          <p className="text-xs text-muted-foreground">Each counts as 0.5</p>
                         </div>
                       </div>
-                      <div className="text-2xl font-bold text-red-600">{productivity?.attendance?.daysAbsent || 0}</div>
+                      <div className="text-2xl font-bold text-orange-600">{productivity?.attendance?.daysHalfDay || 0}</div>
                     </div>
                     
                     <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">

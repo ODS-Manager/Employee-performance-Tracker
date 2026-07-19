@@ -12,7 +12,7 @@ class AttendanceRecord(Base):
     """
     Attendance records marked by team leads
     Sparse storage - only stores explicitly marked attendance
-    Missing records default to 'absent'
+    Missing records are treated as not marked.
     """
     __tablename__ = "attendance_records"
     
@@ -20,7 +20,7 @@ class AttendanceRecord(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
-    status = Column(String(20), nullable=False)  # 'present', 'absent', 'leave'
+    status = Column(String(20), nullable=False)  # 'present', 'half_day', 'leave'
     marked_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     marked_at = Column(DateTime, nullable=False, default=datetime.now)
     modified_by = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -37,7 +37,7 @@ class AttendanceStatus(str, Enum):
     """Attendance status enumeration"""
     
     PRESENT = "present"
-    ABSENT = "absent"
+    HALF_DAY = "half_day"
     LEAVE = "leave"
     NOT_MARKED = "not_marked"
     
@@ -89,7 +89,7 @@ ROLE_TEAM_LEAD = UserRole.TEAM_LEAD.value
 ROLE_EXAMINER = UserRole.EXAMINER.value
 
 ATTENDANCE_PRESENT = AttendanceStatus.PRESENT.value
-ATTENDANCE_ABSENT = AttendanceStatus.ABSENT.value
+ATTENDANCE_HALF_DAY = AttendanceStatus.HALF_DAY.value
 ATTENDANCE_LEAVE = AttendanceStatus.LEAVE.value
 ATTENDANCE_NOT_MARKED = AttendanceStatus.NOT_MARKED.value
 

@@ -212,7 +212,7 @@ def is_team_lead_of(user_id: int, team_id: int, db: Session) -> bool:
     lead_membership = db.query(UserTeam).filter(
         UserTeam.user_id == user_id,
         UserTeam.team_id == team_id,
-        UserTeam.role == "lead",
+        UserTeam.role.ilike("lead"),
         UserTeam.is_active == True
     ).first()
     
@@ -324,7 +324,7 @@ def get_user_teams(user: User, db: Session) -> List[int]:
         # Teams where user has lead role in user_teams
         lead_memberships = db.query(UserTeam.team_id).filter(
             UserTeam.user_id == user.id,
-            UserTeam.role == "lead",
+            UserTeam.role.ilike("lead"),
             UserTeam.is_active == True
         ).all()
         lead_ids = {m.team_id for m in lead_memberships}

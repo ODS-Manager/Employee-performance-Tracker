@@ -32,7 +32,7 @@ interface TeamLead {
 interface AttendanceRecord {
   userId: number
   date: string
-  status: 'present' | 'absent' | 'leave' | null
+  status: 'present' | 'half_day' | 'leave' | null
   notes?: string
 }
 
@@ -79,7 +79,9 @@ export const AdminTeamLeadAttendance = () => {
               records[tl.id] = {
                 userId: tl.id,
                 date: format(selectedDate, 'yyyy-MM-dd'),
-                status: summary.records[0].status,
+                status: summary.records[0].status === 'present' || summary.records[0].status === 'half_day' || summary.records[0].status === 'leave'
+                  ? summary.records[0].status
+                  : null,
                 notes: summary.records[0].notes
               }
               console.log(`Found record for team lead ${tl.id}:`, records[tl.id])
@@ -113,7 +115,7 @@ export const AdminTeamLeadAttendance = () => {
     }
   }, [existingAttendance])
 
-  const handleStatusChange = (teamLeadId: number, status: 'present' | 'absent' | 'leave') => {
+  const handleStatusChange = (teamLeadId: number, status: 'present' | 'half_day' | 'leave') => {
     setAttendanceRecords(prev => ({
       ...prev,
       [teamLeadId]: {
@@ -147,7 +149,7 @@ export const AdminTeamLeadAttendance = () => {
           userId: record.userId,
           teamId: 0,
           date: record.date,
-          status: record.status as 'present' | 'absent' | 'leave',
+          status: record.status as 'present' | 'half_day' | 'leave',
           notes: record.notes
         })
       }
@@ -169,8 +171,8 @@ export const AdminTeamLeadAttendance = () => {
     switch (status) {
       case 'present':
         return <Badge className="bg-green-500">Present</Badge>
-      case 'absent':
-        return <Badge className="bg-red-500">Absent</Badge>
+      case 'half_day':
+        return <Badge className="bg-orange-500">Half Day (0.5)</Badge>
       case 'leave':
         return <Badge className="bg-yellow-500">Leave</Badge>
       default:
@@ -296,12 +298,12 @@ export const AdminTeamLeadAttendance = () => {
                         </Button>
                         <Button
                           size="sm"
-                          variant={currentStatus === 'absent' ? 'default' : 'outline'}
-                          onClick={() => handleStatusChange(teamLead.id, 'absent')}
-                          className={currentStatus === 'absent' ? 'bg-red-600 hover:bg-red-700' : ''}
+                          variant={currentStatus === 'half_day' ? 'default' : 'outline'}
+                          onClick={() => handleStatusChange(teamLead.id, 'half_day')}
+                          className={currentStatus === 'half_day' ? 'bg-orange-600 hover:bg-orange-700' : ''}
                         >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Absent
+                          <Clock className="h-4 w-4 mr-1" />
+                          Half Day (0.5)
                         </Button>
                         <Button
                           size="sm"

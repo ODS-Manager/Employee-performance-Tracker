@@ -4,7 +4,7 @@ import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
-import { ChevronLeft, ChevronRight, Save, UserCheck, UserX, Loader2, Calendar as CalendarIcon, CheckCircle2, XCircle, Coffee } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Save, UserCheck, Loader2, Calendar as CalendarIcon, CheckCircle2, Clock, Coffee } from 'lucide-react'
 import { attendanceApi } from '../../services/api'
 import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
 import { format, addDays, subDays } from 'date-fns'
@@ -53,7 +53,9 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
       examiners.forEach((emp) => {
         states[emp.userId] = {
           userId: emp.userId,
-          status: emp.status || 'not_marked',
+          status: emp.status === 'present' || emp.status === 'half_day' || emp.status === 'leave'
+            ? emp.status
+            : 'not_marked',
           notes: emp.notes || '',
           attendanceId: emp.attendanceId,
         }
@@ -108,10 +110,10 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
     setAttendanceStates(newStates)
   }
 
-  const handleMarkAllAbsent = () => {
+  const handleMarkAllHalfDay = () => {
     const newStates = { ...attendanceStates }
     Object.keys(newStates).forEach((key) => {
-      newStates[parseInt(key)].status = AttendanceStatus.ABSENT
+      newStates[parseInt(key)].status = AttendanceStatus.HALF_DAY
     })
     setAttendanceStates(newStates)
   }
@@ -170,11 +172,11 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
             Present
           </Badge>
         )
-      case AttendanceStatus.ABSENT:
+      case AttendanceStatus.HALF_DAY:
         return (
-          <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100">
-            <XCircle className="h-3 w-3 mr-1" />
-            Absent
+          <Badge className="bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100">
+            <Clock className="h-3 w-3 mr-1" />
+            Half Day
           </Badge>
         )
       case AttendanceStatus.LEAVE:
@@ -253,8 +255,8 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
               </div>
               
               <div className="text-center p-3 bg-slate-50 rounded-lg">
-                <p className="text-xs text-slate-600 font-medium">Absent</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{roster.summary.absent}</p>
+                <p className="text-xs text-slate-600 font-medium">Half Day</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{roster.summary.half_day}</p>
               </div>
               
               <div className="text-center p-3 bg-slate-50 rounded-lg">
@@ -282,11 +284,11 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleMarkAllAbsent}
+                onClick={handleMarkAllHalfDay}
                 className="flex items-center gap-2"
               >
-                <UserX className="h-4 w-4" />
-                Mark All Absent
+                <Clock className="h-4 w-4" />
+                Mark All Half Day
               </Button>
               <Button
                 variant="outline"
@@ -359,7 +361,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                           <SelectContent>
                             <SelectItem value="not_marked">Not Marked</SelectItem>
                             <SelectItem value={AttendanceStatus.PRESENT}>Present</SelectItem>
-                            <SelectItem value={AttendanceStatus.ABSENT}>Absent</SelectItem>
+                            <SelectItem value={AttendanceStatus.HALF_DAY}>Half Day (0.5)</SelectItem>
                             <SelectItem value={AttendanceStatus.LEAVE}>Leave</SelectItem>
                           </SelectContent>
                         </Select>
@@ -380,11 +382,11 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => updateEmployeeStatus(employee.userId, AttendanceStatus.ABSENT)}
+                            onClick={() => updateEmployeeStatus(employee.userId, AttendanceStatus.HALF_DAY)}
                             className="h-8 w-8 p-0"
-                            title="Mark Absent"
+                            title="Mark Half Day"
                           >
-                            <XCircle className="h-4 w-4" />
+                            <Clock className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"

@@ -11,7 +11,7 @@ from enum import Enum
 class AttendanceStatus(str, Enum):
     """Attendance status enum"""
     PRESENT = "present"
-    ABSENT = "absent"
+    HALF_DAY = "half_day"
     LEAVE = "leave"
 
 
@@ -78,7 +78,7 @@ class DailyRosterExaminer(BaseModel):
     user_name: str = Field(alias="userName")
     examiner_id: str = Field(alias="examinerId")
     user_role: str = Field(alias="userRole", default="examiner")
-    status: Optional[str] = None  # None means not marked (default absent)
+    status: Optional[str] = None  # None means not marked
     attendance_id: Optional[int] = Field(alias="attendanceId", default=None)
     notes: Optional[str] = None
     marked_by_name: Optional[str] = Field(alias="markedByName", default=None)
@@ -94,7 +94,7 @@ class DailyRosterResponse(BaseModel):
     team_name: str = Field(alias="teamName")
     date: date
     examiners: List[DailyRosterExaminer]
-    summary: Dict[str, int]  # {"present": X, "absent": Y, "leave": Z, "not_marked": W}
+    summary: Dict[str, int]  # {"present": X, "half_day": Y, "leave": Z, "not_marked": W}
     
     class Config:
         populate_by_name = True
@@ -108,8 +108,8 @@ class AttendanceSummary(BaseModel):
     start_date: date = Field(alias="startDate")
     end_date: date = Field(alias="endDate")
     working_days: int = Field(alias="workingDays")
-    days_present: int = Field(alias="daysPresent")
-    days_absent: int = Field(alias="daysAbsent")
+    days_present: float = Field(alias="daysPresent")
+    days_half_day: int = Field(alias="daysHalfDay", default=0)
     days_leave: int = Field(alias="daysLeave")
     attendance_percent: float = Field(alias="attendancePercent")
     records: List[AttendanceRecordResponse] = Field(alias="records", default=[])
@@ -138,7 +138,7 @@ class TeamAttendanceReport(BaseModel):
     end_date: date = Field(alias="endDate")
     working_days: int = Field(alias="workingDays")
     examiners: List[AttendanceSummary]
-    team_summary: Dict[str, int] = Field(alias="teamSummary")  # Aggregate counts
+    team_summary: Dict[str, float] = Field(alias="teamSummary")  # Weighted aggregate counts
     
     class Config:
         populate_by_name = True
@@ -147,7 +147,7 @@ class TeamAttendanceReport(BaseModel):
 class DailyAttendanceRecord(BaseModel):
     """Daily attendance record for an examiner"""
     date: date
-    status: Optional[str] = None  # present, absent, leave, or None (not marked)
+    status: Optional[str] = None  # present, half_day, leave, or None (not marked)
     notes: Optional[str] = None
     
     class Config:
@@ -161,8 +161,8 @@ class ExaminerMonthlyAttendance(BaseModel):
     examiner_id: str = Field(alias="examinerId")
     user_role: str = Field(alias="userRole", default="examiner")
     total_days: int = Field(alias="totalDays")
-    days_present: int = Field(alias="daysPresent")
-    days_absent: int = Field(alias="daysAbsent")
+    days_present: float = Field(alias="daysPresent")
+    days_half_day: int = Field(alias="daysHalfDay", default=0)
     days_leave: int = Field(alias="daysLeave")
     days_not_marked: int = Field(alias="daysNotMarked")
     daily_records: List[DailyAttendanceRecord] = Field(alias="dailyRecords")

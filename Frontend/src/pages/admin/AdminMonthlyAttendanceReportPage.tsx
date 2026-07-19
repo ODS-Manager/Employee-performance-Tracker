@@ -24,7 +24,7 @@ interface TeamLeadMonthlyAttendance {
   employeeId: string
   totalDays: number
   daysPresent: number
-  daysAbsent: number
+  daysHalfDay: number
   daysLeave: number
   daysNotMarked: number
   dailyRecords: { date: string; status: string | null }[]
@@ -99,14 +99,14 @@ export const AdminMonthlyAttendanceReportPage = () => {
 
   const getStatusDisplay = (status: string | null): string => {
     if (status === 'present') return 'P'
-    if (status === 'absent') return 'A'
+    if (status === 'half_day') return 'HD'
     if (status === 'leave') return 'L'
     return 'N'
   }
 
   const getStatusColor = (status: string | null): string => {
     if (status === 'present') return 'text-green-600 font-bold'
-    if (status === 'absent') return 'text-red-600 font-bold'
+    if (status === 'half_day') return 'text-orange-600 font-bold'
     if (status === 'leave') return 'text-amber-600 font-bold'
     return 'text-slate-400'
   }
@@ -115,7 +115,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
     if (!report) return
 
     const days = generateDaysForMonth()
-    const headers = ['Team Lead Name', 'Employee ID', 'Total Days', 'Present (P)', 'Absent (A)', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
+    const headers = ['Team Lead Name', 'Employee ID', 'Total Days', 'Present Units', 'Half Days (0.5)', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
 
     const rows = report.examiners.map((emp: TeamLeadMonthlyAttendance) => {
       const row = [
@@ -123,7 +123,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
         emp.employeeId || 'N/A',
         emp.totalDays,
         emp.daysPresent,
-        emp.daysAbsent,
+        emp.daysHalfDay,
         emp.daysLeave,
         emp.daysNotMarked,
         ...emp.dailyRecords.map(r => getStatusDisplay(r.status))
@@ -216,7 +216,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-red-100 text-red-700 font-bold text-xs">A</span>
-                    <span className="text-slate-600">Absent</span>
+                    <span className="text-slate-600">Half Day (HD = 0.5)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-amber-100 text-amber-700 font-bold text-xs">L</span>
@@ -283,7 +283,7 @@ export const AdminMonthlyAttendanceReportPage = () => {
                             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-semibold text-xs">{examiner.daysPresent}</span>
                           </td>
                           <td className="text-center p-2 border-r">
-                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-semibold text-xs">{examiner.daysAbsent}</span>
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold text-xs">{examiner.daysHalfDay}</span>
                           </td>
                           <td className="text-center p-2 border-r">
                             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold text-xs">{examiner.daysLeave}</span>

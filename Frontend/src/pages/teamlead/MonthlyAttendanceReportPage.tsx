@@ -114,14 +114,14 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
 
   const getStatusDisplay = (status: string | null): string => {
     if (status === 'present') return 'P'
-    if (status === 'absent') return 'A'
+    if (status === 'half_day') return 'HD'
     if (status === 'leave') return 'L'
     return 'N' // Not marked
   }
 
   const getStatusColor = (status: string | null): string => {
     if (status === 'present') return 'text-green-600 font-bold'
-    if (status === 'absent') return 'text-red-600 font-bold'
+    if (status === 'half_day') return 'text-orange-600 font-bold'
     if (status === 'leave') return 'text-amber-600 font-bold'
     return 'text-slate-400' // Not marked
   }
@@ -130,14 +130,14 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
     if (!report) return
 
     const days = generateDaysForMonth()
-    const headers = ['Employee Name', 'Total Days', 'Present (P)', 'Absent (A)', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
+    const headers = ['Employee Name', 'Total Days', 'Present Units', 'Half Days (0.5)', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
     
     const rows = report.examiners.map(emp => {
       const row = [
         emp.userName || 'N/A',
         emp.totalDays,
         emp.daysPresent,
-        emp.daysAbsent,
+        emp.daysHalfDay,
         emp.daysLeave,
         emp.daysNotMarked,
         ...emp.dailyRecords.map(r => getStatusDisplay(r.status))
@@ -354,7 +354,7 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-red-100 text-red-700 font-bold text-xs">A</span>
-                    <span className="text-slate-600">Absent</span>
+                    <span className="text-slate-600">Half Day (HD = 0.5)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-amber-100 text-amber-700 font-bold text-xs">L</span>
@@ -445,10 +445,10 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
                             </span>
                           </td>
 
-                          {/* Absent Count */}
+                          {/* Half-day Count */}
                           <td className="text-center p-2 border-r">
                             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-semibold text-xs">
-                              {examiner.daysAbsent}
+                              {examiner.daysHalfDay}
                             </span>
                           </td>
 

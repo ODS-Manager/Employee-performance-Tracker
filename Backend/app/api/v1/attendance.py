@@ -47,7 +47,7 @@ def mark_attendance(
     service = AttendanceService(db)
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Check if current user is lead of the team (via Team.team_lead_id or UserTeam.role='lead')
         if not is_team_lead_of(current_user.id, data.team_id, db):
             raise HTTPException(
@@ -78,7 +78,7 @@ def mark_attendance_bulk(
     service = AttendanceService(db)
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not is_team_lead_of(current_user.id, data.team_id, db):
             raise HTTPException(
                 status_code=403,
@@ -107,7 +107,7 @@ def get_daily_roster(
     service = AttendanceService(db)
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=403,
@@ -146,7 +146,7 @@ def get_examiner_attendance(
             detail="You can only view your own attendance"
         )
     
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         # Check if user is in team lead's team
         from app.models.user_team import UserTeam
         
@@ -182,7 +182,7 @@ def get_team_attendance_report(
     service = AttendanceService(db)
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=403,
@@ -209,7 +209,7 @@ def update_attendance(
         raise HTTPException(status_code=404, detail="Attendance record not found")
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not is_team_lead_of(current_user.id, record.team_id, db):
             raise HTTPException(
                 status_code=403,
@@ -241,7 +241,7 @@ def get_team_monthly_attendance_detail(
     service = AttendanceService(db)
     
     # Authorization check for team leads
-    if current_user.user_role == "team_lead":
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
         if not is_team_lead_of(current_user.id, team_id, db):
             raise HTTPException(
                 status_code=403,
@@ -343,7 +343,7 @@ def get_team_leads_monthly_attendance(
         User.is_active == True
     )
     
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         query = query.filter(User.org_id == current_user.org_id)
     
     team_leads = query.all()
@@ -376,10 +376,17 @@ def get_team_leads_monthly_attendance(
     examiners_data = []
     for tl in team_leads:
         user_records = records_by_user.get(tl.id, [])
-        days_present = sum(1 for r in user_records if r.status == 'present' and r.date.weekday() <= 4)
-        days_absent = sum(1 for r in user_records if r.status == 'absent' and r.date.weekday() <= 4)
+        days_present = sum(
+            1 if r.status == 'present' else 0.5
+            for r in user_records
+            if r.status in ('present', 'half_day') and r.date.weekday() <= 4
+        )
+        days_half_day = sum(1 for r in user_records if r.status == 'half_day' and r.date.weekday() <= 4)
         days_leave = sum(1 for r in user_records if r.status == 'leave' and r.date.weekday() <= 4)
-        days_not_marked = working_days - days_present - days_absent - days_leave
+        days_not_marked = working_days - sum(
+            1 for r in user_records
+            if r.date.weekday() <= 4 and r.status in ('present', 'half_day', 'leave')
+        )
         
         # Build daily records
         daily_records = []
@@ -398,7 +405,7 @@ def get_team_leads_monthly_attendance(
             'examinerId': tl.examiner_id,
             'totalDays': working_days,
             'daysPresent': days_present,
-            'daysAbsent': days_absent,
+            'daysHalfDay': days_half_day,
             'daysLeave': days_leave,
             'daysNotMarked': days_not_marked,
             'dailyRecords': daily_records
@@ -443,13 +450,13 @@ def get_team_lead_attendance(
         raise HTTPException(status_code=400, detail="User is not a team lead")
     
     # Authorization check
-    if current_user.user_role == ROLE_TEAM_LEAD and current_user.id != user_id:
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD and current_user.id != user_id:
         raise HTTPException(
             status_code=403,
             detail="You can only view your own attendance"
         )
     
-    if current_user.user_role == ROLE_ADMIN:
+    if current_user.user_role.lower() == ROLE_ADMIN:
         if target_user.org_id != current_user.org_id:
             raise HTTPException(
                 status_code=403,

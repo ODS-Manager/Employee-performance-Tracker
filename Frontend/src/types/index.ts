@@ -665,7 +665,7 @@ export interface ExaminerProductivity {
   period: ProductivityPeriod
   attendance?: {
     daysPresent: number
-    daysAbsent: number
+    daysHalfDay: number
     daysLeave: number
     attendancePercent: number
   }
@@ -995,7 +995,7 @@ export interface ExaminerTargetHistoryResponse {
 // ============ Attendance Types ============
 export enum AttendanceStatus {
   PRESENT = 'present',
-  ABSENT = 'absent',
+  HALF_DAY = 'half_day',
   LEAVE = 'leave'
 }
 
@@ -1054,7 +1054,7 @@ export interface DailyRosterResponse {
   examiners: DailyRosterExaminer[]
   summary: {
     present: number
-    absent: number
+    half_day: number
     leave: number
     not_marked: number
   }
@@ -1068,7 +1068,7 @@ export interface AttendanceSummary {
   endDate: string
   workingDays: number
   daysPresent: number
-  daysAbsent: number
+  daysHalfDay: number
   daysLeave: number
   attendancePercent: number
   records?: AttendanceRecord[]
@@ -1083,7 +1083,7 @@ export interface TeamAttendanceReport {
   examiners: AttendanceSummary[]
   teamSummary: {
     total_present: number
-    total_absent: number
+    total_half_day: number
     total_leave: number
     examiner_count: number
   }
@@ -1116,7 +1116,7 @@ export interface ExaminerMonthlyAttendance {
   employeeId: string
   totalDays: number
   daysPresent: number
-  daysAbsent: number
+  daysHalfDay: number
   daysLeave: number
   daysNotMarked: number
   dailyRecords: DailyAttendanceRecord[]

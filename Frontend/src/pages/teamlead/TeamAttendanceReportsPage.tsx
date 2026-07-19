@@ -103,12 +103,12 @@ export const TeamAttendanceReportsPage: React.FC = () => {
     if (!report) return
 
     const examiners = report.examiners || []
-    const headers = ['Employee Name', 'Working Days', 'Days Present', 'Days Absent', 'Days Leave', 'Attendance %']
+    const headers = ['Employee Name', 'Working Days', 'Present Units', 'Half Days', 'Days Leave', 'Attendance %']
     const rows = examiners.map(emp => [
       emp.userName || 'N/A',
       emp.workingDays,
       emp.daysPresent,
-      emp.daysAbsent,
+      emp.daysHalfDay,
       emp.daysLeave,
       emp.attendancePercent.toFixed(2)
     ])
@@ -364,13 +364,13 @@ export const TeamAttendanceReportsPage: React.FC = () => {
 
                 <Card className="hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-600">Total Absent</CardTitle>
+                    <CardTitle className="text-sm font-medium text-slate-600">Total Half Days</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-red-600">
-                      {report.teamSummary?.total_absent ?? 0}
+                      {report.teamSummary?.total_half_day ?? 0}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Days unmarked / absent</p>
+                    <p className="text-xs text-slate-500 mt-1">Each counts as 0.5</p>
                   </CardContent>
                 </Card>
 
@@ -407,7 +407,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                           <th className="text-left p-4 font-medium text-sm text-slate-600">Employee</th>
                           <th className="text-center p-4 font-medium text-sm text-slate-600">Working Days</th>
                           <th className="text-center p-4 font-medium text-sm text-slate-600">Present</th>
-                          <th className="text-center p-4 font-medium text-sm text-slate-600">Absent</th>
+                          <th className="text-center p-4 font-medium text-sm text-slate-600">Half Days</th>
                           <th className="text-center p-4 font-medium text-sm text-slate-600">Leave</th>
                           <th className="text-center p-4 font-medium text-sm text-slate-600">Attendance %</th>
                         </tr>
@@ -441,7 +441,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                             </td>
                             <td className="p-4 text-center">
                               <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-red-100 text-red-800 font-medium text-sm">
-                                {examiner.daysAbsent}
+                                {examiner.daysHalfDay}
                               </span>
                             </td>
                             <td className="p-4 text-center">
