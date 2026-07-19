@@ -76,7 +76,7 @@ class ProductivityService:
         has an attendance record with status = 'present'.
 
         Weekends (Saturday=5, Sunday=6 in Python's weekday()) are always excluded.
-        Half-days count as 0.5; leave and unmarked days are NOT counted.
+        Half-days count as half a day; leave and unmarked days are NOT counted.
 
         Returns:
             Integer count of present weekdays.

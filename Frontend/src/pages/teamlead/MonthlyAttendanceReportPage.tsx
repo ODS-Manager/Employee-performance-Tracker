@@ -130,7 +130,7 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
     if (!report) return
 
     const days = generateDaysForMonth()
-    const headers = ['Employee Name', 'Total Days', 'Present Units', 'Half Days (0.5)', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
+    const headers = ['Employee Name', 'Total Days', 'Present Units', 'Half Days', 'Leave (L)', 'Not Marked (N)', ...days.map(d => String(d.day).padStart(2, '0'))]
     
     const rows = report.examiners.map(emp => {
       const row = [
@@ -354,7 +354,7 @@ export const MonthlyAttendanceReportPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-red-100 text-red-700 font-bold text-xs">A</span>
-                    <span className="text-slate-600">Half Day (HD = 0.5)</span>
+                    <span className="text-slate-600">Half Day</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-amber-100 text-amber-700 font-bold text-xs">L</span>

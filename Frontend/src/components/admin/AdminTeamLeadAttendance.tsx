@@ -172,7 +172,7 @@ export const AdminTeamLeadAttendance = () => {
       case 'present':
         return <Badge className="bg-green-500">Present</Badge>
       case 'half_day':
-        return <Badge className="bg-orange-500">Half Day (0.5)</Badge>
+        return <Badge className="bg-orange-500">Half Day</Badge>
       case 'leave':
         return <Badge className="bg-yellow-500">Leave</Badge>
       default:
@@ -303,7 +303,7 @@ export const AdminTeamLeadAttendance = () => {
                           className={currentStatus === 'half_day' ? 'bg-orange-600 hover:bg-orange-700' : ''}
                         >
                           <Clock className="h-4 w-4 mr-1" />
-                          Half Day (0.5)
+                          Half Day
                         </Button>
                         <Button
                           size="sm"

@@ -397,7 +397,7 @@ export const ExaminerPerformancePage = () => {
                         <Clock className="h-8 w-8 text-orange-600" />
                         <div>
                           <p className="text-sm font-medium text-slate-700">Half Days</p>
-                          <p className="text-xs text-muted-foreground">Each counts as 0.5</p>
+                          <p className="text-xs text-muted-foreground">Partial attendance days</p>
                         </div>
                       </div>
                       <div className="text-2xl font-bold text-orange-600">{productivity?.attendance?.daysHalfDay || 0}</div>

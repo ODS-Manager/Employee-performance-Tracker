@@ -370,7 +370,7 @@ export const TeamAttendanceReportsPage: React.FC = () => {
                     <div className="text-3xl font-bold text-red-600">
                       {report.teamSummary?.total_half_day ?? 0}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Each counts as 0.5</p>
+                    <p className="text-xs text-slate-500 mt-1">Partial attendance days</p>
                   </CardContent>
                 </Card>
 

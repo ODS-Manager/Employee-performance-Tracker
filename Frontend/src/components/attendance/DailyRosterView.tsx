@@ -361,7 +361,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                           <SelectContent>
                             <SelectItem value="not_marked">Not Marked</SelectItem>
                             <SelectItem value={AttendanceStatus.PRESENT}>Present</SelectItem>
-                            <SelectItem value={AttendanceStatus.HALF_DAY}>Half Day (0.5)</SelectItem>
+                            <SelectItem value={AttendanceStatus.HALF_DAY}>Half Day</SelectItem>
                             <SelectItem value={AttendanceStatus.LEAVE}>Leave</SelectItem>
                           </SelectContent>
                         </Select>
