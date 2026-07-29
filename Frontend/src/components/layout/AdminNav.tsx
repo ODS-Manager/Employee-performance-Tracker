@@ -61,6 +61,7 @@ const navItems: NavItem[] = [
     description: 'Attendance management',
     dropdown: [
       { path: '/admin/attendance/team-leads', label: 'Mark Attendance', icon: CheckCircle2 },
+      { path: '/admin/attendance/employees', label: 'Employee Attendance', icon: Users },
       { path: '/admin/attendance/monthly-report', label: 'Monthly Report', icon: CheckCircle2 },
     ]
   },
@@ -92,6 +93,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/admin/productivity': { label: 'Productivity', parent: '/admin/dashboard' },
   '/admin/attendance': { label: 'Attendance', parent: '/admin/dashboard' },
   '/admin/attendance/team-leads': { label: 'Team Lead Attendance', parent: '/admin/attendance' },
+  '/admin/attendance/employees': { label: 'Employee Attendance', parent: '/admin/attendance' },
   '/admin/attendance/monthly-report': { label: 'Monthly Report', parent: '/admin/attendance' },
   '/admin/team-lead-targets': { label: 'Team Lead Targets', parent: '/admin/examiner-targets' },
   '/admin/reference-data': { label: 'Reference Data', parent: '/admin/dashboard' },

@@ -199,6 +199,30 @@ class AttendanceService:
                 continue
         
         return results
+
+    def unmark_attendance(
+        self,
+        record: AttendanceRecord,
+        changed_by: int
+    ) -> None:
+        """Remove a saved attendance status and retain an audit entry for the change."""
+        self._validate_not_future(record.date)
+
+        # The audit row must not reference the record because the record is being
+        # deleted and its foreign key is configured with ON DELETE CASCADE.
+        self._log_audit(
+            None,
+            record.user_id,
+            record.team_id,
+            record.date,
+            record.status,
+            "not_marked",
+            changed_by,
+            "delete",
+            record.notes,
+        )
+        self.db.delete(record)
+        self.db.commit()
     
     def get_daily_roster(
         self,
@@ -237,6 +261,8 @@ class AttendanceService:
         for attendance in attendance_records:
             if attendance.marked_by:
                 marked_by_ids.add(attendance.marked_by)
+            if attendance.modified_by:
+                marked_by_ids.add(attendance.modified_by)
         
         marked_by_users = {}
         if marked_by_ids:
@@ -257,6 +283,9 @@ class AttendanceService:
                 marked_by_user = marked_by_users.get(attendance.marked_by)
                 marked_by_name = marked_by_user.user_name if marked_by_user else None
                 marked_at = attendance.marked_at
+                modified_by_user = marked_by_users.get(attendance.modified_by)
+                modified_by_name = modified_by_user.user_name if modified_by_user else None
+                modified_at = attendance.modified_at
                 if status in summary:
                     summary[status] += 1
                 else:
@@ -268,18 +297,22 @@ class AttendanceService:
                 notes = None
                 marked_by_name = None
                 marked_at = None
+                modified_by_name = None
+                modified_at = None
                 summary["not_marked"] += 1
             
             examiners.append(DailyRosterExaminer(
                 userId=user.id,
                 userName=user.user_name,
-                examinerId=user.examiner_id,
+                employeeId=user.examiner_id,
                 userRole=user.user_role,
                 status=status,
                 attendanceId=attendance_id,
                 notes=notes,
                 markedByName=marked_by_name,
-                markedAt=marked_at
+                markedAt=marked_at,
+                modifiedByName=modified_by_name,
+                modifiedAt=modified_at
             ))
         
         return DailyRosterResponse(

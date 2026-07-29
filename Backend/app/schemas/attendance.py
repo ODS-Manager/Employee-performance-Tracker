@@ -76,13 +76,15 @@ class DailyRosterExaminer(BaseModel):
     """Examiner info for daily roster"""
     user_id: int = Field(alias="userId")
     user_name: str = Field(alias="userName")
-    examiner_id: str = Field(alias="examinerId")
+    examiner_id: str = Field(alias="employeeId")
     user_role: str = Field(alias="userRole", default="examiner")
     status: Optional[str] = None  # None means not marked
     attendance_id: Optional[int] = Field(alias="attendanceId", default=None)
     notes: Optional[str] = None
     marked_by_name: Optional[str] = Field(alias="markedByName", default=None)
     marked_at: Optional[datetime] = Field(alias="markedAt", default=None)
+    modified_by_name: Optional[str] = Field(alias="modifiedByName", default=None)
+    modified_at: Optional[datetime] = Field(alias="modifiedAt", default=None)
     
     class Config:
         populate_by_name = True

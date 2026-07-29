@@ -28,6 +28,8 @@ from app.core.dependencies import (
     require_admin,
     is_team_lead_of,
     get_user_teams,
+    check_team_access,
+    check_org_access,
     ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_TEAM_LEAD, ROLE_EXAMINER
 )
 
@@ -46,14 +48,16 @@ def mark_attendance(
     """
     service = AttendanceService(db)
     
-    # Authorization check for team leads
+    # Team leads can mark only teams they lead; admins are restricted to their
+    # own organization and superadmins may access every organization.
     if current_user.user_role.lower() == ROLE_TEAM_LEAD:
-        # Check if current user is lead of the team (via Team.team_lead_id or UserTeam.role='lead')
         if not is_team_lead_of(current_user.id, data.team_id, db):
             raise HTTPException(
                 status_code=403,
                 detail="You can only mark attendance for your own team"
             )
+    elif not check_team_access(current_user, data.team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     return service.mark_attendance_single(
         user_id=data.user_id,
@@ -84,6 +88,8 @@ def mark_attendance_bulk(
                 status_code=403,
                 detail="You can only mark attendance for your own team"
             )
+    elif not check_team_access(current_user, data.team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     return service.mark_attendance_bulk(
         team_id=data.team_id,
@@ -113,14 +119,22 @@ def get_daily_roster(
                 status_code=403,
                 detail="You can only view roster for your own team"
             )
+    elif not check_team_access(current_user, team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     roster = service.get_daily_roster(team_id=team_id, check_date=date)
     
-    # If team lead is viewing, filter to show only examiners
-    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
-        # Filter examiners to only include those with examiner role
+    # The daily employee roster excludes team leads, whose attendance is managed
+    # from the dedicated admin team-lead attendance screen.
+    if current_user.user_role.lower() in (ROLE_TEAM_LEAD, ROLE_ADMIN, ROLE_SUPERADMIN):
         filtered_examiners = [e for e in roster.examiners if e.user_role == ROLE_EXAMINER]
         roster.examiners = filtered_examiners
+        roster.summary = {
+            "present": sum(1 for examiner in filtered_examiners if examiner.status == "present"),
+            "half_day": sum(1 for examiner in filtered_examiners if examiner.status == "half_day"),
+            "leave": sum(1 for examiner in filtered_examiners if examiner.status == "leave"),
+            "not_marked": sum(1 for examiner in filtered_examiners if not examiner.status),
+        }
     
     return roster
 
@@ -164,6 +178,10 @@ def get_examiner_attendance(
                 status_code=403,
                 detail="You can only view attendance for your team members"
             )
+    elif current_user.user_role.lower() == ROLE_ADMIN:
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if not target_user or not check_org_access(current_user, target_user.org_id):
+            raise HTTPException(status_code=403, detail="You do not have access to this employee")
     
     return service.get_examiner_attendance_summary(user_id, start_date, end_date)
 
@@ -188,6 +206,8 @@ def get_team_attendance_report(
                 status_code=403,
                 detail="You can only generate reports for your own team"
             )
+    elif not check_team_access(current_user, team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     return service.get_team_attendance_report(team_id, start_date, end_date)
 
@@ -215,6 +235,8 @@ def update_attendance(
                 status_code=403,
                 detail="You can only update attendance for your own team"
             )
+    elif not check_team_access(current_user, record.team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     service = AttendanceService(db)
     return service.mark_attendance_single(
@@ -225,6 +247,27 @@ def update_attendance(
         marked_by=current_user.id,
         notes=data.notes
     )
+
+
+@router.delete("/{record_id}")
+def unmark_attendance(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_team_lead_or_admin)
+):
+    """Clear a saved attendance status for a current or past date."""
+    record = db.query(AttendanceRecord).filter(AttendanceRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+
+    if current_user.user_role.lower() == ROLE_TEAM_LEAD:
+        if not is_team_lead_of(current_user.id, record.team_id, db):
+            raise HTTPException(status_code=403, detail="You can only update attendance for your own team")
+    elif not check_team_access(current_user, record.team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
+
+    AttendanceService(db).unmark_attendance(record, current_user.id)
+    return {"message": "Attendance cleared successfully"}
 
 
 @router.get("/team/{team_id}/monthly-detail", response_model=TeamMonthlyAttendanceReport)
@@ -247,6 +290,8 @@ def get_team_monthly_attendance_detail(
                 status_code=403,
                 detail="You can only view attendance for your own team"
             )
+    elif not check_team_access(current_user, team_id, db):
+        raise HTTPException(status_code=403, detail="You do not have access to this team")
     
     report = service.get_team_monthly_attendance_detail(team_id, start_date, end_date)
     

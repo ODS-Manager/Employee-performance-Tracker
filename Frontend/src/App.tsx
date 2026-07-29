@@ -36,6 +36,7 @@ import ProductivityReportsPage from './pages/admin/ProductivityReportsPage'
 import ExaminerTargetsPage from './pages/admin/ExaminerTargetsPage'
 import TeamLeadTargetsPage from './pages/admin/TeamLeadTargetsPage'
 import AdminTeamLeadAttendancePage from './pages/admin/AdminTeamLeadAttendancePage'
+import AdminEmployeeAttendancePage from './pages/admin/AdminEmployeeAttendancePage'
 import AdminMonthlyAttendanceReportPage from './pages/admin/AdminMonthlyAttendanceReportPage'
 import TeamAttendancePage from './pages/teamlead/TeamAttendancePage'
 import TeamAttendanceReportsPage from './pages/teamlead/TeamAttendanceReportsPage'
@@ -250,6 +251,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
                   <AdminTeamLeadAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/attendance/employees"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'superadmin']}>
+                  <AdminEmployeeAttendancePage />
                 </ProtectedRoute>
               }
             />

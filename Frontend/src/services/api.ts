@@ -1336,6 +1336,12 @@ export const attendanceApi = {
     return response.data
   },
 
+  // Clear a saved attendance status so it returns to "Not Marked"
+  unmarkAttendance: async (recordId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/attendance/${recordId}`)
+    return response.data
+  },
+
   // Get team monthly attendance detail with daily breakdown
   getTeamMonthlyAttendanceDetail: async (
     teamId: number,

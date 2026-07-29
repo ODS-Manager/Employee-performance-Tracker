@@ -1045,6 +1045,8 @@ export interface DailyRosterExaminer {
   notes?: string
   markedByName?: string
   markedAt?: string
+  modifiedByName?: string
+  modifiedAt?: string
 }
 
 export interface DailyRosterResponse {

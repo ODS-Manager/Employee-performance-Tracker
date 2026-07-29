@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, Save, UserCheck, Loader2, Calendar as Calend
 import { attendanceApi } from '../../services/api'
 import { AttendanceStatus, DailyRosterExaminer, DailyRosterResponse } from '../../types'
 import { format, addDays, subDays } from 'date-fns'
-import { formatStoredDate, getPacificTodayDate } from '../../utils/helpers'
+import { formatStoredDate, getPacificTodayDate, parseStoredDateToUtcDate } from '../../utils/helpers'
 import toast from 'react-hot-toast'
 
 interface DailyRosterViewProps {
@@ -24,6 +24,14 @@ interface EmployeeAttendanceState {
   attendanceId?: number
 }
 
+const attendanceStateChanged = (
+  current: EmployeeAttendanceState,
+  original?: EmployeeAttendanceState
+) => {
+  if (!original) return current.status !== 'not_marked' || Boolean(current.notes)
+  return current.status !== original.status || current.notes !== original.notes
+}
+
 export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   teamId,
   teamName,
@@ -34,6 +42,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [attendanceStates, setAttendanceStates] = useState<Record<number, EmployeeAttendanceState>>({})
+  const [savedAttendanceStates, setSavedAttendanceStates] = useState<Record<number, EmployeeAttendanceState>>({})
 
   // Load roster data
   useEffect(() => {
@@ -61,6 +70,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
         }
       })
       setAttendanceStates(states)
+      setSavedAttendanceStates(states)
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to load roster')
     } finally {
@@ -80,6 +90,14 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
       setSelectedDate(nextDay)
       onDateChange?.(nextDay)
     }
+  }
+
+  const handleDateSelection = (value: string) => {
+    if (!value) return
+    const nextDate = parseStoredDateToUtcDate(value)
+    if (!nextDate || nextDate > getPacificTodayDate()) return
+    setSelectedDate(nextDate)
+    onDateChange?.(nextDate)
   }
 
   const updateEmployeeStatus = (userId: number, status: AttendanceStatus | 'not_marked') => {
@@ -103,44 +121,65 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
   }
 
   const handleMarkAllPresent = () => {
-    const newStates = { ...attendanceStates }
-    Object.keys(newStates).forEach((key) => {
-      newStates[parseInt(key)].status = AttendanceStatus.PRESENT
-    })
-    setAttendanceStates(newStates)
+    setAttendanceStates((previous) => Object.fromEntries(
+      Object.entries(previous).map(([userId, state]) => [
+        userId,
+        { ...state, status: AttendanceStatus.PRESENT },
+      ])
+    ))
   }
 
   const handleMarkAllHalfDay = () => {
-    const newStates = { ...attendanceStates }
-    Object.keys(newStates).forEach((key) => {
-      newStates[parseInt(key)].status = AttendanceStatus.HALF_DAY
-    })
-    setAttendanceStates(newStates)
+    setAttendanceStates((previous) => Object.fromEntries(
+      Object.entries(previous).map(([userId, state]) => [
+        userId,
+        { ...state, status: AttendanceStatus.HALF_DAY },
+      ])
+    ))
   }
 
   const handleClearAll = () => {
-    const newStates = { ...attendanceStates }
-    Object.keys(newStates).forEach((key) => {
-      newStates[parseInt(key)].status = 'not_marked'
-      newStates[parseInt(key)].notes = ''
-    })
-    setAttendanceStates(newStates)
+    setAttendanceStates((previous) => Object.fromEntries(
+      Object.entries(previous).map(([userId, state]) => [
+        userId,
+        { ...state, status: 'not_marked', notes: '' },
+      ])
+    ))
   }
 
   const handleSave = async () => {
     setSaving(true)
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd')
-      
-      // Save each employee's attendance
-      const promises = Object.values(attendanceStates).map(async (state) => {
+
+      const changedStates = Object.values(attendanceStates).filter((state) =>
+        attendanceStateChanged(state, savedAttendanceStates[state.userId])
+      )
+
+      if (changedStates.length === 0) {
+        toast.success('No attendance changes to save')
+        return
+      }
+
+      const promises = changedStates.map(async (state) => {
         if (state.status === 'not_marked') {
-          return // Skip unmarked
+          if (state.attendanceId) {
+            await attendanceApi.unmarkAttendance(state.attendanceId)
+          }
+          return
+        }
+
+        if (state.attendanceId) {
+          await attendanceApi.updateAttendance(state.attendanceId, {
+            status: state.status as AttendanceStatus,
+            notes: state.notes || undefined,
+          })
+          return
         }
 
         await attendanceApi.markAttendance({
           userId: state.userId,
-          teamId: teamId,
+          teamId,
           date: dateStr,
           status: state.status as AttendanceStatus,
           notes: state.notes || undefined,
@@ -149,7 +188,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
 
       await Promise.all(promises)
 
-      toast.success('Attendance saved successfully')
+      toast.success('Attendance changes saved successfully')
 
       // Reload roster to get updated data
       await loadRoster()
@@ -231,6 +270,18 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
               <div className="min-w-[180px] text-center">
                 <div className="font-medium text-sm text-slate-900">
                   {formatStoredDate(selectedDate.toISOString().slice(0, 10), 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+                <label className="sr-only" htmlFor={`attendance-date-${teamId}`}>Attendance date</label>
+                <div className="mt-1 flex items-center justify-center gap-1 text-slate-500">
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  <input
+                    id={`attendance-date-${teamId}`}
+                    type="date"
+                    value={selectedDate.toISOString().slice(0, 10)}
+                    max={getPacificTodayDate().toISOString().slice(0, 10)}
+                    onChange={(event) => handleDateSelection(event.target.value)}
+                    className="bg-transparent text-xs outline-none"
+                  />
                 </div>
               </div>
               <Button
@@ -340,6 +391,11 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                                 Marked by {employee.markedByName}
                               </div>
                             )}
+                            {employee.modifiedByName && (
+                              <div className="text-xs text-slate-500 mt-1">
+                                Last updated by {employee.modifiedByName}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -436,7 +492,7 @@ export const DailyRosterView: React.FC<DailyRosterViewProps> = ({
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    Save All Changes
+                    Save Changes
                   </>
                 )}
               </Button>
